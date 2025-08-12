@@ -1,0 +1,23 @@
+{
+  "week": 1,
+  "deadline": "2025-09-04T14:00:00-05:00",
+  "games": [
+    { "id": "DAL@PHI", "away": "Cowboys", "home": "Eagles" },
+    { "id": "KC@LAC", "away": "Chiefs", "home": "Chargers" },
+    { "id": "TB@ATL", "away": "Buccaneers", "home": "Falcons" },
+    { "id": "CIN@CLE", "away": "Bengals", "home": "Browns" },
+    { "id": "MIA@IND", "away": "Dolphins", "home": "Colts" },
+    { "id": "CAR@JAX", "away": "Panthers", "home": "Jaguars" },
+    { "id": "LV@NE", "away": "Raiders", "home": "Patriots" },
+    { "id": "ARI@NO", "away": "Cardinals", "home": "Saints" },
+    { "id": "PIT@NYJ", "away": "Steelers", "home": "Jets" },
+    { "id": "NYG@WAS", "away": "Giants", "home": "Commanders" },
+    { "id": "TEN@DEN", "away": "Titans", "home": "Broncos" },
+    { "id": "SF@SEA", "away": "49ers", "home": "Seahawks" },
+    { "id": "DET@GB", "away": "Lions", "home": "Packers" },
+    { "id": "HOU@LAR", "away": "Texans", "home": "Rams" },
+    { "id": "BAL@BUF", "away": "Ravens", "home": "Bills" },
+    { "id": "MIN@CHI", "away": "Vikings", "home": "Bears" }
+  ],
+  "tiebreakers": ["DAL@PHI", "BAL@BUF", "MIN@CHI"]
+}
