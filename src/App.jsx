@@ -3,18 +3,58 @@ import React, { useEffect, useMemo, useState } from "react";
 const FORMSPREE_ENDPOINT = "https://formspree.io/f/xovlredw"; // direct submit
 const RECIPIENT_EMAIL = "aperez01@live.com";                   // fallback mailto
 
+// Map official full team names to short slugs for logo filenames.
+// Place PNGs in: /public/logos/<slug>.png  (all lowercase; see list in your logos folder)
+const teamLogoSlug = {
+  "Arizona Cardinals": "cardinals",
+  "Atlanta Falcons": "falcons",
+  "Baltimore Ravens": "ravens",
+  "Buffalo Bills": "bills",
+  "Carolina Panthers": "panthers",
+  "Chicago Bears": "bears",
+  "Cincinnati Bengals": "bengals",
+  "Cleveland Browns": "browns",
+  "Dallas Cowboys": "cowboys",
+  "Denver Broncos": "broncos",
+  "Detroit Lions": "lions",
+  "Green Bay Packers": "packers",
+  "Houston Texans": "texans",
+  "Indianapolis Colts": "colts",
+  "Jacksonville Jaguars": "jaguars",
+  "Kansas City Chiefs": "chiefs",
+  "Las Vegas Raiders": "raiders",
+  "Los Angeles Chargers": "chargers",
+  "Los Angeles Rams": "rams",
+  "Miami Dolphins": "dolphins",
+  "Minnesota Vikings": "vikings",
+  "New England Patriots": "patriots",
+  "New Orleans Saints": "saints",
+  "New York Giants": "giants",
+  "New York Jets": "jets",
+  "Philadelphia Eagles": "eagles",
+  "Pittsburgh Steelers": "steelers",
+  "San Francisco 49ers": "49ers",
+  "Seattle Seahawks": "seahawks",
+  "Tampa Bay Buccaneers": "buccaneers",
+  "Tennessee Titans": "titans",
+  "Washington Commanders": "commanders"
+};
+
+function logoSrc(team) {
+  const slug = teamLogoSlug[team];
+  return slug ? `/logos/${slug}.png` : null;
+}
+
 export default function App() {
   const [week, setWeek] = useState({ week: "", deadline: "", games: [], tiebreakers: [] });
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState("");
 
   const [user, setUser] = useState({ name: "", email: "" });
-  // picks: { [gameId]: "AWAY" | "HOME" | "TIE" }
-  const [picks, setPicks] = useState({});
-  // tiebreakers: [{ gameId, total }]
-  const [tbs, setTbs] = useState([]);
+  const [picks, setPicks] = useState({});      // { [gameId]: "AWAY" | "HOME" | "TIE" }
+  const [tbs, setTbs] = useState([]);          // [{ gameId, total }]
 
-  // hover styles
+  // hover styles for buttons
   const [printBtnStyle, setPrintBtnStyle] = useState(styles.btn);
   const [submitBtnStyle, setSubmitBtnStyle] = useState(styles.btnPrimary);
 
@@ -60,16 +100,16 @@ export default function App() {
     e.preventDefault();
     if (!isValid) return;
 
-    // Build minimal, concise payload/body
+    // Only send concise data: winners + tiebreaker totals
     const concise = buildConciseSubmission({ user, week, picks, tiebreakers: tbs });
 
-    // Try Formspree first (emails you without opening an email app)
+    // Try Formspree first (no email app required)
     if (FORMSPREE_ENDPOINT) {
       try {
         const res = await fetch(FORMSPREE_ENDPOINT, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(concise), // only picks + tiebreakers in body
+          body: JSON.stringify(concise),
         });
         if (!res.ok) throw new Error(`Submit failed: ${res.status}`);
         alert("Submitted! Thank you.");
@@ -80,7 +120,7 @@ export default function App() {
       }
     }
 
-    // Fallback: mailto (also only picks + tiebreakers)
+    // Fallback: mailto (also only concise data)
     const subject = `Week ${week.week} — ${user.name} (${user.email})`;
     const body = formatConciseEmail(concise);
     const href = `mailto:${encodeURIComponent(RECIPIENT_EMAIL)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
@@ -204,8 +244,12 @@ export default function App() {
 }
 
 function GameRow({ game, index, pick, onPick }) {
+  const awayLogo = logoSrc(game.away);
+  const homeLogo = logoSrc(game.home);
+
   return (
     <div style={styles.gameRow}>
+      {/* Header ONLY text (no logos, to reduce clutter) */}
       <div>
         <div style={{ fontWeight: 700, fontSize: 16 }}>
           Game {index + 1}: {game.away} @ {game.home}
@@ -216,22 +260,58 @@ function GameRow({ game, index, pick, onPick }) {
           </div>
         )}
       </div>
+
+      {/* Picks: logos only for AWAY/HOME, small text for TIE */}
       <div style={styles.pickGroup}>
         {[
-          { v: "AWAY", label: game.away },
-          { v: "HOME", label: game.home },
-          { v: "TIE", label: "Tie" },
-        ].map((opt) => (
-          <label key={opt.v} style={styles.radioLabel}>
-            <input
-              type="radio"
-              name={`pick_${game.id}`}
-              checked={pick === opt.v}
-              onChange={() => onPick(game.id, opt.v)}
-            />
-            {opt.label}
-          </label>
-        ))}
+          { v: "AWAY", label: game.away, logo: awayLogo, title: `${game.away} (Away)` },
+          { v: "HOME", label: game.home, logo: homeLogo, title: `${game.home} (Home)` },
+          { v: "TIE",  label: "Tie",     logo: null,      title: "Tie" }
+        ].map((opt) => {
+          const isSelected = pick === opt.v;
+          const base = styles.logoButton;
+          const selected = isSelected ? styles.logoButtonSelected : {};
+          const hover = isSelected ? {} : styles.logoButtonHover;
+
+          return (
+            <label
+              key={opt.v}
+              style={{ ...base, ...selected }}
+              title={opt.title}
+              onMouseEnter={(e) => {
+                if (!isSelected) Object.assign(e.currentTarget.style, hover);
+              }}
+              onMouseLeave={(e) => {
+                // reset to base/selected on leave
+                Object.assign(e.currentTarget.style, { background: base.background, borderColor: base.border, transform: base.transform });
+                if (isSelected) {
+                  Object.assign(e.currentTarget.style, { borderColor: styles.logoButtonSelected.border });
+                }
+              }}
+            >
+              <input
+                type="radio"
+                name={`pick_${game.id}`}
+                checked={isSelected}
+                onChange={() => onPick(game.id, opt.v)}
+                style={styles.radioActual}
+                aria-label={opt.label}
+              />
+              {opt.logo ? (
+                <img
+                  src={opt.logo}
+                  alt={opt.label}
+                  style={styles.logoOnly}
+                  onError={(e)=>e.currentTarget.style.display='none'}
+                />
+              ) : (
+                <span style={styles.tiePill}>TIE</span>
+              )}
+              {/* visually-hidden text for screen readers */}
+              <span style={styles.srOnly}>{opt.label}</span>
+            </label>
+          );
+        })}
       </div>
     </div>
   );
@@ -251,19 +331,16 @@ function validate({ user, week, picks, tiebreakers }) {
   return e;
 }
 
-// Build ONLY the concise data we want to send/store
+// Build ONLY the concise data to email/store: winners + tiebreaker totals
 function buildConciseSubmission({ user, week, picks, tiebreakers }) {
-  // Convert picks object into pretty lines like "Cowboys @ Eagles → Cowboys"
   const games = week.games.map((g) => ({
     id: g.id,
     label: `${g.away} @ ${g.home}`,
     pick: picks[g.id] === "HOME" ? g.home : picks[g.id] === "AWAY" ? g.away : "Tie",
   }));
 
-  // Keep only games that have a selection
   const selected = games.filter((g) => !!picks[g.id]);
 
-  // Map tiebreakers to {label, total}
   const tbLines = tiebreakers.map((tb) => {
     const g = week.games.find((x) => x.id === tb.gameId);
     return {
@@ -274,13 +351,12 @@ function buildConciseSubmission({ user, week, picks, tiebreakers }) {
   });
 
   return {
-    _subject: `Week ${week.week} — ${user.name} (${user.email})`, // Formspree uses this as email subject
-    picks: selected.map((g) => `${g.label} → ${g.pick}`),          // array of strings
-    tiebreakers: tbLines.map((t) => `${t.label}: ${t.total} total`) // array of strings
+    _subject: `Week ${week.week} — ${user.name} (${user.email})`,
+    picks: selected.map((g) => `${g.label} → ${g.pick}`),
+    tiebreakers: tbLines.map((t) => `${t.label}: ${t.total} total`)
   };
 }
 
-// Very short body for mailto fallback
 function formatConciseEmail(concise) {
   const lines = [];
   lines.push("Picks:");
@@ -339,8 +415,8 @@ const styles = {
     padding: "10px 12px",
     border: "1px solid #9ca3af",
     borderRadius: 8,
-    background: "#333", // dark input background
-    color: "#fff",      // white text for contrast
+    background: "#333",
+    color: "#fff",
     width: "100%",
     boxSizing: "border-box"
   },
@@ -364,9 +440,63 @@ const styles = {
     transition: "background 0.2s",
   },
   btnPrimaryHover: { background: "#333" },
-  gameRow: { display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 0", borderBottom: "1px solid #eee" },
-  pickGroup: { display: "flex", gap: 14, alignItems: "center" },
-  radioLabel: { display: "inline-flex", gap: 6, alignItems: "center", fontSize: 14 },
-  tbRow: { display: "flex", alignItems: "center", gap: 10, padding: "4px 0" },
-  tbLabel: { width: 360, fontSize: 14, fontWeight: 600 },
+
+  gameRow: { display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 0", borderBottom: "1px solid #eee", gap: 12 },
+  pickGroup: { display: "flex", gap: 10, alignItems: "center" },
+  radioLabel: { display: "inline-flex", alignItems: "center" },
+
+  // Logo-only radio buttons
+  radioActual: {
+    position: "absolute",
+    opacity: 0,
+    pointerEvents: "none"
+  },
+  logoOnly: {
+    height: 28,
+    width: 28,
+    objectFit: "contain",
+    display: "block"
+  },
+  logoButton: {
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    height: 40,
+    width: 40,
+    borderRadius: 12,
+    border: "1px solid #ddd",
+    background: "#fff",
+    cursor: "pointer",
+    transition: "transform 0.1s, background 0.2s, border-color 0.2s"
+  },
+  logoButtonHover: {
+    background: "#f7f7f7",
+    transform: "translateY(-1px)"
+  },
+  logoButtonSelected: {
+    border: "#111 solid 2px"
+  },
+  tiePill: {
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    height: 28,
+    minWidth: 28,
+    padding: "0 8px",
+    borderRadius: 999,
+    background: "#eee",
+    color: "#111",
+    fontSize: 12
+  },
+  srOnly: {
+    position: "absolute",
+    width: 1,
+    height: 1,
+    padding: 0,
+    margin: -1,
+    overflow: "hidden",
+    clip: "rect(0,0,0,0)",
+    whiteSpace: "nowrap",
+    border: 0
+  }
 };
