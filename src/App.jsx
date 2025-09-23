@@ -97,84 +97,73 @@ export default function App() {
   }
 
   // Build ONLY the concise data to email/store: winners + tiebreaker totals
-  function buildConciseSubmission({ user, week, picks, tiebreakers }) {
-    const games = week.games.map((g) => ({
-      id: g.id,
-      label: `${g.away} @ ${g.home}`,
-      pick: picks[g.id] === "HOME" ? g.home : picks[g.id] === "AWAY" ? g.away : "Tie",
-    }));
+function buildConciseSubmission({ user, week, picks, tiebreakers }) {
+  const games = week.games.map((g) => ({
+    id: g.id,
+    label: `${g.away} @ ${g.home}`,
+    pick:
+      picks[g.id] === "HOME" ? g.home :
+      picks[g.id] === "AWAY" ? g.away :
+      "Tie",
+  }));
 
-    const selected = games.filter((g) => !!picks[g.id]);
+  const selected = games.filter((g) => !!picks[g.id]);
 
-    const tbLines = tiebreakers.map((tb) => {
-      const g = week.games.find((x) => x.id === tb.gameId);
-      return {
-        id: tb.gameId,
-        label: g ? `${g.away} @ ${g.home}` : tb.gameId,
-        total: tb.total,
-      };
-    });
-
+  const tbLines = tiebreakers.map((tb) => {
+    const g = week.games.find((x) => x.id === tb.gameId);
     return {
-      _subject: `Week ${week.week} — ${user.name} (${user.email})`,
-      picks: selected.map((g) => `${g.label} → ${g.pick}`),
-      tiebreakers: tbLines.map((t) => `${t.label}: ${t.total} total`)
+      id: tb.gameId,
+      label: g ? `${g.away} @ ${g.home}` : tb.gameId,
+      total: tb.total,
     };
-  }
+  });
 
-  function formatConciseEmail(concise) {
-    const lines = [];
-    lines.push("Picks:");
-    concise.picks.forEach((p, i) => lines.push(`  ${i + 1}. ${p}`));
-    lines.push("");
-    lines.push("Tiebreakers (total points):");
-    concise.tiebreakers.forEach((t, i) => lines.push(`  ${i + 1}. ${t}`));
-    return lines.join("\n");
-  }
+  return {
+    _subject: `Week ${week.week} — ${user.name} (${user.email})`,
+    picks: selected.map((g) => `${g.label} → ${g.pick}`),
+    tiebreakers: tbLines.map((t) => `${t.label}: ${t.total} total`)
+  };
+}
 
-  // After submit, send the user a copy via mailto (they hit Send)
-  function sendUserCopyMailto(concise, userEmail, weekNum) {
-    if (!/^\S+@\S+\.\S+$/.test(userEmail)) return;
-    const subject = `Copy of your NFL Picks — Week ${weekNum}`;
-    const body = formatConciseEmail(concise);
-    const href = `mailto:${encodeURIComponent(userEmail)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-    window.open(href, "_blank");
-  }
+// (kept for reference; not used in Formspree-only flow)
+function formatConciseEmail(concise) {
+  const lines = [];
+  lines.push("Picks:");
+  concise.picks.forEach((p, i) => lines.push(`  ${i + 1}. ${p}`));
+  lines.push("");
+  lines.push("Tiebreakers (total points):");
+  concise.tiebreakers.forEach((t, i) => lines.push(`  ${i + 1}. ${t}`));
+  return lines.join("\n");
+}
 
-  async function submitEmail(e) {
-    e.preventDefault();
-    if (!isValid) return;
+// Formspree-only submission (no mailto prompts, no user-copy popup)
+async function submitEmail(e) {
+  e.preventDefault();
+  if (!isValid) return;
 
-    const concise = buildConciseSubmission({ user, week, picks, tiebreakers: tbs });
+  const concise = buildConciseSubmission({ user, week, picks, tiebreakers: tbs });
 
-    // Try Formspree first (no email app required)
-    if (FORMSPREE_ENDPOINT) {
-      try {
-        const res = await fetch(FORMSPREE_ENDPOINT, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          // Include user.email so Formspree can auto-respond if you enable it in the dashboard
-          body: JSON.stringify({ ...concise, email: user.email }),
-        });
-        if (!res.ok) throw new Error(`Submit failed: ${res.status}`);
+  if (FORMSPREE_ENDPOINT) {
+    try {
+      const res = await fetch(FORMSPREE_ENDPOINT, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        // include user's email so Formspree can show it in the submission
+        body: JSON.stringify({ ...concise, email: user.email }),
+      });
+      if (!res.ok) throw new Error(`Submit failed: ${res.status}`);
 
-        // Give the user a copy of their picks via mailto (they just click Send)
-        sendUserCopyMailto(concise, user.email, week.week);
-
-        alert("Submitted! Check your email for a copy of your picks.");
-        return;
-      } catch (err) {
-        console.error(err);
-        // fall through to mailto fallback
-      }
+      alert("Submitted! Thank You!");
+      return;
+    } catch (err) {
+      console.error(err);
     }
-
-    // Fallback: mailto (also only concise data) — bcc the user so they get a copy automatically
-    const subject = `Week ${week.week} — ${user.name} (${user.email})`;
-    const body = formatConciseEmail(concise);
-    const href = `mailto:${encodeURIComponent(RECIPIENT_EMAIL)}?subject=${encodeURIComponent(subject)}&bcc=${encodeURIComponent(user.email)}&body=${encodeURIComponent(body)}`;
-    window.location.href = href;
   }
+
+  // If Formspree is unreachable or errors out:
+  alert("Submission failed. Please try again later.");
+}
+
 
   function printPDF() {
     window.print();
