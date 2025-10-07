@@ -155,6 +155,13 @@ export default function App() {
     });
   }
 
+function isValidTBValue(v) {
+  // allow "0", "12", etc. Disallow empty, spaces, or non-digits
+  return typeof v === "string" && /^[0-9]+$/.test(v);
+}
+
+
+
   /* ---------- Stats loader ---------- */
   async function loadStats(currentWeek) {
     try {
@@ -220,6 +227,29 @@ export default function App() {
   /* ---------- Submit: save to Supabase (+ optional Formspree) ---------- */
   async function submitEmail(e) {
   e.preventDefault();
+
+  // ✅ Check if all games have been picked
+const missingGames = week.games.filter(g => !picks[g.id]);
+if (missingGames.length > 0) {
+  alert(`You missed ${missingGames.length} game${missingGames.length > 1 ? 's' : ''}. Please make all selections before submitting.`);
+  return;
+}
+
+// ✅ Check all 3 tiebreakers are filled with numbers
+if (!Array.isArray(tbs) || tbs.length !== 3) {
+  alert("Please enter totals for all 3 tiebreakers.");
+  return;
+}
+
+const tbMissing = tbs.findIndex((tb) => !isValidTBValue(tb?.total));
+if (tbMissing !== -1) {
+  alert(`Please enter a number for Tiebreaker ${tbMissing + 1}.`);
+  // Optional: scroll to the TB inputs if you want
+  document.getElementById(`tb_${tbMissing+1}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
+  return;
+}
+
+
   if (!isValid) return;
 
   try {
@@ -442,16 +472,7 @@ export default function App() {
               Print / Save as PDF
             </button>
 
-            <Link to="/results">
-  <button
-       type="button"
-              style={printBtnStyle}
-              onMouseEnter={() => setResultsBtnStyle({ ...styles.btn, ...styles.btnHover })}
-              onMouseLeave={() => setResultsBtnStyle(styles.btn)}
-  >
-    View Picks Table
-  </button>
-</Link>
+            
 
 
           </div>          
