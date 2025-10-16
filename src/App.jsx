@@ -472,7 +472,16 @@ if (tbMissing !== -1) {
               Print / Save as PDF
             </button>
 
- 
+ <Link to="/results">
+  <button
+       type="button"
+              style={printBtnStyle}
+              onMouseEnter={() => setResultsBtnStyle({ ...styles.btn, ...styles.btnHover })}
+              onMouseLeave={() => setResultsBtnStyle(styles.btn)}
+  >
+    View Picks Table
+  </button>
+</Link>
 
 
           </div>          
