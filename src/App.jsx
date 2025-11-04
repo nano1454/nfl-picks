@@ -473,16 +473,7 @@ if (tbMissing !== -1) {
             </button>
 
  
-<Link to="/results">
-  <button
-       type="button"
-              style={printBtnStyle}
-              onMouseEnter={() => setResultsBtnStyle({ ...styles.btn, ...styles.btnHover })}
-              onMouseLeave={() => setResultsBtnStyle(styles.btn)}
-  >
-    View Picks Table
-  </button>
-</Link>
+
 
           </div>          
         </form>
