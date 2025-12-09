@@ -1,83 +1,24 @@
 {
-  "week": 14,
-  "deadline": "2025-12-04T14:00:00-05:00",
+  "week": 15,
+  "deadline": "2025-12-11T14:00:00-05:00",
   "games": [
-    {
-      "id": "DAL@DET",
-      "away": "Dallas Cowboys",
-      "home": "Detroit Lions"
-    },
-    {
-      "id": "SEA@ATL",
-      "away": "Seattle Seahawks",
-      "home": "Atlanta Falcons"
-    },
-    {
-      "id": "PIT@BAL",
-      "away": "Pittsburgh Steelers",
-      "home": "Baltimore Ravens"
-    },
-    {
-      "id": "TEN@CLE",
-      "away": "Tennessee Titans",
-      "home": "Cleveland Browns"
-    },
-    {
-      "id": "IND@JAX",
-      "away": "Indianapolis Colts",
-      "home": "Jacksonville Jaguars"
-    },
-    {
-      "id": "WAS@MIN",
-      "away": "Washington Commanders",
-      "home": "Minnesota Vikings"
-    },
-    {
-      "id": "MIA@NYJ",
-      "away": "Miami Dolphins",
-      "home": "New York Jets"
-    },
-    {
-      "id": "NO@TB",
-      "away": "New Orleans Saints",
-      "home": "Tampa Bay Buccaneers"
-    },
-    {
-      "id": "CIN@BUF",
-      "away": "Cincinnati Bengals",
-      "home": "Buffalo Bills"
-    },
-    {
-      "id": "DEN@LV",
-      "away": "Denver Broncos",
-      "home": "Las Vegas Raiders"
-    },
-    {
-      "id": "CHI@GB",
-      "away": "Chicago Bears",
-      "home": "Green Bay Packers"
-    },
-    {
-      "id": "LAR@ARI",
-      "away": "Los Angeles Rams",
-      "home": "Arizona Cardinals"
-    },
-    {
-      "id": "HOU@KC",
-      "away": "Houston Texans",
-      "home": "Kansas City Chiefs"
-    },
-    {
-      "id": "PHI@LAC",
-      "away": "Philadelphia Eagles",
-      "home": "Los Angeles Chargers"
-    }
+    { "id": "ATL@TB",  "away": "Atlanta Falcons",       "home": "Tampa Bay Buccaneers" },
+    { "id": "CLE@CHI", "away": "Cleveland Browns",      "home": "Chicago Bears" },
+    { "id": "BAL@CIN", "away": "Baltimore Ravens",      "home": "Cincinnati Bengals" },
+    { "id": "ARI@HOU", "away": "Arizona Cardinals",     "home": "Houston Texans" },
+    { "id": "NYJ@JAX", "away": "New York Jets",         "home": "Jacksonville Jaguars" },
+    { "id": "LAC@KC",  "away": "Los Angeles Chargers",  "home": "Kansas City Chiefs" },
+    { "id": "BUF@NE",  "away": "Buffalo Bills",         "home": "New England Patriots" },
+    { "id": "WAS@NYG", "away": "Washington Commanders", "home": "New York Giants" },
+    { "id": "LV@PHI",  "away": "Las Vegas Raiders",     "home": "Philadelphia Eagles" },
+    { "id": "GB@DEN",  "away": "Green Bay Packers",     "home": "Denver Broncos" },
+    { "id": "DET@LAR", "away": "Detroit Lions",         "home": "Los Angeles Rams" },
+    { "id": "CAR@NO",  "away": "Carolina Panthers",     "home": "New Orleans Saints" },
+    { "id": "IND@SEA", "away": "Indianapolis Colts",    "home": "Seattle Seahawks" },
+    { "id": "TEN@SF",  "away": "Tennessee Titans",      "home": "San Francisco 49ers" },
+    { "id": "MIN@DAL", "away": "Minnesota Vikings",     "home": "Dallas Cowboys" },
+    { "id": "MIA@PIT", "away": "Miami Dolphins",        "home": "Pittsburgh Steelers" }
   ],
-  "tiebreakers": ["DAL@DET", "HOU@KC", "PHI@LAC"],
-  "byes": [
-    "Carolina Panthers",
-    "New England Patriots",
-    "New York Giants",
-    "San Francisco 49ers"
-  ]
+  "tiebreakers": ["ATL@TB", "MIN@DAL", "MIA@PIT"],
+  "byes": []
 }
