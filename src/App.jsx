@@ -1,6 +1,10 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { supabase } from "./supabaseClient";
 import { Link } from "react-router-dom";
+import Admin from "./Admin";
+
+// inside <Routes>
+<Route path="/admin" element={<Admin />} />
 
 
 /** Optional: keep Formspree so you still receive an email copy (no mailto popups) */
@@ -480,6 +484,12 @@ if (tbMissing !== -1) {
               onMouseLeave={() => setResultsBtnStyle(styles.btn)}
   >
     View Picks Table
+  </button>
+</Link>
+
+<Link to="/admin">
+  <button type="button" style={printBtnStyle}>
+    Admin Dashboard
   </button>
 </Link>
 
