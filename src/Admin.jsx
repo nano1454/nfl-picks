@@ -19,10 +19,10 @@ export default function Admin() {
   const [picksByUser, setPicksByUser] = useState({}); // { [user_name]: { [game_id]: pick } }
   const [tbsByUser, setTbsByUser] = useState({}); // { [user_name]: {1:{total},2:{total},3:{total}} }
 
+  // Schedule import UI
   const [importSeason, setImportSeason] = useState(String(new Date().getFullYear()));
-const [importWeek, setImportWeek] = useState(""); // we’ll auto-fill after week loads
-const [importingSchedule, setImportingSchedule] = useState(false);
-
+  const [importWeek, setImportWeek] = useState(""); // auto-fill after week loads
+  const [importingSchedule, setImportingSchedule] = useState(false);
 
   // A2: collapse/expand per row
   const [expandedMissing, setExpandedMissing] = useState(() => ({})); // { [user_name]: true/false }
@@ -33,6 +33,9 @@ const [importingSchedule, setImportingSchedule] = useState(false);
   // Add participant inputs
   const [newName, setNewName] = useState("");
   const [newBuyIn, setNewBuyIn] = useState("");
+
+  // Keep a copy of the PIN used to unlock so the import button always has it
+  const [sessionPin, setSessionPin] = useState("");
 
   const adminPin = import.meta.env.VITE_ADMIN_PIN || "";
 
@@ -51,8 +54,14 @@ const [importingSchedule, setImportingSchedule] = useState(false);
     setExpandedMissing((m) => ({ ...m, [user_name]: !m[user_name] }));
   }
 
-async function importScheduleNow() {
-  try {
+  async function importScheduleNow() {
+    // Use sessionPin first (set at unlock time), fallback to current pin input
+    const pinToUse = (sessionPin || pin || "").trim();
+    if (!pinToUse) {
+      alert("PIN is missing. Unlock again and then try importing.");
+      return;
+    }
+
     const season = Number(String(importSeason).trim());
     const week = Number(String(importWeek).trim());
 
@@ -62,40 +71,35 @@ async function importScheduleNow() {
     }
 
     setImportingSchedule(true);
+    try {
+      const url = `/.netlify/functions/importSchedule?season=${season}&week=${week}&pin=${encodeURIComponent(
+        pinToUse
+      )}`;
 
-    // Reuse the same PIN you typed to unlock (pin state)
-    const pinToUse = (pin || "").trim();
-    if (!pinToUse) {
-      alert("PIN is empty. Go back and unlock again using your PIN.");
-      return;
+      const res = await fetch(url);
+      const data = await res.json().catch(() => ({}));
+
+      console.log("importSchedule response:", { status: res.status, data });
+alert(JSON.stringify({ status: res.status, data }, null, 2));
+
+
+      if (!res.ok || !data.ok) {
+        throw new Error(data?.error || `Import failed (HTTP ${res.status})`);
+      }
+
+      alert(
+        `✅ Imported Week ${week}, ${season}\nGames: ${data.imported_games}\nTBs: ${(data.tiebreakers || []).join(
+          ", "
+        )}`
+      );
+
+      await loadAll();
+    } catch (e) {
+      alert(String(e?.message || e));
+    } finally {
+      setImportingSchedule(false);
     }
-
-    const url = `/.netlify/functions/importSchedule?season=${season}&week=${week}&pin=${encodeURIComponent(
-      pinToUse
-    )}`;
-
-    const res = await fetch(url);
-    const data = await res.json().catch(() => ({}));
-
-    if (!res.ok || !data.ok) {
-      throw new Error(data?.error || `Import failed (HTTP ${res.status})`);
-    }
-
-    alert(
-      `✅ Imported Week ${week}, ${season}\nGames: ${data.imported_games}\nTBs: ${(
-        data.tiebreakers || []
-      ).join(", ")}`
-    );
-
-    // Refresh the admin dashboard data
-    await loadAll();
-  } catch (e) {
-    alert(String(e?.message || e));
-  } finally {
-    setImportingSchedule(false);
   }
-}
-
 
   async function loadAll() {
     setLoading(true);
@@ -110,8 +114,9 @@ async function importScheduleNow() {
       const wkNum = Number(week.week);
       const tbIds = Array.isArray(week.tiebreakers) ? week.tiebreakers.slice(0, 3) : [];
       setWeekMeta({ week: wkNum, games, tbIds });
-      setImportWeek(String(wkNum || ""));
 
+      // Auto-fill week in import UI (only if not manually overridden yet)
+      setImportWeek((prev) => (prev ? prev : String(wkNum || "")));
 
       // 2) Load participants (active only)
       const { data: partData, error: partErr } = await supabase
@@ -202,10 +207,8 @@ async function importScheduleNow() {
         String(tbs[3]?.total).trim() !== "";
 
       const tbCount = [hasTB1, hasTB2, hasTB3].filter(Boolean).length;
-
       const submitted = picksCount === gameCount && tbCount === 3;
 
-      // Missing picks (list of matchups)
       const missingGameIds = (weekMeta.games || [])
         .map((g) => g.id)
         .filter((gameId) => !picks[gameId]);
@@ -216,7 +219,6 @@ async function importScheduleNow() {
         return `${g.away} @ ${g.home}`;
       });
 
-      // Missing TB numbers
       const missingTBs = [];
       if (!hasTB1) missingTBs.push("TB1");
       if (!hasTB2) missingTBs.push("TB2");
@@ -243,7 +245,6 @@ async function importScheduleNow() {
   async function togglePaid(user_name, nextPaid) {
     const wk = Number(weekMeta.week);
     try {
-      // Ensure participant exists (should already, but safe)
       await supabase.from("participants").upsert([{ user_name }], { onConflict: "user_name" });
 
       const { error } = await supabase
@@ -251,7 +252,6 @@ async function importScheduleNow() {
         .upsert([{ week: wk, user_name, paid: !!nextPaid }], { onConflict: "week,user_name" });
 
       if (error) throw error;
-
       setPayments((m) => ({ ...m, [user_name]: !!nextPaid }));
     } catch (e) {
       alert(`Could not update paid status: ${String(e?.message || e)}`);
@@ -329,8 +329,12 @@ async function importScheduleNow() {
           <button
             onClick={() => {
               if (!adminPin) return alert("No VITE_ADMIN_PIN is set in env vars.");
-              if (pin === String(adminPin)) setUnlocked(true);
-              else alert("Wrong PIN.");
+              if (pin === String(adminPin)) {
+                setUnlocked(true);
+                setSessionPin(pin); // keep it for schedule import calls
+              } else {
+                alert("Wrong PIN.");
+              }
             }}
             style={{ padding: "10px 14px", cursor: "pointer" }}
           >
@@ -366,39 +370,38 @@ async function importScheduleNow() {
         Submitted means: <b>{gameCount}</b> picks + <b>3</b> tiebreakers totals.
       </p>
 
-{/* Import Schedule */}
-<div style={{ border: "1px solid #ddd", borderRadius: 10, padding: 12, marginTop: 12 }}>
-  <h3 style={{ marginTop: 0 }}>Import Week Schedule (nflverse)</h3>
+      {/* Import Schedule */}
+      <div style={{ border: "1px solid #ddd", borderRadius: 10, padding: 12, marginTop: 12 }}>
+        <h3 style={{ marginTop: 0 }}>Import Week Schedule (nflverse)</h3>
 
-  <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-    <input
-      value={importSeason}
-      onChange={(e) => setImportSeason(e.target.value.replace(/[^0-9]/g, ""))}
-      placeholder="Season (e.g., 2025)"
-      style={{ padding: 10, width: 160 }}
-    />
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+          <input
+            value={importSeason}
+            onChange={(e) => setImportSeason(e.target.value.replace(/[^0-9]/g, ""))}
+            placeholder="Season (e.g., 2025)"
+            style={{ padding: 10, width: 160 }}
+          />
 
-    <input
-      value={importWeek}
-      onChange={(e) => setImportWeek(e.target.value.replace(/[^0-9]/g, ""))}
-      placeholder="Week (e.g., 1)"
-      style={{ padding: 10, width: 140 }}
-    />
+          <input
+            value={importWeek}
+            onChange={(e) => setImportWeek(e.target.value.replace(/[^0-9]/g, ""))}
+            placeholder="Week (e.g., 1)"
+            style={{ padding: 10, width: 140 }}
+          />
 
-    <button
-      onClick={importScheduleNow}
-      disabled={importingSchedule}
-      style={{ padding: "10px 14px", cursor: "pointer" }}
-    >
-      {importingSchedule ? "Importing…" : "Import games"}
-    </button>
-  </div>
+          <button
+            onClick={importScheduleNow}
+            disabled={importingSchedule}
+            style={{ padding: "10px 14px", cursor: "pointer" }}
+          >
+            {importingSchedule ? "Importing…" : "Import games"}
+          </button>
+        </div>
 
-  <p style={{ margin: "8px 0 0", color: "#666", fontSize: 13 }}>
-    This pulls the official week schedule from nflverse and writes it into Supabase.
-  </p>
-</div>
-
+        <p style={{ margin: "8px 0 0", color: "#666", fontSize: 13 }}>
+          Pulls week schedule from nflverse and writes it into Supabase (server-side).
+        </p>
+      </div>
 
       {/* Add participant */}
       <div style={{ border: "1px solid #ddd", borderRadius: 10, padding: 12, marginTop: 12 }}>
@@ -495,11 +498,7 @@ async function importScheduleNow() {
                               <>
                                 {" "}
                                 <span style={{ color: "#555" }}>+{moreCount} more…</span>{" "}
-                                <button
-                                  type="button"
-                                  onClick={() => toggleExpanded(r.user_name)}
-                                  style={linkBtnStyle}
-                                >
+                                <button type="button" onClick={() => toggleExpanded(r.user_name)} style={linkBtnStyle}>
                                   Show all
                                 </button>
                               </>

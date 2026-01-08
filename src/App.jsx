@@ -3,8 +3,8 @@ import { supabase } from "./supabaseClient";
 import { Link } from "react-router-dom";
 import Admin from "./Admin";
 
-// inside <Routes>
-<Route path="/admin" element={<Admin />} />
+
+
 
 
 /** Optional: keep Formspree so you still receive an email copy (no mailto popups) */
