@@ -125,7 +125,11 @@ const styles = {
     backdropFilter: "saturate(120%) blur(2px)",
     position: "relative",
   },
-  logoButtonSelected: { border: "#111 solid 2px" },
+  logoButtonSelected: {
+    border: "2.5px solid rgba(25, 185, 55, 0.85)",
+    boxShadow: "0 0 0 3px rgba(25, 185, 55, 0.18)",
+    transform: "scale(1.08)",
+  },
   logoButtonDisabled: {
     opacity: 0.55,
     cursor: "not-allowed",
@@ -260,7 +264,7 @@ export default function App() {
   const [navReglasStyle, setNavReglasStyle] = useState(styles.navBtn);
 
   const [user, setUser] = useState({ name: "", email: "" });
-  const [picks, setPicks] = useState({}); // { [gameId]: "AWAY" | "HOME" | "TIE" }
+  const [picks, setPicks] = useState({}); // { [gameId]: "AWAY" | "HOME" }
   const [tbs, setTbs] = useState([]); // [{ gameId, total }]
 
   // Returning participants dropdown
@@ -1000,11 +1004,61 @@ function GameRow({ game, index, pick, onPick, gameStats, locked, kickoffIso, loc
     }
   }
 
+  // Blowup background: logo of the selected team
+  const selectedLogo = pick === "AWAY" ? awayLogo : pick === "HOME" ? homeLogo : null;
+  const selectedTeam = pick === "AWAY" ? game.away : pick === "HOME" ? game.home : null;
+
   return (
-    <div style={styles.gameRow}>
-      <div style={{ minWidth: 0 }}>
-        <div style={{ fontWeight: 700, fontSize: 16, color: "#000" }}>
+    <div
+      style={{
+        ...styles.gameRow,
+        position: "relative",
+        overflow: "hidden",
+        // Subtle green tint + left-edge bar via inset box-shadow (no layout shift)
+        background: pick ? "rgba(10, 155, 45, 0.055)" : "transparent",
+        boxShadow: pick
+          ? "inset 5px 0 0 rgba(25, 185, 55, 0.65)"
+          : "inset 5px 0 0 transparent",
+        transition: "background 0.35s, box-shadow 0.35s",
+      }}
+    >
+      {/* ── Blowup logo background ── */}
+      {selectedLogo && (
+        <img
+          src={selectedLogo}
+          alt=""
+          aria-hidden="true"
+          style={{
+            position: "absolute",
+            top: "50%",
+            left: "50%",
+            transform: "translate(-50%, -50%)",
+            height: 210,
+            width: "auto",
+            objectFit: "contain",
+            opacity: 0.11,
+            pointerEvents: "none",
+            zIndex: 0,
+            filter: "saturate(1.8)",
+            transition: "opacity 0.4s",
+          }}
+        />
+      )}
+
+      {/* ── Left: game info + stats ── */}
+      <div style={{ minWidth: 0, position: "relative", zIndex: 1 }}>
+        <div style={{ fontWeight: 700, fontSize: 16, color: "#000", display: "flex", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
           Game {index + 1}: {game.away} @ {game.home}
+          {selectedTeam && (
+            <span style={{
+              fontSize: 12, fontWeight: 800, color: "#1a7a28",
+              background: "rgba(25, 185, 55, 0.12)",
+              border: "1px solid rgba(25, 185, 55, 0.3)",
+              padding: "2px 9px", borderRadius: 999,
+            }}>
+              ✓ {selectedTeam}
+            </span>
+          )}
         </div>
 
         {lockNote ? (
@@ -1021,11 +1075,11 @@ function GameRow({ game, index, pick, onPick, gameStats, locked, kickoffIso, loc
         />
       </div>
 
-      <div style={styles.pickGroup}>
+      {/* ── Right: pick buttons (AWAY + VS + HOME — no TIE) ── */}
+      <div style={{ ...styles.pickGroup, position: "relative", zIndex: 1 }}>
         {[
           { v: "AWAY", label: game.away, logo: awayLogo, title: `${game.away} (Away)` },
           { v: "HOME", label: game.home, logo: homeLogo, title: `${game.home} (Home)` },
-          { v: "TIE", label: "Tie", logo: null, title: "Tie" },
         ].reduce((acc, opt, i) => {
           if (i === 1) acc.push(<VsAnimation key="vs" />);
           const isSelected = pick === opt.v;
@@ -1049,15 +1103,13 @@ function GameRow({ game, index, pick, onPick, gameStats, locked, kickoffIso, loc
                 style={styles.radioActual}
                 aria-label={opt.label}
               />
-              {opt.logo ? (
+              {opt.logo && (
                 <img
                   src={opt.logo}
                   alt={opt.label}
                   style={styles.logoOnly}
                   onError={(e) => (e.currentTarget.style.display = "none")}
                 />
-              ) : (
-                <span style={styles.tiePill}>TIE</span>
               )}
               <span style={styles.srOnly}>{opt.label}</span>
             </label>
