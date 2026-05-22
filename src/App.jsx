@@ -798,7 +798,14 @@ export default function App() {
           </Card>
 
           {/* Predetermined tiebreakers */}
-          <Card>
+          {(() => {
+            const allTbsFilled = tbs.length === 3 && tbs.every((tb) => String(tb.total || "").trim() !== "");
+            return (
+            <div style={{
+              ...styles.card,
+              background: allTbsFilled ? "rgba(10, 155, 45, 0.07)" : styles.card.background,
+              transition: "background 0.4s",
+            }}>
             <h2 style={styles.h2}>Tiebreakers (total combined points)</h2>
             <p style={styles.mutedSmall}>We picked the games. Enter the total points for each.</p>
 
@@ -806,6 +813,7 @@ export default function App() {
               {tbs.map((tb, i) => {
                 const g = week.games.find((x) => x.id === tb.gameId);
                 if (!g) return null;
+                const filled = String(tb.total || "").trim() !== "";
                 return (
                   <div key={tb.gameId} style={styles.tbRow}>
                     <label style={styles.tbLabel}>
@@ -813,7 +821,13 @@ export default function App() {
                     </label>
                     <input
                       id={`tb_${i + 1}`}
-                      style={styles.input}
+                      style={{
+                        ...styles.input,
+                        transition: "box-shadow 0.3s",
+                        boxShadow: filled
+                          ? "0 0 0 3px rgba(25, 185, 55, 0.45)"
+                          : "none",
+                      }}
                       inputMode="numeric"
                       placeholder="Total points"
                       value={tb.total}
@@ -844,7 +858,9 @@ export default function App() {
                 </div>
               </div>
             )}
-          </Card>
+            </div>
+            );
+          })()}
 
           {/* Actions (bottom only) */}
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
