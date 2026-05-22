@@ -263,6 +263,10 @@ export default function App() {
   const [picks, setPicks] = useState({}); // { [gameId]: "AWAY" | "HOME" | "TIE" }
   const [tbs, setTbs] = useState([]); // [{ gameId, total }]
 
+  // Returning participants dropdown
+  const [returningParticipants, setReturningParticipants] = useState([]);
+  const [selectedReturning, setSelectedReturning] = useState("");
+
   // % stats per game: { [gameId]: { away, home, tie, total } }
   const [stats, setStats] = useState({});
 
@@ -324,6 +328,24 @@ export default function App() {
   useEffect(() => {
     const t = setInterval(() => setNowTs(Date.now()), 30_000);
     return () => clearInterval(t);
+  }, []);
+
+  // Load returning participants (active participants managed by admin)
+  useEffect(() => {
+    (async () => {
+      try {
+        const { data, error } = await supabase
+          .from("participants")
+          .select("user_name")
+          .eq("active", true)
+          .order("user_name", { ascending: true });
+        if (!error && data) {
+          setReturningParticipants(data.map((p) => p.user_name));
+        }
+      } catch {
+        // silently ignore — dropdown is optional
+      }
+    })();
   }, []);
 
   // ✅ GLOBAL DEADLINE LOCK (whole sheet)
@@ -670,6 +692,57 @@ export default function App() {
         <form onSubmit={submitEmail} style={{ display: "grid", gap: 16, marginTop: 14 }}>
           {/* Player info */}
           <Card>
+            {/* ── Returning participant quick-select ── */}
+            {returningParticipants.length > 0 && (
+              <div style={{ marginBottom: 16 }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: "#555", marginBottom: 6, letterSpacing: 0.3, textTransform: "uppercase" }}>
+                  🔄 Returning Participant
+                </div>
+                <select
+                  value={selectedReturning}
+                  disabled={isDeadlineLocked}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setSelectedReturning(val);
+                    if (val) setUser((u) => ({ ...u, name: val }));
+                  }}
+                  style={{
+                    width: "100%",
+                    padding: "9px 12px",
+                    borderRadius: 8,
+                    border: "1px solid rgba(0,0,0,0.2)",
+                    fontSize: 14,
+                    background: "#fff",
+                    color: selectedReturning ? "#111" : "#888",
+                    cursor: isDeadlineLocked ? "not-allowed" : "pointer",
+                    appearance: "auto",
+                  }}
+                >
+                  <option value="">— Select your name if you've played before —</option>
+                  {returningParticipants.map((name) => (
+                    <option key={name} value={name}>{name}</option>
+                  ))}
+                </select>
+                {selectedReturning && (
+                  <p style={{ margin: "5px 0 0", fontSize: 12, color: "#2a7a2a" }}>
+                    ✅ Name auto-filled below. Verify it looks correct, then add your email.
+                  </p>
+                )}
+              </div>
+            )}
+
+            {/* Divider only shown when there are returning participants */}
+            {returningParticipants.length > 0 && (
+              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
+                <div style={{ flex: 1, height: 1, background: "rgba(0,0,0,0.10)" }} />
+                <span style={{ fontSize: 12, color: "#999", fontWeight: 600, whiteSpace: "nowrap" }}>
+                  OR enter manually (new participant)
+                </span>
+                <div style={{ flex: 1, height: 1, background: "rgba(0,0,0,0.10)" }} />
+              </div>
+            )}
+
+            {/* Name + Email inputs */}
             <div style={styles.row}>
               <Field label="Full name" required error={errors.name}>
                 <input
@@ -677,7 +750,13 @@ export default function App() {
                   placeholder="Your full name"
                   value={user.name}
                   disabled={isDeadlineLocked}
-                  onChange={(e) => setUser({ ...user, name: e.target.value })}
+                  onChange={(e) => {
+                    setUser({ ...user, name: e.target.value });
+                    // Clear dropdown selection if user edits name manually
+                    if (selectedReturning && e.target.value !== selectedReturning) {
+                      setSelectedReturning("");
+                    }
+                  }}
                 />
               </Field>
               <Field label="Email" required error={errors.email}>

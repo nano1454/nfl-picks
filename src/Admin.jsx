@@ -610,6 +610,10 @@ export default function Admin() {
       {/* Step 3 — Add / Activate Participant */}
       <div style={{ border: "1px solid #ddd", borderRadius: 10, padding: 12, marginTop: 12 }}>
         <h3 style={{ marginTop: 0 }}>Step 3 — Add / Activate Participant</h3>
+        <p style={{ margin: "0 0 10px", fontSize: 13, color: "#555" }}>
+          🔄 Participants added here (with <b>active = true</b>) will appear in the <b>Returning Participant</b> dropdown on the picks page,
+          letting them select their name to avoid typos that would break their history.
+        </p>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
           <input
             value={newName}
