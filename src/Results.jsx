@@ -49,20 +49,18 @@ function fmtMatchup(g) {
   return away && home ? `${away} @ ${home}` : String(g?.id || "");
 }
 
-/** Determine lock time:
- * - Prefer week_meta.deadline if present
- * - Else use earliest kickoff among games
- */
-function computeLockMs({ deadlineIso, games }) {
-  const deadlineMs = deadlineIso ? new Date(deadlineIso).getTime() : NaN;
-  if (Number.isFinite(deadlineMs)) return deadlineMs;
+/** True when the global deadline has passed */
+function isDeadlinePassed(deadlineIso, nowTs) {
+  if (!deadlineIso) return false;
+  const ms = new Date(deadlineIso).getTime();
+  return Number.isFinite(ms) && nowTs >= ms;
+}
 
-  const kickMs = (games || [])
-    .map((g) => (g?.kickoff ? new Date(g.kickoff).getTime() : NaN))
-    .filter((n) => Number.isFinite(n))
-    .sort((a, b) => a - b)[0];
-
-  return Number.isFinite(kickMs) ? kickMs : NaN;
+/** True when a single game has locked (1 hour before kickoff — same rule as picks page) */
+function isGameLockedNow(game, nowTs) {
+  if (!game?.kickoff) return false;
+  const kickMs = new Date(game.kickoff).getTime();
+  return Number.isFinite(kickMs) && nowTs >= kickMs - 60 * 60 * 1000;
 }
 
 export default function Results() {
@@ -198,15 +196,23 @@ export default function Results() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [meta.season, meta.week]);
 
-  const lockMs = useMemo(
-    () => computeLockMs({ deadlineIso: deadline, games }),
-    [deadline, games]
+  // True once the global weekly deadline has passed
+  const deadlineLocked = useMemo(
+    () => isDeadlinePassed(deadline, nowTs),
+    [deadline, nowTs]
   );
 
-  const isLocked = useMemo(() => {
-    if (!Number.isFinite(lockMs)) return false; // if we can’t determine lock time, default to hidden
-    return nowTs >= lockMs;
-  }, [nowTs, lockMs]);
+  // Set of game IDs whose picks are now visible (locked 1 hr before kickoff, or deadline passed)
+  const lockedGameIds = useMemo(() => {
+    const s = new Set();
+    for (const g of games) {
+      if (deadlineLocked || isGameLockedNow(g, nowTs)) s.add(String(g.id));
+    }
+    return s;
+  }, [games, deadlineLocked, nowTs]);
+
+  // Table frame appears as soon as ANY game has locked
+  const isAnyLocked = deadlineLocked || lockedGameIds.size > 0;
 
   // ---- Build table model ----
   const gameById = useMemo(() => {
@@ -279,8 +285,9 @@ export default function Results() {
   if (loading) return <div style={{ maxWidth: 1100, margin: "24px auto", padding: 16 }}>Loading…</div>;
   if (err) return <div style={{ maxWidth: 1100, margin: "24px auto", padding: 16, color: "red" }}>{err}</div>;
 
-  const lockLabel =
-    Number.isFinite(lockMs) ? `Locks at: ${new Date(lockMs).toLocaleString()}` : "Lock time: unknown";
+  const lockLabel = deadline
+    ? `Submission deadline: ${new Date(deadline).toLocaleString()}`
+    : "Picks reveal column-by-column as each game locks (1 hr before kickoff)";
 
   return (
     <div style={{ maxWidth: 1200, margin: "24px auto", padding: 16, fontFamily: "system-ui" }}>
@@ -303,11 +310,11 @@ export default function Results() {
         </div>
       </div>
 
-      {!isLocked ? (
+      {!isAnyLocked ? (
         <div style={{ marginTop: 18, border: "1px solid #ddd", borderRadius: 12, padding: 14, background: "#fff" }}>
-          <div style={{ fontWeight: 900, fontSize: 16 }}>Table will be shown after all picks have been submitted.</div>
+          <div style={{ fontWeight: 900, fontSize: 16 }}>🔒 Picks are hidden until games start locking.</div>
           <div style={{ marginTop: 8, color: "#666", fontSize: 13 }}>
-            Once picks lock, this page will automatically show everyone’s selections.
+            Each game’s picks will appear here 1 hour before its kickoff. Check back once the first game of the week locks.
           </div>
         </div>
       ) : (
@@ -319,25 +326,41 @@ export default function Results() {
                   <th style={thStickyLeft}>#</th>
                   <th style={thStickyName}>Participant</th>
 
-                  {(games || []).map((g, idx) => (
-                    <th key={g.id} style={th}>
-                      Game {idx + 1}
-                      <div style={{ fontSize: 11, fontWeight: 600, color: "#666", marginTop: 2 }}>
-                        {fmtMatchup(g)}
-                      </div>
-                    </th>
-                  ))}
+                  {(games || []).map((g, idx) => {
+                    const gameLocked = lockedGameIds.has(String(g.id));
+                    const lockTime = g.kickoff
+                      ? new Date(new Date(g.kickoff).getTime() - 60 * 60 * 1000)
+                      : null;
+                    return (
+                      <th key={g.id} style={th}>
+                        Game {idx + 1}
+                        <div style={{ fontSize: 11, fontWeight: 600, color: "#666", marginTop: 2 }}>
+                          {fmtMatchup(g)}
+                        </div>
+                        {gameLocked ? (
+                          <div style={{ fontSize: 10, color: "#b00", marginTop: 3, fontWeight: 700 }}>🔒 LOCKED</div>
+                        ) : lockTime ? (
+                          <div style={{ fontSize: 10, color: "#999", marginTop: 3 }}>
+                            Locks {lockTime.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                          </div>
+                        ) : null}
+                      </th>
+                    );
+                  })}
 
-                  {/* Optional TB columns (if you want them like the screenshot) */}
                   {tbGameIds.length === 3 ? (
                     tbGameIds.map((gid, i) => {
                       const g = gameById[gid];
+                      const gameLocked = lockedGameIds.has(String(gid));
                       return (
                         <th key={`tb_${i + 1}`} style={th}>
                           TB{i + 1}
                           <div style={{ fontSize: 11, fontWeight: 600, color: "#666", marginTop: 2 }}>
                             {g ? fmtMatchup(g) : gid}
                           </div>
+                          {gameLocked && (
+                            <div style={{ fontSize: 10, color: "#b00", marginTop: 3, fontWeight: 700 }}>🔒 LOCKED</div>
+                          )}
                         </th>
                       );
                     })
@@ -358,18 +381,31 @@ export default function Results() {
                       <td style={tdNum}>{i + 1}</td>
                       <td style={tdName}>{u}</td>
 
-                      {(games || []).map((g) => (
-                        <td key={`${u}_${g.id}`} style={tdCenter}>
-                          {renderPickCell(u, String(g.id))}
-                        </td>
-                      ))}
+                      {(games || []).map((g) => {
+                        const gameLocked = lockedGameIds.has(String(g.id));
+                        return (
+                          <td key={`${u}_${g.id}`} style={tdCenter}>
+                            {gameLocked
+                              ? renderPickCell(u, String(g.id))
+                              : <span title="Picks hidden until game locks" style={{ color: "#ccc", fontSize: 16 }}>🔒</span>
+                            }
+                          </td>
+                        );
+                      })}
 
                       {tbGameIds.length === 3 ? (
-                        [1, 2, 3].map((tbNo) => (
-                          <td key={`${u}_tb_${tbNo}`} style={tdCenter}>
-                            {tbByUserNo?.[u]?.[tbNo] ?? <span style={{ color: "#999" }}>—</span>}
-                          </td>
-                        ))
+                        [1, 2, 3].map((tbNo) => {
+                          const gid = tbGameIds[tbNo - 1];
+                          const gameLocked = lockedGameIds.has(String(gid));
+                          return (
+                            <td key={`${u}_tb_${tbNo}`} style={tdCenter}>
+                              {gameLocked
+                                ? (tbByUserNo?.[u]?.[tbNo] ?? <span style={{ color: "#999" }}>—</span>)
+                                : <span title="Picks hidden until game locks" style={{ color: "#ccc", fontSize: 16 }}>🔒</span>
+                              }
+                            </td>
+                          );
+                        })
                       ) : null}
                     </tr>
                   ))
@@ -379,7 +415,7 @@ export default function Results() {
           </div>
 
           <div style={{ marginTop: 10, fontSize: 12, color: "#777", textAlign: "center" }}>
-            This table is informational. If there’s a discrepancy, submitted picks in the database are the source of truth.
+            🔒 = picks still hidden (game hasn’t locked yet) &nbsp;·&nbsp; This table updates automatically as games lock.
           </div>
         </div>
       )}
