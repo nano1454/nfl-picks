@@ -6,6 +6,7 @@ import Results from "./Results.jsx";
 import Admin from "./Admin.jsx";
 import Leaderboard from "./Leaderboard";
 import Rules from "./Rules.jsx";
+import Reglas from "./Reglas.jsx";
 
 ReactDOM.createRoot(document.getElementById("root")).render(
   <React.StrictMode>
@@ -16,6 +17,7 @@ ReactDOM.createRoot(document.getElementById("root")).render(
         <Route path="/admin" element={<Admin />} />
         <Route path="/leaderboard" element={<Leaderboard />} />
         <Route path="/rules" element={<Rules />} />
+        <Route path="/reglas" element={<Reglas />} />
       </Routes>
     </BrowserRouter>
   </React.StrictMode>

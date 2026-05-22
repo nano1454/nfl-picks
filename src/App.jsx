@@ -257,6 +257,7 @@ export default function App() {
   const [navAdminStyle, setNavAdminStyle] = useState(styles.navBtn);
   const [navLeaderboardStyle, setNavLeaderboardStyle] = useState(styles.navBtn);
   const [navRulesStyle, setNavRulesStyle] = useState(styles.navBtn);
+  const [navReglasStyle, setNavReglasStyle] = useState(styles.navBtn);
 
   const [user, setUser] = useState({ name: "", email: "" });
   const [picks, setPicks] = useState({}); // { [gameId]: "AWAY" | "HOME" | "TIE" }
@@ -661,6 +662,17 @@ export default function App() {
                 onMouseLeave={() => setNavRulesStyle(styles.navBtn)}
               >
                 Rules
+              </button>
+            </Link>
+
+            <Link to="/reglas">
+              <button
+                type="button"
+                style={navReglasStyle}
+                onMouseEnter={() => setNavReglasStyle({ ...styles.navBtn, ...styles.navBtnHover })}
+                onMouseLeave={() => setNavReglasStyle(styles.navBtn)}
+              >
+                Reglas
               </button>
             </Link>
           </div>
