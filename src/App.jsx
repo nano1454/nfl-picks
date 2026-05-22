@@ -388,13 +388,13 @@ export default function App() {
     return typeof v === "string" && /^[0-9]+$/.test(v);
   }
 
-  // helper: is a specific game locked yet?
+  // helper: is a specific game locked yet? (locks 1 hour before kickoff)
   function isGameLocked(gameId) {
     const kickoffIso = kickoffById?.[gameId];
     if (!kickoffIso) return false;
     const kickoffMs = new Date(kickoffIso).getTime();
     if (Number.isNaN(kickoffMs)) return false;
-    return nowTs >= kickoffMs;
+    return nowTs >= kickoffMs - 60 * 60 * 1000;
   }
 
   // ✅ unified lock: deadline OR kickoff
@@ -883,7 +883,10 @@ function GameRow({ game, index, pick, onPick, gameStats, locked, kickoffIso, loc
         ? "🔒 Locked — deadline passed"
         : "🔒 Locked — game started";
   } else {
-    lockNote = kickoffIso ? `Locks at kickoff: ${new Date(kickoffIso).toLocaleString()}` : "";
+    if (kickoffIso) {
+      const lockTime = new Date(new Date(kickoffIso).getTime() - 60 * 60 * 1000);
+      lockNote = `Locks 1 hr before kickoff: ${lockTime.toLocaleString()}`;
+    }
   }
 
   return (

@@ -187,19 +187,59 @@ exports.handler = async (event) => {
 };
 
 function pickKickoffIso(r) {
-  const candidates = [
-    r.start_time_utc,
-    r.start_time,
-    r.game_datetime,
-    r.kickoff,
-    r.gameday, // last resort (date only)
-  ].filter(Boolean);
-
-  for (const c of candidates) {
+  // 1) Try explicit UTC fields first (future-proofing)
+  for (const c of [r.start_time_utc, r.start_time, r.game_datetime]) {
+    if (!c) continue;
     const d = new Date(String(c));
     if (!Number.isNaN(d.getTime())) return d.toISOString();
   }
+
+  // 2) Best source: gameday (YYYY-MM-DD) + gametime (HH:MM Eastern Time)
+  if (r.gameday && r.gametime) {
+    const iso = easternToUtcIso(String(r.gameday).trim(), String(r.gametime).trim());
+    if (iso) return iso;
+  }
+
+  // 3) Last resort: gameday only (midnight UTC — avoid if gametime is available)
+  if (r.gameday) {
+    const d = new Date(String(r.gameday));
+    if (!Number.isNaN(d.getTime())) return d.toISOString();
+  }
+
   return null;
+}
+
+// Convert a gameday (YYYY-MM-DD) + gametime (HH:MM, US Eastern) to UTC ISO string.
+// Handles EDT (-04:00) and EST (-05:00) automatically via Intl.
+function easternToUtcIso(gameday, gametime) {
+  try {
+    const [hStr, mStr] = gametime.split(":");
+    const h = parseInt(hStr, 10);
+    const m = parseInt(mStr || "0", 10);
+    if (isNaN(h) || isNaN(m)) return null;
+
+    const pad2 = (n) => String(n).padStart(2, "0");
+
+    // Try EDT (-04:00) then EST (-05:00); pick whichever gives the matching NY hour
+    for (const offset of ["-04:00", "-05:00"]) {
+      const candidate = new Date(`${gameday}T${pad2(h)}:${pad2(m)}:00${offset}`);
+      if (isNaN(candidate.getTime())) continue;
+
+      const nyHour = parseInt(
+        new Intl.DateTimeFormat("en-US", {
+          timeZone: "America/New_York",
+          hour: "numeric",
+          hour12: false,
+        }).format(candidate),
+        10
+      );
+
+      if (nyHour === h) return candidate.toISOString();
+    }
+    return null;
+  } catch {
+    return null;
+  }
 }
 
 function json(statusCode, body) {
