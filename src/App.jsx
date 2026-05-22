@@ -1013,36 +1013,41 @@ function GameRow({ game, index, pick, onPick, gameStats, locked, kickoffIso, loc
       style={{
         ...styles.gameRow,
         position: "relative",
-        overflow: "hidden",
-        // Subtle green tint + left-edge bar via inset box-shadow (no layout shift)
+        // No overflow:hidden here — keeps the selected button's glow from clipping on the right
         background: pick ? "rgba(10, 155, 45, 0.055)" : "transparent",
-        boxShadow: pick
-          ? "inset 5px 0 0 rgba(25, 185, 55, 0.65)"
-          : "inset 5px 0 0 transparent",
-        transition: "background 0.35s, box-shadow 0.35s",
+        transition: "background 0.35s",
+        paddingRight: 10, // breathing room for button glow
       }}
     >
-      {/* ── Blowup logo background ── */}
+      {/* ── Blowup logo background — overflow:hidden lives on this inner div, not the row ── */}
       {selectedLogo && (
-        <img
-          src={selectedLogo}
-          alt=""
-          aria-hidden="true"
+        <div
           style={{
             position: "absolute",
-            top: "50%",
-            left: "50%",
-            transform: "translate(-50%, -50%)",
-            height: 210,
-            width: "auto",
-            objectFit: "contain",
-            opacity: 0.11,
+            top: 0, left: 0, right: 0, bottom: 0,
+            overflow: "hidden",
             pointerEvents: "none",
             zIndex: 0,
-            filter: "saturate(1.8)",
-            transition: "opacity 0.4s",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
           }}
-        />
+        >
+          <img
+            src={selectedLogo}
+            alt=""
+            aria-hidden="true"
+            style={{
+              height: 210,
+              width: "auto",
+              objectFit: "contain",
+              opacity: 0.11,
+              flexShrink: 0,
+              filter: "saturate(1.8)",
+              transition: "opacity 0.4s",
+            }}
+          />
+        </div>
       )}
 
       {/* ── Left: game info + stats ── */}
