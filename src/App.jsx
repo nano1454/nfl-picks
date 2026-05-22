@@ -1,14 +1,180 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { supabase } from "./supabaseClient";
 import { Link } from "react-router-dom";
-import Admin from "./Admin";
-
-
-
-
 
 /** Optional: keep Formspree so you still receive an email copy (no mailto popups) */
 const FORMSPREE_ENDPOINT = "https://formspree.io/f/xovlredw";
+
+/* ---------- Styles (MUST be above App so useState can reference it) ---------- */
+const styles = {
+  pageOverlay: {
+    maxWidth: 920,
+    width: "100%",
+    margin: "24px auto",
+    background: "rgba(255,255,255,0.82)",
+    borderRadius: 16,
+    boxShadow: "0 10px 30px rgba(0,0,0,0.25)",
+    padding: 20,
+    color: "#000",
+  },
+
+  // Header-ish row
+  headerRow: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    gap: 12,
+    flexWrap: "wrap",
+  },
+  headerLeft: { minWidth: 260 },
+  headerRight: {
+    display: "flex",
+    gap: 8,
+    flexWrap: "wrap",
+    alignItems: "center",
+    justifyContent: "flex-end",
+  },
+
+  card: {
+    background: "rgba(255,255,255,0.9)",
+    border: "1px solid rgba(0,0,0,0.08)",
+    borderRadius: 14,
+    padding: 16,
+    boxShadow: "0 4px 16px rgba(0,0,0,0.10)",
+  },
+  h1: { fontSize: 28, fontWeight: 800, margin: "0 0 4px", letterSpacing: 0.2 },
+  h2: { fontSize: 18, fontWeight: 700, margin: "0 0 8px" },
+  muted: { color: "rgba(0,0,0,0.75)", margin: "0 0 0" },
+  mutedSmall: { color: "rgba(0,0,0,0.75)", fontSize: 13, margin: "4px 0 12px" },
+  row: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 },
+
+  input: {
+    padding: "10px 12px",
+    border: "1px solid #9ca3af",
+    borderRadius: 8,
+    background: "#333",
+    color: "#fff",
+    width: "100%",
+    boxSizing: "border-box",
+  },
+
+  btn: {
+    padding: "10px 16px",
+    border: "1px solid rgba(0,0,0,0.15)",
+    borderRadius: 10,
+    background: "rgba(255,255,255,0.9)",
+    color: "#000",
+    cursor: "pointer",
+    transition: "background 0.2s, color 0.2s",
+    backdropFilter: "saturate(120%) blur(2px)",
+  },
+  btnHover: { background: "rgba(255,255,255,1)", color: "#000" },
+
+  btnPrimary: {
+    padding: "10px 16px",
+    border: "none",
+    borderRadius: 10,
+    background: "#111",
+    color: "#fff",
+    cursor: "pointer",
+    transition: "background 0.2s",
+  },
+  btnPrimaryHover: { background: "#333" },
+
+  // Header-ish nav buttons (smaller + pill-ish)
+  navBtn: {
+    padding: "8px 12px",
+    border: "1px solid rgba(0,0,0,0.15)",
+    borderRadius: 999,
+    background: "rgba(255,255,255,0.92)",
+    color: "#111",
+    cursor: "pointer",
+    transition: "background 0.2s, transform 0.1s",
+    boxShadow: "0 2px 8px rgba(0,0,0,0.06)",
+    fontSize: 13,
+    fontWeight: 700,
+  },
+  navBtnHover: {
+    background: "rgba(255,255,255,1)",
+    transform: "translateY(-1px)",
+  },
+
+  gameRow: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    padding: "12px 0",
+    borderBottom: "1px solid rgba(0,0,0,0.08)",
+    gap: 12,
+  },
+  pickGroup: { display: "flex", gap: 10, alignItems: "center" },
+
+  radioActual: { position: "absolute", opacity: 0, pointerEvents: "none" },
+  logoOnly: { height: 28, width: 28, objectFit: "contain", display: "block" },
+  logoButton: {
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    height: 40,
+    width: 40,
+    borderRadius: 12,
+    border: "1px solid #ddd",
+    background: "rgba(255,255,255,0.9)",
+    cursor: "pointer",
+    transition: "transform 0.1s, background 0.2s, border-color 0.2s",
+    backdropFilter: "saturate(120%) blur(2px)",
+    position: "relative",
+  },
+  logoButtonSelected: { border: "#111 solid 2px" },
+  logoButtonDisabled: {
+    opacity: 0.55,
+    cursor: "not-allowed",
+    filter: "grayscale(60%)",
+  },
+  tiePill: {
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    height: 28,
+    minWidth: 28,
+    padding: "0 8px",
+    borderRadius: 999,
+    background: "rgba(0,0,0,0.06)",
+    color: "#111",
+    fontSize: 12,
+  },
+  srOnly: {
+    position: "absolute",
+    width: 1,
+    height: 1,
+    padding: 0,
+    margin: -1,
+    overflow: "hidden",
+    clip: "rect(0,0,0,0)",
+    whiteSpace: "nowrap",
+    border: 0,
+  },
+  tbRow: {
+    display: "grid",
+    gap: 6,
+    padding: 10,
+    border: "1px solid rgba(0,0,0,0.08)",
+    borderRadius: 12,
+    background: "rgba(255,255,255,0.85)",
+  },
+  tbLabel: { fontSize: 13, fontWeight: 600, color: "rgba(0,0,0,0.85)" },
+
+  // Deadline lock banner
+  lockBanner: {
+    marginTop: 12,
+    border: "1px solid rgba(160,0,0,0.25)",
+    background: "rgba(200,0,0,0.07)",
+    borderRadius: 12,
+    padding: 12,
+    color: "#7a0000",
+    fontSize: 13,
+  },
+};
 
 /* ---------- Logos map ---------- */
 const teamLogoSlug = {
@@ -43,7 +209,7 @@ const teamLogoSlug = {
   "Seattle Seahawks": "seahawks",
   "Tampa Bay Buccaneers": "buccaneers",
   "Tennessee Titans": "titans",
-  "Washington Commanders": "commanders"
+  "Washington Commanders": "commanders",
 };
 
 function logoSrc(team) {
@@ -57,14 +223,24 @@ function validate({ user, week, picks, tiebreakers }) {
   if (!user?.name?.trim()) e.name = "Full name is required";
   if (!/^\S+@\S+\.\S+$/.test(user?.email || "")) e.email = "Valid email is required";
 
-  const anyPick = Object.values(picks || {}).some(Boolean);
-  if (!anyPick) e.picks = "Please make at least one pick";
+  const totalGames = (week?.games || []).length;
+  const picksMade = Object.values(picks || {}).filter(Boolean).length;
+  if (totalGames > 0 && picksMade < totalGames) e.picks = "Please pick every matchup";
 
   const tb = tiebreakers || [];
-  if (tb.length !== 3 || tb.some(t => String(t.total || "").trim() === "")) {
+  if (tb.length !== 3 || tb.some((t) => String(t.total || "").trim() === "")) {
     e.tiebreakers = "Enter totals for all 3 tiebreakers";
   }
   return e;
+}
+
+/** NFL season helper (Jan–Jul should usually be previous season) */
+function getDefaultNflSeasonYear() {
+  const d = new Date();
+  const m = d.getMonth(); // 0=Jan
+  const y = d.getFullYear();
+  // If we're before Aug, assume we're still in the prior NFL season year
+  return m < 7 ? y - 1 : y;
 }
 
 export default function App() {
@@ -72,53 +248,102 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState("");
 
+  // hover styles for bottom buttons
+  const [printBtnStyle, setPrintBtnStyle] = useState(styles.btn);
+  const [submitBtnStyle, setSubmitBtnStyle] = useState(styles.btnPrimary);
+
+  // header-ish nav button hover styles
+  const [navResultsStyle, setNavResultsStyle] = useState(styles.navBtn);
+  const [navAdminStyle, setNavAdminStyle] = useState(styles.navBtn);
+  const [navLeaderboardStyle, setNavLeaderboardStyle] = useState(styles.navBtn);
+
   const [user, setUser] = useState({ name: "", email: "" });
   const [picks, setPicks] = useState({}); // { [gameId]: "AWAY" | "HOME" | "TIE" }
-  const [tbs, setTbs] = useState([]);     // [{ gameId, total }]
+  const [tbs, setTbs] = useState([]); // [{ gameId, total }]
 
   // % stats per game: { [gameId]: { away, home, tie, total } }
   const [stats, setStats] = useState({});
 
-  // hover styles for buttons
-  const [printBtnStyle, setPrintBtnStyle] = useState(styles.btn);
-  const [submitBtnStyle, setSubmitBtnStyle] = useState(styles.btnPrimary);
+  // kickoff map: { [gameId]: "2025-09-07T18:00:00Z" }
+  const [kickoffById, setKickoffById] = useState({});
 
-  /* Load week.json */
+  // ticking clock so locks update even if page stays open
+  const [nowTs, setNowTs] = useState(() => Date.now());
+
+  /* Load week from DB (C2) */
   useEffect(() => {
     (async () => {
       try {
-        const res = await fetch("/week.json", { cache: "no-store" });
-        if (!res.ok) throw new Error(`Could not load week.json (${res.status})`);
-        const data = await res.json();
+        setLoading(true);
+        setErr("");
 
-        // ensure exactly 3 predetermined tiebreakers
+        const season = getDefaultNflSeasonYear();
+        const res = await fetch(`/.netlify/functions/getweek?season=${season}`, { cache: "no-store" });
+
+        const data = await res.json();
+        if (!data.ok) throw new Error(data.error || "Could not load week data");
+
+        // ✅ ensure exactly 3 predetermined tiebreakers (KEEP THIS LOGIC)
         let tbIds = Array.isArray(data.tiebreakers) ? data.tiebreakers.slice(0, 3) : [];
         if (tbIds.length < 3) {
-          tbIds = (data.games || []).slice(0, 3).map((g) => g.id).slice(0, 3);
+          tbIds = (data.games || [])
+            .slice(0, 3)
+            .map((g) => g.id)
+            .slice(0, 3);
         }
 
-        setWeek({ week: data.week, deadline: data.deadline, games: data.games || [], tiebreakers: tbIds, byes: Array.isArray(data.byes) ? data.byes : [] });
+        setWeek({
+          week: data.week,
+          deadline: data.deadline || "", // ✅ deadline now used for global lock
+          games: data.games || [],
+          tiebreakers: tbIds,
+          byes: Array.isArray(data.byes) ? data.byes : [],
+        });
+
         setTbs(tbIds.map((id) => ({ gameId: id, total: "" })));
+
+        // kickoff map FROM getweek payload (no client DB access needed)
+        const map = {};
+        for (const g of data.games || []) {
+          if (g?.id && g?.kickoff) map[g.id] = g.kickoff;
+        }
+        setKickoffById(map);
       } catch (e) {
-        setErr(String(e));
+        console.error(e);
+        setErr(String(e?.message || e));
+        setKickoffById({});
       } finally {
         setLoading(false);
       }
     })();
   }, []);
 
+  // update "now" every 30 seconds so lock state updates on screen
+  useEffect(() => {
+    const t = setInterval(() => setNowTs(Date.now()), 30_000);
+    return () => clearInterval(t);
+  }, []);
+
+  // ✅ GLOBAL DEADLINE LOCK (whole sheet)
+  const deadlineObj = useMemo(() => {
+    if (!week.deadline) return null;
+    const d = new Date(week.deadline);
+    return Number.isNaN(d.getTime()) ? null : d;
+  }, [week.deadline]);
+
+  const isDeadlineLocked = useMemo(() => {
+    if (!deadlineObj) return false; // If no deadline set, don't lock
+    return nowTs >= deadlineObj.getTime();
+  }, [deadlineObj, nowTs]);
+
   /* Load stats when week ready + (optional) realtime updates */
   useEffect(() => {
     if (!week.week || week.games.length === 0) return;
 
-    loadStats(week.week);
+    loadStats(Number(week.week));
 
-    // Realtime: refresh when any insert happens for this week (guarded)
     const canRealtime =
-      supabase &&
-      typeof supabase.channel === "function" &&
-      typeof supabase.removeChannel === "function";
-
+      supabase && typeof supabase.channel === "function" && typeof supabase.removeChannel === "function";
     if (!canRealtime) return;
 
     let channel;
@@ -128,7 +353,7 @@ export default function App() {
         .on(
           "postgres_changes",
           { event: "INSERT", schema: "public", table: "picks", filter: `week=eq.${week.week}` },
-          () => loadStats(week.week)
+          () => loadStats(Number(week.week))
         )
         .subscribe();
     } catch (e) {
@@ -159,20 +384,28 @@ export default function App() {
     });
   }
 
-function isValidTBValue(v) {
-  // allow "0", "12", etc. Disallow empty, spaces, or non-digits
-  return typeof v === "string" && /^[0-9]+$/.test(v);
-}
+  function isValidTBValue(v) {
+    return typeof v === "string" && /^[0-9]+$/.test(v);
+  }
 
+  // helper: is a specific game locked yet?
+  function isGameLocked(gameId) {
+    const kickoffIso = kickoffById?.[gameId];
+    if (!kickoffIso) return false;
+    const kickoffMs = new Date(kickoffIso).getTime();
+    if (Number.isNaN(kickoffMs)) return false;
+    return nowTs >= kickoffMs;
+  }
 
+  // ✅ unified lock: deadline OR kickoff
+  function isAnyLockActiveForGame(gameId) {
+    return isDeadlineLocked || isGameLocked(gameId);
+  }
 
   /* ---------- Stats loader ---------- */
   async function loadStats(currentWeek) {
     try {
-      const { data, error } = await supabase
-        .from("picks")
-        .select("game_id, pick")
-        .eq("week", currentWeek);
+      const { data, error } = await supabase.from("picks").select("game_id, pick").eq("week", Number(currentWeek));
 
       if (error) {
         console.error("Supabase select error:", error);
@@ -180,11 +413,12 @@ function isValidTBValue(v) {
       }
 
       const map = {};
-      for (const g of (week.games || [])) {
+      for (const g of week.games || []) {
         if (!g?.id) continue;
         map[g.id] = { away: 0, home: 0, tie: 0, total: 0 };
       }
-      for (const row of (data || [])) {
+
+      for (const row of data || []) {
         const key = row?.game_id;
         if (!key) continue;
         const m = map[key] || (map[key] = { away: 0, home: 0, tie: 0, total: 0 });
@@ -193,6 +427,7 @@ function isValidTBValue(v) {
         else if (row.pick === "TIE") m.tie++;
         m.total++;
       }
+
       setStats(map);
     } catch (e) {
       console.error("loadStats crashed:", e);
@@ -204,10 +439,7 @@ function isValidTBValue(v) {
     const games = week.games.map((g) => ({
       id: g.id,
       label: `${g.away} @ ${g.home}`,
-      pick:
-        picks[g.id] === "HOME" ? g.home :
-        picks[g.id] === "AWAY" ? g.away :
-        "Tie",
+      pick: picks[g.id] === "HOME" ? g.home : picks[g.id] === "AWAY" ? g.away : "Tie",
     }));
 
     const selected = games.filter((g) => !!picks[g.id]);
@@ -224,125 +456,133 @@ function isValidTBValue(v) {
     return {
       _subject: `Week ${week.week} — ${user.name} (${user.email})`,
       picks: selected.map((g) => `${g.label} → ${g.pick}`),
-      tiebreakers: tbLines.map((t) => `${t.label}: ${t.total} total`)
+      tiebreakers: tbLines.map((t) => `${t.label}: ${t.total} total`),
     };
   }
 
   /* ---------- Submit: save to Supabase (+ optional Formspree) ---------- */
   async function submitEmail(e) {
-  e.preventDefault();
+    e.preventDefault();
 
-  // ✅ Check if all games have been picked
-const missingGames = week.games.filter(g => !picks[g.id]);
-if (missingGames.length > 0) {
-  alert(`You missed ${missingGames.length} game${missingGames.length > 1 ? 's' : ''}. Please make all selections before submitting.`);
-  return;
-}
-
-// ✅ Check all 3 tiebreakers are filled with numbers
-if (!Array.isArray(tbs) || tbs.length !== 3) {
-  alert("Please enter totals for all 3 tiebreakers.");
-  return;
-}
-
-const tbMissing = tbs.findIndex((tb) => !isValidTBValue(tb?.total));
-if (tbMissing !== -1) {
-  alert(`Please enter a number for Tiebreaker ${tbMissing + 1}.`);
-  // Optional: scroll to the TB inputs if you want
-  document.getElementById(`tb_${tbMissing+1}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
-  return;
-}
-
-
-  if (!isValid) return;
-
-  try {
-    const name = (user.name || "").trim();
-    if (!name) {
-      alert("Please enter your name.");
+    // ✅ Hard stop if global deadline locked
+    if (isDeadlineLocked) {
+      alert(
+        `Picks are locked (deadline passed).${
+          deadlineObj ? `\nDeadline was: ${deadlineObj.toLocaleString()}` : ""
+        }`
+      );
       return;
     }
 
-    // 1) Build rows for PICKS
-    const rows = (week.games || [])
-      .filter((g) => g?.id && picks[g.id]) // only games the user actually picked
-      .map((g) => ({
+    const missingGames = week.games.filter((g) => !picks[g.id]);
+
+    // block submit if missing picks for games that already started
+    const lockedMissing = missingGames.filter((g) => isGameLocked(g.id));
+    if (lockedMissing.length > 0) {
+      const names = lockedMissing.map((g) => `${g.away} @ ${g.home}`).join(", ");
+      alert(
+        `Too late — these games already started and are missing picks:\n${names}\n\nYou can’t submit after kickoff if a pick is missing.`
+      );
+      return;
+    }
+
+    if (missingGames.length > 0) {
+      alert(
+        `You missed ${missingGames.length} game${missingGames.length > 1 ? "s" : ""}. Please make all selections before submitting.`
+      );
+      return;
+    }
+
+    if (!Array.isArray(tbs) || tbs.length !== 3) {
+      alert("Please enter totals for all 3 tiebreakers.");
+      return;
+    }
+
+    const tbMissing = tbs.findIndex((tb) => !isValidTBValue(tb?.total));
+    if (tbMissing !== -1) {
+      alert(`Please enter a number for Tiebreaker ${tbMissing + 1}.`);
+      document.getElementById(`tb_${tbMissing + 1}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
+      return;
+    }
+
+    if (!isValid) return;
+
+    try {
+      const name = (user.name || "").trim();
+      if (!name) {
+        alert("Please enter your name.");
+        return;
+      }
+
+      // 1) Build rows for PICKS
+      const rows = (week.games || [])
+        .filter((g) => g?.id && picks[g.id])
+        .map((g) => ({
+          week: week.week,
+          game_id: g.id,
+          pick: picks[g.id], // "AWAY" | "HOME" | "TIE"
+          user_name: name,
+        }));
+
+      if (rows.length === 0) {
+        alert("Please make at least one pick before submitting.");
+        return;
+      }
+
+      // 2) Save PICKS
+      const { error: pickError } = await supabase.from("picks").upsert(rows, { onConflict: "week,game_id,user_name" });
+
+      if (pickError) {
+        if (pickError.code === "23505") {
+          alert("Looks like you already submitted a pick for one or more games this week under this name.");
+          return;
+        }
+        console.error("Supabase picks error:", pickError);
+        alert("There was a problem saving your picks.");
+        return;
+      }
+
+      // 3) Build rows for TIEBREAKERS
+      const tbRows = (tbs || []).map((tb, idx) => ({
         week: week.week,
-        game_id: g.id,
-        pick: picks[g.id],       // "AWAY" | "HOME" | "TIE"
-        user_name: name
+        user_name: name,
+        tb_no: idx + 1,
+        game_id: tb.gameId,
+        total: Number.parseInt(tb.total, 10) || 0,
       }));
 
-    if (rows.length === 0) {
-      alert("Please make at least one pick before submitting.");
-      return;
-    }
-
-    // 2) Save PICKS
-    // If you created a unique index on (week,game_id,user_name), upsert lets users update their picks
-    const { error: pickError } = await supabase
-      .from("picks")
-      .upsert(rows, { onConflict: "week,game_id,user_name" });
-      // If you created user_name_norm instead, use:
-      // .upsert(rows, { onConflict: "week,game_id,user_name_norm" });
-
-    if (pickError) {
-      // 23505 = unique_violation (only happens with insert; upsert normally avoids it)
-      if (pickError.code === "23505") {
-        alert("Looks like you already submitted a pick for one or more games this week under this name.");
-        return;
+      if (tbRows.length === 3) {
+        const { error: tbError } = await supabase
+          .from("tiebreakers")
+          .upsert(tbRows, { onConflict: "week,user_name,tb_no" });
+        if (tbError) {
+          console.error("Supabase tiebreakers error:", tbError);
+          alert("Your picks were saved, but there was a problem saving tiebreakers. Please try again.");
+          return;
+        }
       }
-      console.error("Supabase picks error:", pickError);
-      alert("There was a problem saving your picks.");
-      return;
-    }
 
-    // 3) Build rows for TIEBREAKERS (3 totals)
-    const tbRows = (tbs || []).map((tb, idx) => ({
-      week: week.week,
-      user_name: name,
-      tb_no: idx + 1,                 // 1, 2, 3
-      game_id: tb.gameId,             // e.g. "SEA@ARI"
-      total: Number.parseInt(tb.total, 10) || 0
-    }));
-
-    // Only attempt if we have exactly 3
-    if (tbRows.length === 3) {
-      const { error: tbError } = await supabase
-        .from("tiebreakers")
-        .upsert(tbRows, { onConflict: "week,user_name,tb_no" }); // overwrites their own TBs for this week/slot
-
-      if (tbError) {
-        console.error("Supabase tiebreakers error:", tbError);
-        // Don't block the whole submission if TBs fail, but let the user know
-        alert("Your picks were saved, but there was a problem saving tiebreakers. Please try again.");
-        return;
+      // 4) Optional Formspree email
+      if (FORMSPREE_ENDPOINT) {
+        try {
+          const concise = buildConciseSubmission({ user, week, picks, tiebreakers: tbs });
+          await fetch(FORMSPREE_ENDPOINT, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ ...concise }),
+          });
+        } catch (e) {
+          console.error("Formspree error (non-blocking):", e);
+        }
       }
-    }
 
-    // 4) (Optional) Email you a concise copy via Formspree (if you kept FORMSPREE_ENDPOINT)
-    if (FORMSPREE_ENDPOINT) {
-      try {
-        const concise = buildConciseSubmission({ user, week, picks, tiebreakers: tbs });
-        await fetch(FORMSPREE_ENDPOINT, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ ...concise }) // (we’re not sending user email anymore)
-        });
-      } catch (e) {
-        console.error("Formspree error (non-blocking):", e);
-      }
+      alert("Submitted! Thank you — your picks and tiebreakers were saved.");
+      loadStats(week.week);
+    } catch (err) {
+      console.error("submitEmail crashed:", err);
+      alert("There was a problem processing your submission.");
     }
-
-    alert("Submitted! Thank you — your picks and tiebreakers were saved.");
-    // Refresh live stats/bars
-    loadStats(week.week);
-  } catch (err) {
-    console.error("submitEmail crashed:", err);
-    alert("There was a problem processing your submission.");
   }
-}
-
 
   function printPDF() {
     window.print();
@@ -351,17 +591,70 @@ if (tbMissing !== -1) {
   if (loading) return <Shell><p>Loading…</p></Shell>;
   if (err) return <Shell><p style={{ color: "red" }}>{err}</p></Shell>;
 
-  const deadline = week.deadline ? new Date(week.deadline) : null;
+  const deadline = deadlineObj;
 
   return (
     <Shell>
       <div style={styles.pageOverlay}>
-        <h1 style={styles.h1}>NFL Weekly Picks</h1>
-        <p style={styles.muted}>
-          Week {week.week}{deadline ? ` • Due by ${deadline.toLocaleString()}` : ""}
-        </p>
+        {/* Header row: title left, nav buttons right */}
+        <div style={styles.headerRow}>
+          <div style={styles.headerLeft}>
+            <h1 style={styles.h1}>NFL Weekly Picks</h1>
+            <p style={styles.muted}>
+              Week {week.week}
+              {deadline ? ` • Due by ${deadline.toLocaleString()}` : ""}
+            </p>
 
-        <form onSubmit={submitEmail} style={{ display: "grid", gap: 16 }}>
+            {/* ✅ Deadline lock banner */}
+            {isDeadlineLocked ? (
+              <div style={styles.lockBanner}>
+                <b>🔒 Picks are locked.</b>{" "}
+                {deadline ? (
+                  <span>Deadline passed: <b>{deadline.toLocaleString()}</b></span>
+                ) : (
+                  <span>Deadline passed.</span>
+                )}
+              </div>
+            ) : null}
+          </div>
+
+          <div style={styles.headerRight}>
+            <Link to="/results">
+              <button
+                type="button"
+                style={navResultsStyle}
+                onMouseEnter={() => setNavResultsStyle({ ...styles.navBtn, ...styles.navBtnHover })}
+                onMouseLeave={() => setNavResultsStyle(styles.navBtn)}
+              >
+                View Picks Table
+              </button>
+            </Link>
+
+            <Link to="/admin">
+              <button
+                type="button"
+                style={navAdminStyle}
+                onMouseEnter={() => setNavAdminStyle({ ...styles.navBtn, ...styles.navBtnHover })}
+                onMouseLeave={() => setNavAdminStyle(styles.navBtn)}
+              >
+                Admin Dashboard
+              </button>
+            </Link>
+
+            <Link to="/leaderboard">
+              <button
+                type="button"
+                style={navLeaderboardStyle}
+                onMouseEnter={() => setNavLeaderboardStyle({ ...styles.navBtn, ...styles.navBtnHover })}
+                onMouseLeave={() => setNavLeaderboardStyle(styles.navBtn)}
+              >
+                Live Leaderboard
+              </button>
+            </Link>
+          </div>
+        </div>
+
+        <form onSubmit={submitEmail} style={{ display: "grid", gap: 16, marginTop: 14 }}>
           {/* Player info */}
           <Card>
             <div style={styles.row}>
@@ -370,6 +663,7 @@ if (tbMissing !== -1) {
                   style={styles.input}
                   placeholder="Your full name"
                   value={user.name}
+                  disabled={isDeadlineLocked}
                   onChange={(e) => setUser({ ...user, name: e.target.value })}
                 />
               </Field>
@@ -379,6 +673,7 @@ if (tbMissing !== -1) {
                   style={styles.input}
                   placeholder="you@email.com"
                   value={user.email}
+                  disabled={isDeadlineLocked}
                   onChange={(e) => setUser({ ...user, email: e.target.value })}
                 />
               </Field>
@@ -397,13 +692,16 @@ if (tbMissing !== -1) {
                   pick={picks[g.id]}
                   onPick={setPick}
                   gameStats={stats[g.id]}
+                  locked={isAnyLockActiveForGame(g.id)}
+                  kickoffIso={kickoffById[g.id] || ""}
+                  lockedReason={isDeadlineLocked ? "deadline" : isGameLocked(g.id) ? "kickoff" : ""}
                 />
               ))}
             </div>
             {errors.picks && <ErrorText>{errors.picks}</ErrorText>}
           </Card>
 
-          {/* Predetermined tiebreakers: total points */}
+          {/* Predetermined tiebreakers */}
           <Card>
             <h2 style={styles.h2}>Tiebreakers (total combined points)</h2>
             <p style={styles.mutedSmall}>We picked the games. Enter the total points for each.</p>
@@ -416,54 +714,53 @@ if (tbMissing !== -1) {
                   <div key={tb.gameId} style={styles.tbRow}>
                     <label style={styles.tbLabel}>
                       Tiebreaker {i + 1}: {g.away} @ {g.home}
-                      {(g.date || g.time) ? ` — ${g.date || ""} ${g.time || ""}` : ""}
                     </label>
                     <input
+                      id={`tb_${i + 1}`}
                       style={styles.input}
                       inputMode="numeric"
                       placeholder="Total points"
                       value={tb.total}
+                      disabled={isDeadlineLocked}
                       onChange={(e) => setTBTotal(i, e.target.value)}
                     />
                   </div>
                 );
               })}
             </div>
-  {errors.tiebreakers && <ErrorText>{errors.tiebreakers}</ErrorText>}
-          
+
+            {errors.tiebreakers && <ErrorText>{errors.tiebreakers}</ErrorText>}
 
             {/* Teams on Bye */}
-{week.byes?.length > 0 && (
-  <div style={{ marginTop: 20 }}>
-    <h3 style={{ margin: "8px 0 12px", fontSize: 18 }}>Teams on Bye</h3>
-    <div style={{ display: "flex", flexWrap: "wrap", gap: 12 }}>
-      {week.byes.map((team) => (
-        <div key={team} style={{ width: 64, textAlign: "center" }} title={team}>
-          <img
-            src={logoSrc(team)}
-            alt={team}
-            style={{ width: 48, height: 48, objectFit: "contain", display: "block", margin: "0 auto" }}
-          />
-        </div>
-      ))}
-    </div>
-  </div>
-)}
-</Card>
-          
+            {week.byes?.length > 0 && (
+              <div style={{ marginTop: 20 }}>
+                <h3 style={{ margin: "8px 0 12px", fontSize: 18 }}>Teams on Bye</h3>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 12 }}>
+                  {week.byes.map((team) => (
+                    <div key={team} style={{ width: 64, textAlign: "center" }} title={team}>
+                      <img
+                        src={logoSrc(team)}
+                        alt={team}
+                        style={{ width: 48, height: 48, objectFit: "contain", display: "block", margin: "0 auto" }}
+                      />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </Card>
 
-          
-
-          {/* Actions */}
-          <div style={{ display: "flex", gap: 8 }}>
+          {/* Actions (bottom only) */}
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             <button
               type="submit"
               style={submitBtnStyle}
               onMouseEnter={() => setSubmitBtnStyle({ ...styles.btnPrimary, ...styles.btnPrimaryHover })}
               onMouseLeave={() => setSubmitBtnStyle(styles.btnPrimary)}
-              disabled={!isValid}
+              disabled={!isValid || isDeadlineLocked}
+              title={isDeadlineLocked ? "Locked (deadline passed)" : ""}
             >
-              Submit Picks
+              {isDeadlineLocked ? "Locked" : "Submit Picks"}
             </button>
 
             <button
@@ -475,26 +772,7 @@ if (tbMissing !== -1) {
             >
               Print / Save as PDF
             </button>
-
-<Link to="/results">
-  <button
-       type="button"
-              style={printBtnStyle}
-              onMouseEnter={() => setResultsBtnStyle({ ...styles.btn, ...styles.btnHover })}
-              onMouseLeave={() => setResultsBtnStyle(styles.btn)}
-  >
-    View Picks Table
-  </button>
-</Link>
-
-<Link to="/admin">
-  <button type="button" style={printBtnStyle}>
-    Admin Dashboard
-  </button>
-</Link>
-
-
-          </div>          
+          </div>
         </form>
 
         <Footer />
@@ -516,7 +794,6 @@ function PickSummary({ awayLabel, homeLabel, awayCount, homeCount, awayLogo, hom
   const awayPct = total ? Math.round((awayCount / total) * 100) : 0;
   const homePct = total ? 100 - awayPct : 0;
 
-  // Color logic: higher % = green, lower % = red, tie = gray
   const green = "#2ecc71";
   const red = "#e74c3c";
   const gray = "#bdc3c7";
@@ -525,9 +802,11 @@ function PickSummary({ awayLabel, homeLabel, awayCount, homeCount, awayLogo, hom
   let homeColor = gray;
   if (total > 0) {
     if (awayPct > homePct) {
-      awayColor = green; homeColor = red;
+      awayColor = green;
+      homeColor = red;
     } else if (homePct > awayPct) {
-      awayColor = red; homeColor = green;
+      awayColor = red;
+      homeColor = green;
     }
   }
 
@@ -551,7 +830,6 @@ function PickSummary({ awayLabel, homeLabel, awayCount, homeCount, awayLogo, hom
 
   return (
     <div style={{ marginTop: 10 }}>
-      {/* Header */}
       <div style={{ ...row, fontWeight: 600, color: "#333" }}>
         <div></div>
         <div>Team</div>
@@ -559,7 +837,6 @@ function PickSummary({ awayLabel, homeLabel, awayCount, homeCount, awayLogo, hom
         <div style={{ textAlign: "right" }}>%</div>
       </div>
 
-      {/* AWAY row */}
       <div style={row}>
         <div style={logoBox} title={awayLabel}>
           {awayLogo ? <img src={awayLogo} alt={awayLabel} style={logoImg} /> : null}
@@ -572,7 +849,6 @@ function PickSummary({ awayLabel, homeLabel, awayCount, homeCount, awayLogo, hom
         <div style={{ width: `${awayPct}%`, height: "100%", background: awayColor }} />
       </div>
 
-      {/* HOME row */}
       <div style={{ ...row, marginTop: 8 }}>
         <div style={logoBox} title={homeLabel}>
           {homeLogo ? <img src={homeLogo} alt={homeLabel} style={logoImg} /> : null}
@@ -592,14 +868,23 @@ function PickSummary({ awayLabel, homeLabel, awayCount, homeCount, awayLogo, hom
   );
 }
 
-/* ---------- Game row (uses only PickSummary now) ---------- */
-function GameRow({ game, index, pick, onPick, gameStats }) {
+/* ---------- Game row (summary + pick buttons) ---------- */
+function GameRow({ game, index, pick, onPick, gameStats, locked, kickoffIso, lockedReason }) {
   const awayLogo = logoSrc(game.away);
   const homeLogo = logoSrc(game.home);
 
-  const total = gameStats?.total || 0;
   const awayCount = gameStats?.away || 0;
   const homeCount = gameStats?.home || 0;
+
+  let lockNote = "";
+  if (locked) {
+    lockNote =
+      lockedReason === "deadline"
+        ? "🔒 Locked — deadline passed"
+        : "🔒 Locked — game started";
+  } else {
+    lockNote = kickoffIso ? `Locks at kickoff: ${new Date(kickoffIso).toLocaleString()}` : "";
+  }
 
   return (
     <div style={styles.gameRow}>
@@ -608,7 +893,10 @@ function GameRow({ game, index, pick, onPick, gameStats }) {
           Game {index + 1}: {game.away} @ {game.home}
         </div>
 
-        {/* Only the table + stacked bars */}
+        {lockNote ? (
+          <div style={{ fontSize: 12, marginTop: 4, color: locked ? "#a00" : "rgba(0,0,0,0.65)" }}>{lockNote}</div>
+        ) : null}
+
         <PickSummary
           awayLabel={game.away}
           homeLabel={game.home}
@@ -616,27 +904,34 @@ function GameRow({ game, index, pick, onPick, gameStats }) {
           homeCount={homeCount}
           awayLogo={awayLogo}
           homeLogo={homeLogo}
-          total={total}
         />
       </div>
 
-      {/* Picks: logos only for AWAY/HOME, small pill for TIE */}
       <div style={styles.pickGroup}>
         {[
           { v: "AWAY", label: game.away, logo: awayLogo, title: `${game.away} (Away)` },
           { v: "HOME", label: game.home, logo: homeLogo, title: `${game.home} (Home)` },
-          { v: "TIE",  label: "Tie",     logo: null,      title: "Tie" }
-        ].map((opt) => {
+          { v: "TIE", label: "Tie", logo: null, title: "Tie" },
+        ].reduce((acc, opt, i) => {
+          if (i === 1) acc.push(<VsAnimation key="vs" />);
           const isSelected = pick === opt.v;
-          const base = styles.logoButton;
-          const selected = isSelected ? styles.logoButtonSelected : {};
-          return (
-            <label key={opt.v} style={{ ...base, ...selected }} title={opt.title}>
+          const disabled = locked;
+          acc.push(
+            <label
+              key={opt.v}
+              style={{
+                ...styles.logoButton,
+                ...(isSelected ? styles.logoButtonSelected : {}),
+                ...(disabled ? styles.logoButtonDisabled : {}),
+              }}
+              title={disabled ? "Locked" : opt.title}
+            >
               <input
                 type="radio"
                 name={`pick_${game.id}`}
                 checked={isSelected}
-                onChange={() => onPick(game.id, opt.v)}
+                disabled={disabled}
+                onChange={() => !disabled && onPick(game.id, opt.v)}
                 style={styles.radioActual}
                 aria-label={opt.label}
               />
@@ -645,7 +940,7 @@ function GameRow({ game, index, pick, onPick, gameStats }) {
                   src={opt.logo}
                   alt={opt.label}
                   style={styles.logoOnly}
-                  onError={(e)=>e.currentTarget.style.display='none'}
+                  onError={(e) => (e.currentTarget.style.display = "none")}
                 />
               ) : (
                 <span style={styles.tiePill}>TIE</span>
@@ -653,7 +948,135 @@ function GameRow({ game, index, pick, onPick, gameStats }) {
               <span style={styles.srOnly}>{opt.label}</span>
             </label>
           );
-        })}
+          return acc;
+        }, [])}
+      </div>
+    </div>
+  );
+}
+
+/* ---------- VS Animation ---------- */
+function VsAnimation() {
+  const sparks = useMemo(() => {
+    const colors = ['#ff4500', '#ff6600', '#ffcc00', '#ff2200', '#ffaa00'];
+    return Array.from({ length: 10 }, (_, i) => {
+      const angle = (i / 10) * 360;
+      const dist = 8 + (i % 3) * 4;
+      return {
+        angle,
+        x: Math.cos(angle * Math.PI / 180) * dist,
+        y: Math.sin(angle * Math.PI / 180) * dist,
+        h: 2 + (i % 3),
+        color: colors[i % colors.length],
+        delay: (i / 10) * 1.8,
+        duration: 1.2 + (i % 3) * 0.3,
+      };
+    });
+  }, []);
+
+  const embers = useMemo(() =>
+    Array.from({ length: 8 }, (_, i) => ({
+      s: 1 + (i % 3) * 0.5,
+      x: 10 + i * 8,
+      y: 15 + i * 7,
+      dx: (i % 2 === 0 ? 1 : -1) * (3 + i * 1.5),
+      dur: 1.5 + (i % 3) * 0.5,
+      color: ['#ff4500', '#ff6600', '#ffcc00', '#ff2200'][i % 4],
+      delay: (i / 8) * 2,
+    }))
+  , []);
+
+  const bolts = useMemo(() =>
+    [30, 120, 210, 300].map((angle, i) => ({
+      angle, len: 10 + i * 2, delay: i * 0.4, duration: 2.2 + (i % 2) * 0.5,
+    }))
+  , []);
+
+  return (
+    <div style={{ position: 'relative', width: 80, height: 80, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+      {/* Burst rays */}
+      <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', animation: 'vsBurstSpin 12s linear infinite' }}>
+        <svg viewBox="0 0 500 500" style={{ width: '100%', height: '100%', position: 'absolute' }}>
+          <defs>
+            <radialGradient id="vsRayGrad" cx="50%" cy="50%" r="50%">
+              <stop offset="0%" stopColor="#ff6600" stopOpacity="0.9" />
+              <stop offset="40%" stopColor="#ff2200" stopOpacity="0.5" />
+              <stop offset="100%" stopColor="#ff0000" stopOpacity="0" />
+            </radialGradient>
+          </defs>
+          <g transform="translate(250,250)" fill="url(#vsRayGrad)">
+            {Array.from({ length: 24 }, (_, i) => (
+              <polygon key={i} points="0,-10 5,-240 -5,-240" transform={`rotate(${i * 15})`} opacity={i % 2 === 0 ? 0.9 : 0.6} />
+            ))}
+          </g>
+        </svg>
+      </div>
+
+      {/* Shockwave rings */}
+      {[
+        { d: 26, color: 'rgba(255,60,0,0.7)', delay: 0 },
+        { d: 36, color: 'rgba(255,160,0,0.5)', delay: 0.4 },
+        { d: 48, color: 'rgba(255,230,0,0.3)', delay: 0.8 },
+      ].map((r, i) => (
+        <div key={i} style={{ position: 'absolute', width: r.d, height: r.d, borderRadius: '50%', border: `1px solid ${r.color}`, animation: `vsRingPulse 2s ease-out ${r.delay}s infinite` }} />
+      ))}
+
+      {/* Sparks */}
+      {sparks.map((s, i) => (
+        <div key={i} style={{
+          position: 'absolute', width: 1, height: s.h, borderRadius: 1,
+          left: `calc(50% + ${s.x}px)`, top: `calc(50% + ${s.y}px)`,
+          background: `linear-gradient(to top, transparent, ${s.color})`,
+          transform: `rotate(${s.angle + 90}deg)`, transformOrigin: 'center bottom',
+          animation: `vsSparkFly ${s.duration}s ${s.delay}s ease-out infinite`,
+        }} />
+      ))}
+
+      {/* Embers */}
+      {embers.map((em, i) => (
+        <div key={i} style={{
+          position: 'absolute', width: em.s, height: em.s, borderRadius: '50%',
+          left: em.x, top: em.y, background: em.color,
+          '--vs-dx': `${em.dx}px`,
+          boxShadow: `0 0 ${em.s * 2}px ${em.color}`,
+          animation: `vsEmberFloat ${em.dur}s ${em.delay}s linear infinite`,
+        }} />
+      ))}
+
+      {/* Lightning */}
+      {bolts.map((b, i) => (
+        <div key={i} style={{
+          position: 'absolute', top: '50%', left: '50%', width: 1, height: b.len,
+          transform: `translate(-50%, -${b.len}px) rotate(${b.angle}deg)`,
+          transformOrigin: 'top center',
+          background: 'linear-gradient(to bottom, #fff, #ffcc00, rgba(255,100,0,0))',
+          boxShadow: '0 0 1px #ffcc00, 0 0 2px #ff6600',
+          animation: `vsBoltFlash ${b.duration}s ${b.delay}s ease-in-out infinite`,
+          opacity: 0, zIndex: 5,
+        }} />
+      ))}
+
+      {/* Center flare */}
+      <div style={{
+        position: 'absolute', width: 14, height: 14, borderRadius: '50%',
+        background: 'radial-gradient(circle, rgba(255,220,100,0.9) 0%, rgba(255,100,0,0.4) 40%, transparent 70%)',
+        zIndex: 8, animation: 'vsFlareBreath 1.5s ease-in-out infinite', mixBlendMode: 'screen',
+      }} />
+
+      {/* VS text */}
+      <div style={{ position: 'relative', zIndex: 10 }}>
+        <span style={{
+          fontFamily: "'Black Ops One', sans-serif",
+          fontSize: 26, lineHeight: 1, letterSpacing: -0.6,
+          color: '#fff', userSelect: 'none', display: 'block',
+          textShadow: `
+            0 0 3px #fff, 0 0 6px #ff4500, 0 0 11px #ff6600, 0 0 16px #ff2200,
+            0.3px 0.3px 0 #cc2200, 0.6px 0.6px 0 #aa1800, 1px 1px 0 #881000,
+            1.3px 1.3px 0 #660800, 1.6px 1.6px 0 #440400, 1.9px 1.9px 0 #220200,
+            -0.15px -0.15px 0 #ffcc00, 2.2px 2.5px 5px rgba(0,0,0,0.9)
+          `,
+          animation: 'vsFloat 3s ease-in-out infinite, vsPulse 1.5s ease-in-out infinite',
+        }}>VS</span>
       </div>
     </div>
   );
@@ -663,13 +1086,24 @@ function GameRow({ game, index, pick, onPick, gameStats }) {
 function Shell({ children }) {
   return (
     <>
-      {/* mobile fix: ensure full height & avoid iOS fixed-bg quirk */}
       <style>
         {`
+          @import url('https://fonts.googleapis.com/css2?family=Black+Ops+One&display=swap');
           html, body, #root { height: 100%; }
           @media (max-width: 768px) {
             #app-shell { background-attachment: scroll !important; }
           }
+          @keyframes vsBurstSpin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+          @keyframes vsRingPulse { 0% { transform: scale(0.6); opacity: 1; } 100% { transform: scale(1.4); opacity: 0; } }
+          @keyframes vsSparkFly { 0% { opacity: 1; transform: scaleY(1) translateY(0); } 100% { opacity: 0; transform: scaleY(0.2) translateY(-20px); } }
+          @keyframes vsFloat { 0%, 100% { transform: translateY(0) scale(1); } 50% { transform: translateY(-1px) scale(1.02); } }
+          @keyframes vsPulse {
+            0%, 100% { filter: brightness(1) drop-shadow(0 0 2px #ff4500) drop-shadow(0 0 6px #ff6600); }
+            50% { filter: brightness(1.2) drop-shadow(0 0 4px #ffcc00) drop-shadow(0 0 10px #ff4500); }
+          }
+          @keyframes vsBoltFlash { 0%, 85%, 100% { opacity: 0; } 88%, 92% { opacity: 1; } }
+          @keyframes vsEmberFloat { 0% { transform: translateY(0) translateX(0) scale(1); opacity: 1; } 100% { transform: translateY(-30px) translateX(var(--vs-dx)) scale(0); opacity: 0; } }
+          @keyframes vsFlareBreath { 0%, 100% { transform: scale(1); opacity: 0.8; } 50% { transform: scale(1.5); opacity: 1; } }
         `}
       </style>
 
@@ -684,7 +1118,7 @@ function Shell({ children }) {
           alignItems: "flex-start",
           padding: 24,
           boxSizing: "border-box",
-          color: "#000"
+          color: "#000",
         }}
       >
         {children}
@@ -699,7 +1133,9 @@ function Card({ children }) {
 function Field({ label, required, error, children }) {
   return (
     <label style={{ display: "grid", gap: 6, fontSize: 14 }}>
-      <span>{label} {required && <span style={{ color: "#c00" }}>*</span>}</span>
+      <span>
+        {label} {required && <span style={{ color: "#c00" }}>*</span>}
+      </span>
       {children}
       {error && <ErrorText>{error}</ErrorText>}
     </label>
@@ -715,111 +1151,3 @@ function Footer() {
     </p>
   );
 }
-
-/* ---------- Styles ---------- */
-const styles = {
-  pageOverlay: {
-    maxWidth: 920,
-    width: "100%",
-    margin: "24px auto",
-    background: "rgba(255,255,255,0.82)",
-    borderRadius: 16,
-    boxShadow: "0 10px 30px rgba(0,0,0,0.25)",
-    padding: 20,
-    color: "#000"
-  },
-  card: {
-    background: "rgba(255,255,255,0.9)",
-    border: "1px solid rgba(0,0,0,0.08)",
-    borderRadius: 14,
-    padding: 16,
-    boxShadow: "0 4px 16px rgba(0,0,0,0.10)"
-  },
-  h1: { fontSize: 28, fontWeight: 800, margin: "0 0 4px", letterSpacing: 0.2 },
-  h2: { fontSize: 18, fontWeight: 700, margin: "0 0 8px" },
-  muted: { color: "rgba(0,0,0,0.75)", margin: "0 0 16px" },
-  mutedSmall: { color: "rgba(0,0,0,0.75)", fontSize: 13, margin: "4px 0 12px" },
-  row: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 },
-
-  input: {
-    padding: "10px 12px",
-    border: "1px solid #9ca3af",
-    borderRadius: 8,
-    background: "#333",
-    color: "#fff",
-    width: "100%",
-    boxSizing: "border-box"
-  },
-
-  btn: {
-    padding: "10px 16px",
-    border: "1px solid rgba(0,0,0,0.15)",
-    borderRadius: 10,
-    background: "rgba(255,255,255,0.9)",
-    color: "#000",
-    cursor: "pointer",
-    transition: "background 0.2s, color 0.2s",
-    backdropFilter: "saturate(120%) blur(2px)"
-  },
-  btnHover: { background: "rgba(255,255,255,1)", color: "#000" },
-  btnPrimary: {
-    padding: "10px 16px",
-    border: "none",
-    borderRadius: 10,
-    background: "#111",
-    color: "#fff",
-    cursor: "pointer",
-    transition: "background 0.2s",
-  },
-  btnPrimaryHover: { background: "#333" },
-
-  gameRow: {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-    padding: "12px 0",
-    borderBottom: "1px solid rgba(0,0,0,0.08)",
-    gap: 12
-  },
-  pickGroup: { display: "flex", gap: 10, alignItems: "center" },
-
-  radioActual: { position: "absolute", opacity: 0, pointerEvents: "none" },
-  logoOnly: { height: 28, width: 28, objectFit: "contain", display: "block" },
-  logoButton: {
-    display: "inline-flex",
-    alignItems: "center",
-    justifyContent: "center",
-    height: 40,
-    width: 40,
-    borderRadius: 12,
-    border: "1px solid #ddd",
-    background: "rgba(255,255,255,0.9)",
-    cursor: "pointer",
-    transition: "transform 0.1s, background 0.2s, border-color 0.2s",
-    backdropFilter: "saturate(120%) blur(2px)"
-  },
-  logoButtonSelected: { border: "#111 solid 2px" },
-  tiePill: {
-    display: "inline-flex",
-    alignItems: "center",
-    justifyContent: "center",
-    height: 28,
-    minWidth: 28,
-    padding: "0 8px",
-    borderRadius: 999,
-    background: "rgba(0,0,0,0.06)",
-    color: "#111",
-    fontSize: 12
-  },
-  srOnly: {
-    position: "absolute",
-    width: 1,
-    height: 1,
-    padding: 0,
-    margin: -1,
-    overflow: "hidden",
-    clip: "rect(0,0,0,0)",
-    whiteSpace: "nowrap",
-    border: 0
-  }
-};

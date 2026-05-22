@@ -24,6 +24,11 @@ export default function Admin() {
   const [importWeek, setImportWeek] = useState(""); // auto-fill after week loads
   const [importingSchedule, setImportingSchedule] = useState(false);
 
+  // Deadline UI
+  const [deadlineLocal, setDeadlineLocal] = useState(""); // datetime-local string
+  const [savedDeadlineIso, setSavedDeadlineIso] = useState(""); // from DB
+  const [savingDeadline, setSavingDeadline] = useState(false);
+
   // A2: collapse/expand per row
   const [expandedMissing, setExpandedMissing] = useState(() => ({})); // { [user_name]: true/false }
 
@@ -38,6 +43,8 @@ export default function Admin() {
   const [sessionPin, setSessionPin] = useState("");
 
   const adminPin = import.meta.env.VITE_ADMIN_PIN || "";
+
+  const [runningResults, setRunningResults] = useState(false);
 
   useEffect(() => {
     setUnlocked(false);
@@ -55,7 +62,6 @@ export default function Admin() {
   }
 
   async function importScheduleNow() {
-    // Use sessionPin first (set at unlock time), fallback to current pin input
     const pinToUse = (sessionPin || pin || "").trim();
     if (!pinToUse) {
       alert("PIN is missing. Unlock again and then try importing.");
@@ -80,8 +86,6 @@ export default function Admin() {
       const data = await res.json().catch(() => ({}));
 
       console.log("importSchedule response:", { status: res.status, data });
-alert(JSON.stringify({ status: res.status, data }, null, 2));
-
 
       if (!res.ok || !data.ok) {
         throw new Error(data?.error || `Import failed (HTTP ${res.status})`);
@@ -104,19 +108,73 @@ alert(JSON.stringify({ status: res.status, data }, null, 2));
   async function loadAll() {
     setLoading(true);
     setErr("");
-    try {
-      // 1) Load week.json (same pattern as App/Results)
-      const res = await fetch("/week.json", { cache: "no-store" });
-      if (!res.ok) throw new Error(`Could not load week.json (${res.status})`);
-      const week = await res.json();
 
-      const games = Array.isArray(week.games) ? week.games : [];
-      const wkNum = Number(week.week);
-      const tbIds = Array.isArray(week.tiebreakers) ? week.tiebreakers.slice(0, 3) : [];
+    try {
+      // 1) Load week payload from Netlify function
+      async function fetchWeekPayload() {
+        const urlsToTry = ["/.netlify/functions/getweek", "/.netlify/functions/getWeek"];
+
+        let lastText = "";
+        for (const u of urlsToTry) {
+          const res = await fetch(u, { cache: "no-store" });
+          const text = await res.text();
+          lastText = text;
+
+          if (!res.ok) continue;
+
+          try {
+            return JSON.parse(text);
+          } catch {
+            throw new Error(`Week endpoint returned non-JSON from ${u}: ${text.slice(0, 140)}`);
+          }
+        }
+
+        throw new Error(
+          `Could not load week data from getweek/getWeek. Last response: ${lastText.slice(0, 140)}`
+        );
+      }
+
+      const data = await fetchWeekPayload();
+      if (!data.ok) throw new Error(data.error || "Could not load week data");
+
+      const games = Array.isArray(data.games) ? data.games : [];
+      const wkNum = Number(data.week || 0);
+      const tbIds = Array.isArray(data.tiebreakers) ? data.tiebreakers.slice(0, 3) : [];
+
       setWeekMeta({ week: wkNum, games, tbIds });
 
       // Auto-fill week in import UI (only if not manually overridden yet)
       setImportWeek((prev) => (prev ? prev : String(wkNum || "")));
+
+      // ✅ Load saved deadline from week_meta (for UI display)
+      // We use importSeason as the "season" selector for admin tools.
+      const seasonForAdmin = Number(String(importSeason || "").trim());
+      if (seasonForAdmin && wkNum) {
+        const { data: wm, error: wmErr } = await supabase
+          .from("week_meta")
+          .select("deadline")
+          .eq("season", seasonForAdmin)
+          .eq("week", wkNum)
+          .maybeSingle();
+
+        if (!wmErr) {
+          const iso = wm?.deadline ? String(wm.deadline) : "";
+          setSavedDeadlineIso(iso);
+          // If admin hasn't typed anything yet, prefill picker with saved deadline
+          setDeadlineLocal((prev) => {
+            if (prev) return prev;
+            if (!iso) return "";
+            // Convert ISO -> datetime-local display
+            const d = new Date(iso);
+            if (Number.isNaN(d.getTime())) return "";
+            const pad = (n) => String(n).padStart(2, "0");
+            const localStr = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(
+              d.getHours()
+            )}:${pad(d.getMinutes())}`;
+            return localStr;
+          });
+        }
+      }
 
       // 2) Load participants (active only)
       const { data: partData, error: partErr } = await supabase
@@ -193,18 +251,9 @@ alert(JSON.stringify({ status: res.status, data }, null, 2));
       const tbs = tbsByUser[name] || {};
       const picksCount = Object.keys(picks).length;
 
-      const hasTB1 =
-        tbs[1]?.total !== undefined &&
-        tbs[1]?.total !== null &&
-        String(tbs[1]?.total).trim() !== "";
-      const hasTB2 =
-        tbs[2]?.total !== undefined &&
-        tbs[2]?.total !== null &&
-        String(tbs[2]?.total).trim() !== "";
-      const hasTB3 =
-        tbs[3]?.total !== undefined &&
-        tbs[3]?.total !== null &&
-        String(tbs[3]?.total).trim() !== "";
+      const hasTB1 = tbs[1]?.total !== undefined && tbs[1]?.total !== null && String(tbs[1]?.total).trim() !== "";
+      const hasTB2 = tbs[2]?.total !== undefined && tbs[2]?.total !== null && String(tbs[2]?.total).trim() !== "";
+      const hasTB3 = tbs[3]?.total !== undefined && tbs[3]?.total !== null && String(tbs[3]?.total).trim() !== "";
 
       const tbCount = [hasTB1, hasTB2, hasTB3].filter(Boolean).length;
       const submitted = picksCount === gameCount && tbCount === 3;
@@ -278,6 +327,81 @@ alert(JSON.stringify({ status: res.status, data }, null, 2));
     }
   }
 
+  async function setCurrentWeekNow() {
+    const pinToUse = (sessionPin || pin || "").trim();
+    if (!pinToUse) return alert("PIN missing. Unlock again.");
+
+    const season = Number(String(importSeason).trim());
+    const week = Number(String(importWeek).trim());
+    if (!season || !week) return alert("Enter a valid season/week first.");
+
+    try {
+      const url = `/.netlify/functions/setCurrentWeek?season=${season}&week=${week}&pin=${encodeURIComponent(pinToUse)}`;
+      const res = await fetch(url);
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok || !data.ok) throw new Error(data?.error || `Failed (HTTP ${res.status})`);
+
+      alert(`✅ Set current week: Season ${season} Week ${week}`);
+      await loadAll();
+    } catch (e) {
+      alert(String(e?.message || e));
+    }
+  }
+
+  async function runResultsNow() {
+    const pinToUse = (sessionPin || pin || "").trim();
+    if (!pinToUse) return alert("PIN is missing. Unlock again.");
+
+    const season = Number(String(importSeason).trim());
+    const week = Number(String(weekMeta.week || "").trim());
+
+    setRunningResults(true);
+    try {
+      const url = `/.netlify/functions/recalcLeaderboard?season=${season}&week=${week}&pin=${encodeURIComponent(pinToUse)}`;
+
+      const res = await fetch(url, { cache: "no-store" });
+      const text = await res.text();
+
+      let data = {};
+      try {
+        data = JSON.parse(text);
+      } catch {
+        data = { raw: text };
+      }
+
+      if (!res.ok || data.ok === false) {
+        throw new Error(data?.error || `updateResults failed (HTTP ${res.status})`);
+      }
+
+      alert("✅ Results processed. Leaderboard should update now.");
+    } catch (e) {
+      alert(String(e?.message || e));
+    } finally {
+      setRunningResults(false);
+    }
+  }
+
+
+  async function removePicksForUser(user_name) {
+    const wk = Number(weekMeta.week);
+    if (!window.confirm(`Remove all picks and tiebreakers for ${user_name} in Week ${wk}?`)) return;
+
+    const pinToUse = (sessionPin || pin || "").trim();
+    if (!pinToUse) return alert("PIN missing. Unlock again.");
+
+    try {
+      const url = `/.netlify/functions/removeUserPicks?week=${wk}&user_name=${encodeURIComponent(user_name)}&pin=${encodeURIComponent(pinToUse)}`;
+      const res = await fetch(url, { cache: "no-store" });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || data.ok === false) throw new Error(data?.error || `Failed (HTTP ${res.status})`);
+      await loadAll();
+      alert(`Picks and tiebreakers for ${user_name} (Week ${wk}) have been removed.`);
+    } catch (e) {
+      alert(`Could not remove picks: ${String(e?.message || e)}`);
+    }
+  }
+
   async function importNamesFromWeek() {
     if (!weekMeta.week) return alert("Week not loaded yet.");
 
@@ -310,6 +434,53 @@ alert(JSON.stringify({ status: res.status, data }, null, 2));
     }
   }
 
+  // ✅ Save deadline via Netlify function
+  async function saveDeadlineNow() {
+    const pinToUse = (sessionPin || pin || "").trim();
+    if (!pinToUse) return alert("PIN missing. Unlock again.");
+
+    const season = Number(String(importSeason).trim());
+    const week = Number(String(weekMeta.week || importWeek || "").trim());
+
+    if (!season || !week) return alert("Season/week not ready.");
+    if (!deadlineLocal) return alert("Pick a deadline date/time first.");
+
+    const iso = new Date(deadlineLocal).toISOString();
+    if (Number.isNaN(new Date(iso).getTime())) return alert("Invalid deadline.");
+
+    setSavingDeadline(true);
+    try {
+      const url =
+        `/.netlify/functions/setDeadline?season=${season}` +
+        `&week=${week}` +
+        `&deadline=${encodeURIComponent(iso)}` +
+        `&pin=${encodeURIComponent(pinToUse)}`;
+
+      const res = await fetch(url, { cache: "no-store" });
+      const text = await res.text();
+
+      let data = {};
+      try {
+        data = JSON.parse(text);
+      } catch {
+        data = { raw: text };
+      }
+
+      if (!res.ok || data.ok === false) {
+        throw new Error(data?.error || `setDeadline failed (HTTP ${res.status})`);
+      }
+
+      setSavedDeadlineIso(data.deadline || iso);
+      alert(`✅ Deadline saved for Season ${season} Week ${week}\n${data.deadline || iso}`);
+
+      await loadAll();
+    } catch (e) {
+      alert(String(e?.message || e));
+    } finally {
+      setSavingDeadline(false);
+    }
+  }
+
   // PIN gate UI
   if (!unlocked) {
     return (
@@ -331,7 +502,7 @@ alert(JSON.stringify({ status: res.status, data }, null, 2));
               if (!adminPin) return alert("No VITE_ADMIN_PIN is set in env vars.");
               if (pin === String(adminPin)) {
                 setUnlocked(true);
-                setSessionPin(pin); // keep it for schedule import calls
+                setSessionPin(pin);
               } else {
                 alert("Wrong PIN.");
               }
@@ -370,9 +541,9 @@ alert(JSON.stringify({ status: res.status, data }, null, 2));
         Submitted means: <b>{gameCount}</b> picks + <b>3</b> tiebreakers totals.
       </p>
 
-      {/* Import Schedule */}
+      {/* Step 1 — Import Week Schedule */}
       <div style={{ border: "1px solid #ddd", borderRadius: 10, padding: 12, marginTop: 12 }}>
-        <h3 style={{ marginTop: 0 }}>Import Week Schedule (nflverse)</h3>
+        <h3 style={{ marginTop: 0 }}>Step 1 — Import Week Schedule</h3>
 
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
           <input
@@ -389,12 +560,12 @@ alert(JSON.stringify({ status: res.status, data }, null, 2));
             style={{ padding: 10, width: 140 }}
           />
 
-          <button
-            onClick={importScheduleNow}
-            disabled={importingSchedule}
-            style={{ padding: "10px 14px", cursor: "pointer" }}
-          >
+          <button onClick={importScheduleNow} disabled={importingSchedule} style={{ padding: "10px 14px", cursor: "pointer" }}>
             {importingSchedule ? "Importing…" : "Import games"}
+          </button>
+
+          <button onClick={setCurrentWeekNow} style={{ padding: "10px 14px", cursor: "pointer" }}>
+            Set as current week
           </button>
         </div>
 
@@ -403,9 +574,42 @@ alert(JSON.stringify({ status: res.status, data }, null, 2));
         </p>
       </div>
 
-      {/* Add participant */}
+      {/* Step 2 — Set Weekly Deadline */}
       <div style={{ border: "1px solid #ddd", borderRadius: 10, padding: 12, marginTop: 12 }}>
-        <h3 style={{ marginTop: 0 }}>Add / Activate Participant</h3>
+        <h3 style={{ marginTop: 0 }}>Step 2 — Set Weekly Deadline</h3>
+
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
+          <div style={{ fontSize: 13, color: "#666" }}>
+            Current saved deadline:{" "}
+            <b>{savedDeadlineIso ? new Date(savedDeadlineIso).toLocaleString() : "— (not set)"}</b>
+          </div>
+        </div>
+
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center", marginTop: 10 }}>
+          <input
+            type="datetime-local"
+            value={deadlineLocal}
+            onChange={(e) => setDeadlineLocal(e.target.value)}
+            style={{ padding: 10 }}
+          />
+
+          <button
+            onClick={saveDeadlineNow}
+            disabled={savingDeadline}
+            style={{ padding: "10px 14px", cursor: "pointer" }}
+          >
+            {savingDeadline ? "Saving…" : "Save deadline"}
+          </button>
+
+          <div style={{ fontSize: 12, color: "#666" }}>
+            Locks the entire pick sheet at this time. Uses your local time, saved as UTC.
+          </div>
+        </div>
+      </div>
+
+      {/* Step 3 — Add / Activate Participant */}
+      <div style={{ border: "1px solid #ddd", borderRadius: 10, padding: 12, marginTop: 12 }}>
+        <h3 style={{ marginTop: 0 }}>Step 3 — Add / Activate Participant</h3>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
           <input
             value={newName}
@@ -425,117 +629,136 @@ alert(JSON.stringify({ status: res.status, data }, null, 2));
         </div>
 
         <div style={{ marginTop: 10 }}>
-          <button
-            onClick={importNamesFromWeek}
-            disabled={importingNames}
-            style={{ padding: "10px 14px", cursor: "pointer" }}
-          >
+          <button onClick={importNamesFromWeek} disabled={importingNames} style={{ padding: "10px 14px", cursor: "pointer" }}>
             {importingNames ? "Importing…" : "Import names from this week’s submissions"}
           </button>
         </div>
       </div>
 
-      {/* Submitted / Missing counts */}
-      <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginTop: 16 }}>
-        <div style={{ border: "1px solid #ddd", borderRadius: 10, padding: 12 }}>
-          <div style={{ fontSize: 13, color: "#555" }}>Submitted</div>
-          <div style={{ fontSize: 28, fontWeight: 800 }}>{summary.submitted.length}</div>
+      {/* Step 4 — Monitor Submissions */}
+      <div style={{ border: "1px solid #ddd", borderRadius: 10, padding: 12, marginTop: 12 }}>
+        <h3 style={{ marginTop: 0 }}>Step 4 — Monitor Submissions</h3>
+
+        <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 16 }}>
+          <div style={{ border: "1px solid #ddd", borderRadius: 10, padding: 12 }}>
+            <div style={{ fontSize: 13, color: "#555" }}>Submitted</div>
+            <div style={{ fontSize: 28, fontWeight: 800 }}>{summary.submitted.length}</div>
+          </div>
+          <div style={{ border: "1px solid #ddd", borderRadius: 10, padding: 12 }}>
+            <div style={{ fontSize: 13, color: "#555" }}>Missing</div>
+            <div style={{ fontSize: 28, fontWeight: 800 }}>{summary.missing.length}</div>
+          </div>
         </div>
-        <div style={{ border: "1px solid #ddd", borderRadius: 10, padding: 12 }}>
-          <div style={{ fontSize: 13, color: "#555" }}>Missing</div>
-          <div style={{ fontSize: 28, fontWeight: 800 }}>{summary.missing.length}</div>
+
+        <div style={{ overflowX: "auto" }}>
+          <table style={{ borderCollapse: "collapse", width: "100%" }}>
+            <thead>
+              <tr>
+                <th style={thLeft}>Participant</th>
+                <th style={thCenter}>Picks</th>
+                <th style={thCenter}>TBs</th>
+                <th style={thCenter}>Submitted</th>
+                <th style={thCenter}>Buy-in</th>
+                <th style={thCenter}>Paid</th>
+                <th style={thLeft}>Missing details</th>
+                <th style={thCenter}>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {summary.rows.map((r) => {
+                const showAll = !!expandedMissing[r.user_name];
+                const { text, moreCount } = formatMissingMatchups(r.missingMatchups, showAll);
+
+                return (
+                  <tr key={r.user_name}>
+                    <td style={tdLeft}>{r.user_name}</td>
+                    <td style={tdCenter}>
+                      {r.picksCount}/{gameCount}
+                    </td>
+                    <td style={tdCenter}>{r.tbCount}/3</td>
+                    <td style={tdCenter}>{r.submitted ? "✅" : "—"}</td>
+                    <td style={tdCenter}>${r.buy_in.toFixed(2)}</td>
+                    <td style={tdCenter}>
+                      <label style={{ display: "inline-flex", alignItems: "center", gap: 6, cursor: "pointer" }}>
+                        <input type="checkbox" checked={r.paid} onChange={(e) => togglePaid(r.user_name, e.target.checked)} />
+                        {r.paid ? "Paid" : "No"}
+                      </label>
+                    </td>
+
+                    <td style={tdLeft}>
+                      {r.submitted ? (
+                        "—"
+                      ) : (
+                        <>
+                          {r.missingMatchups?.length > 0 && (
+                            <div>
+                              <b>Missing picks:</b> {text}
+                              {moreCount > 0 && (
+                                <>
+                                  {" "}
+                                  <span style={{ color: "#555" }}>+{moreCount} more…</span>{" "}
+                                  <button type="button" onClick={() => toggleExpanded(r.user_name)} style={linkBtnStyle}>
+                                    Show all
+                                  </button>
+                                </>
+                              )}
+                              {showAll && r.missingMatchups.length > 2 && (
+                                <>
+                                  {" "}
+                                  <button
+                                    type="button"
+                                    onClick={() => toggleExpanded(r.user_name)}
+                                    style={{ ...linkBtnStyle, marginLeft: 8 }}
+                                  >
+                                    Show less
+                                  </button>
+                                </>
+                              )}
+                            </div>
+                          )}
+
+                          {r.missingTBs?.length > 0 && (
+                            <div>
+                              <b>Missing TBs:</b> {r.missingTBs.join(", ")}
+                            </div>
+                          )}
+                        </>
+                      )}
+                    </td>
+                    <td style={tdCenter}>
+                      {r.picksCount === 0 && r.tbCount === 0 ? (
+                        <span style={{ color: "#bbb", fontSize: 13 }}>—</span>
+                      ) : (
+                        <button
+                          onClick={() => removePicksForUser(r.user_name)}
+                          style={{ padding: "4px 10px", cursor: "pointer", color: "#c00", borderColor: "#c00", background: "transparent", borderRadius: 4 }}
+                        >
+                          Remove
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
         </div>
+
+        <p style={{ color: "#666", marginTop: 14, fontSize: 13 }}>
+          (No emails are shown here — only <code>user_name</code>.)
+        </p>
       </div>
 
-      {/* Main table */}
-      <div style={{ overflowX: "auto", marginTop: 16 }}>
-        <table style={{ borderCollapse: "collapse", width: "100%" }}>
-          <thead>
-            <tr>
-              <th style={thLeft}>Participant</th>
-              <th style={thCenter}>Picks</th>
-              <th style={thCenter}>TBs</th>
-              <th style={thCenter}>Submitted</th>
-              <th style={thCenter}>Buy-in</th>
-              <th style={thCenter}>Paid</th>
-              <th style={thLeft}>Missing details</th>
-            </tr>
-          </thead>
-          <tbody>
-            {summary.rows.map((r) => {
-              const showAll = !!expandedMissing[r.user_name];
-              const { text, moreCount } = formatMissingMatchups(r.missingMatchups, showAll);
-
-              return (
-                <tr key={r.user_name}>
-                  <td style={tdLeft}>{r.user_name}</td>
-                  <td style={tdCenter}>
-                    {r.picksCount}/{gameCount}
-                  </td>
-                  <td style={tdCenter}>{r.tbCount}/3</td>
-                  <td style={tdCenter}>{r.submitted ? "✅" : "—"}</td>
-                  <td style={tdCenter}>${r.buy_in.toFixed(2)}</td>
-                  <td style={tdCenter}>
-                    <label style={{ display: "inline-flex", alignItems: "center", gap: 6, cursor: "pointer" }}>
-                      <input
-                        type="checkbox"
-                        checked={r.paid}
-                        onChange={(e) => togglePaid(r.user_name, e.target.checked)}
-                      />
-                      {r.paid ? "Paid" : "No"}
-                    </label>
-                  </td>
-
-                  <td style={tdLeft}>
-                    {r.submitted ? (
-                      "—"
-                    ) : (
-                      <>
-                        {r.missingMatchups?.length > 0 && (
-                          <div>
-                            <b>Missing picks:</b> {text}
-                            {moreCount > 0 && (
-                              <>
-                                {" "}
-                                <span style={{ color: "#555" }}>+{moreCount} more…</span>{" "}
-                                <button type="button" onClick={() => toggleExpanded(r.user_name)} style={linkBtnStyle}>
-                                  Show all
-                                </button>
-                              </>
-                            )}
-                            {showAll && r.missingMatchups.length > 2 && (
-                              <>
-                                {" "}
-                                <button
-                                  type="button"
-                                  onClick={() => toggleExpanded(r.user_name)}
-                                  style={{ ...linkBtnStyle, marginLeft: 8 }}
-                                >
-                                  Show less
-                                </button>
-                              </>
-                            )}
-                          </div>
-                        )}
-
-                        {r.missingTBs?.length > 0 && (
-                          <div>
-                            <b>Missing TBs:</b> {r.missingTBs.join(", ")}
-                          </div>
-                        )}
-                      </>
-                    )}
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+      {/* Step 5 — Process Results */}
+      <div style={{ border: "1px solid #ddd", borderRadius: 10, padding: 12, marginTop: 12 }}>
+        <h3 style={{ marginTop: 0 }}>Step 5 — Process Results</h3>
+        <p style={{ margin: "0 0 10px", color: "#666", fontSize: 13 }}>
+          Run after games go final to score picks and update the leaderboard. Safe to run multiple times.
+        </p>
+        <button onClick={runResultsNow} disabled={runningResults} style={{ padding: "10px 14px", cursor: "pointer" }}>
+          {runningResults ? "Running…" : "Run Results Processor"}
+        </button>
       </div>
-
-      <p style={{ color: "#666", marginTop: 14, fontSize: 13 }}>
-        (No emails are shown here — only <code>user_name</code>.)
-      </p>
     </div>
   );
 }

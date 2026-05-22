@@ -1,8 +1,8 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { supabase } from "./supabaseClient";
 
-/* Copy of your logo map (keep in sync with App.jsx) */
+/* ---------- Logos map ---------- */
 const teamLogoSlug = {
   "Arizona Cardinals": "cardinals",
   "Atlanta Falcons": "falcons",
@@ -35,193 +35,428 @@ const teamLogoSlug = {
   "Seattle Seahawks": "seahawks",
   "Tampa Bay Buccaneers": "buccaneers",
   "Tennessee Titans": "titans",
-  "Washington Commanders": "commanders"
+  "Washington Commanders": "commanders",
 };
-const logoSrc = (team) => (teamLogoSlug[team] ? `/logos/${teamLogoSlug[team]}.png` : null);
 
-/* Team name → short code for TB headers */
-function abbr(name) {
-  const m = {
-    "Arizona Cardinals":"ARI","Atlanta Falcons":"ATL","Baltimore Ravens":"BAL","Buffalo Bills":"BUF","Carolina Panthers":"CAR",
-    "Chicago Bears":"CHI","Cincinnati Bengals":"CIN","Cleveland Browns":"CLE","Dallas Cowboys":"DAL","Denver Broncos":"DEN",
-    "Detroit Lions":"DET","Green Bay Packers":"GB","Houston Texans":"HOU","Indianapolis Colts":"IND","Jacksonville Jaguars":"JAX",
-    "Kansas City Chiefs":"KC","Las Vegas Raiders":"LV","Los Angeles Chargers":"LAC","Los Angeles Rams":"LAR","Miami Dolphins":"MIA",
-    "Minnesota Vikings":"MIN","New England Patriots":"NE","New Orleans Saints":"NO","New York Giants":"NYG","New York Jets":"NYJ",
-    "Philadelphia Eagles":"PHI","Pittsburgh Steelers":"PIT","San Francisco 49ers":"SF","Seattle Seahawks":"SEA","Tampa Bay Buccaneers":"TB",
-    "Tennessee Titans":"TEN","Washington Commanders":"WSH"
-  };
-  return m[name] || name;
+function logoSrc(team) {
+  const slug = teamLogoSlug[team];
+  return slug ? `/logos/${slug}.png` : null;
+}
+
+function fmtMatchup(g) {
+  const away = String(g?.away || "").trim();
+  const home = String(g?.home || "").trim();
+  return away && home ? `${away} @ ${home}` : String(g?.id || "");
+}
+
+/** Determine lock time:
+ * - Prefer week_meta.deadline if present
+ * - Else use earliest kickoff among games
+ */
+function computeLockMs({ deadlineIso, games }) {
+  const deadlineMs = deadlineIso ? new Date(deadlineIso).getTime() : NaN;
+  if (Number.isFinite(deadlineMs)) return deadlineMs;
+
+  const kickMs = (games || [])
+    .map((g) => (g?.kickoff ? new Date(g.kickoff).getTime() : NaN))
+    .filter((n) => Number.isFinite(n))
+    .sort((a, b) => a - b)[0];
+
+  return Number.isFinite(kickMs) ? kickMs : NaN;
 }
 
 export default function Results() {
-  const [weekMeta, setWeekMeta] = useState({ week: 0, games: [], tbIds: [] });
-  const [tbShort, setTbShort] = useState([]); // ["SEA@ARI", "GB@DAL", "CIN@DEN"] style
-  const [rows, setRows] = useState([]); // [{ user_name, picks: { [gameId]: 'AWAY'|'HOME'|'TIE' }, tbs: {1:{game_id,total},2:{...},3:{...}} }]
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState("");
 
+  const [meta, setMeta] = useState({ season: null, week: null });
+  const [games, setGames] = useState([]);
+  const [deadline, setDeadline] = useState(null);
+
+  const [picksRows, setPicksRows] = useState([]); // { user_name, game_id, pick }
+  const [tbGameIds, setTbGameIds] = useState([]); // 3 ids
+  const [tbRows, setTbRows] = useState([]); // { user_name, tb_no, game_id, total }
+
+  const [nowTs, setNowTs] = useState(() => Date.now());
+
+  // tick so the page can auto-switch from “hidden” to “shown”
   useEffect(() => {
-    (async () => {
-      try {
-        // 1) Load current week.json
-        const res = await fetch("/week.json", { cache: "no-store" });
-        if (!res.ok) throw new Error(`Could not load week.json (${res.status})`);
-        const week = await res.json();
-
-        const games = Array.isArray(week.games) ? week.games : [];
-        const wkNum = Number(week.week); // force number
-        const tbIds = Array.isArray(week.tiebreakers) ? week.tiebreakers.slice(0, 3) : [];
-
-        setWeekMeta({ week: wkNum, games, tbIds });
-
-        // Build TB header short labels like SEA@ARI
-        const tbShortLabels = tbIds.map((id) => {
-          const g = games.find((x) => x.id === id);
-          if (!g) return id;
-          return `${abbr(g.away)}@${abbr(g.home)}`;
-        });
-        setTbShort(tbShortLabels);
-
-        // 2) Fetch picks for this week
-        const { data: pickData, error: pickErr } = await supabase
-          .from("picks")
-          .select("user_name, game_id, pick")
-          .eq("week", wkNum);
-        if (pickErr) throw pickErr;
-
-        // 3) Fetch tiebreakers for this week
-        const { data: tbData, error: tbErr } = await supabase
-          .from("tiebreakers")
-          .select("user_name, tb_no, game_id, total")
-          .eq("week", wkNum);
-        if (tbErr) throw tbErr;
-
-        // 4) Group by participant
-        const byUser = new Map();
-
-        // Picks
-        for (const r of pickData || []) {
-          const name = (r.user_name && r.user_name.trim()) || "Unknown";
-          if (!byUser.has(name)) byUser.set(name, { user_name: name, picks: {}, tbs: {} });
-          byUser.get(name).picks[r.game_id] = r.pick;
-        }
-
-        // Tiebreakers
-        for (const t of tbData || []) {
-          const name = (t.user_name && t.user_name.trim()) || "Unknown";
-          if (!byUser.has(name)) byUser.set(name, { user_name: name, picks: {}, tbs: {} });
-          const n = Number(t.tb_no);
-          byUser.get(name).tbs[n] = { game_id: t.game_id, total: Number(t.total) };
-        }
-
-        // Sort participants A→Z
-        const list = Array.from(byUser.values()).sort((a, b) => a.user_name.localeCompare(b.user_name));
-        setRows(list);
-      } catch (e) {
-        setErr(String(e));
-      } finally {
-        setLoading(false);
-      }
-    })();
+    const t = setInterval(() => setNowTs(Date.now()), 30_000);
+    return () => clearInterval(t);
   }, []);
 
-  if (loading) return <Wrap><h2>Loading results…</h2></Wrap>;
-  if (err)      return <Wrap><p style={{ color: "red" }}>{err}</p></Wrap>;
+  async function loadAll() {
+    setLoading(true);
+    setErr("");
+    try {
+      // 1) Get current week/season from server
+      const res = await fetch("/.netlify/functions/getweek", { cache: "no-store" });
+      const text = await res.text();
+      let data;
+      try {
+        data = JSON.parse(text);
+      } catch {
+        throw new Error(`getweek returned non-JSON (HTTP ${res.status}): ${text.slice(0, 140)}`);
+      }
+      if (!res.ok || !data.ok) throw new Error(data?.error || `Could not load current week (HTTP ${res.status})`);
 
-  return (
-    <Wrap>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 12 }}>
-        <h1 style={{ margin: 0 }}>Week {weekMeta.week} — Selections by Participant</h1>
-        <Link to="/"><button style={styles.btn}>← Back to Picks</button></Link>
-      </div>
+      const season = Number(data.season);
+      const week = Number(data.week);
+      setMeta({ season, week });
 
-      <div style={{ overflowX: "auto", marginTop: 16 }}>
-        <table style={styles.table}>
-          <thead>
-            <tr>
-              <th style={styles.thLeft}>Participant</th>
-              {weekMeta.games.map((g, i) => (
-                <th key={g.id} style={styles.thCenter}>Game {i + 1}</th>
-              ))}
-              {/* TB headers with matchup short codes */}
-              <th style={styles.thCenter}>TB1{tbShort[0] ? ` (${tbShort[0]})` : ""}</th>
-              <th style={styles.thCenter}>TB2{tbShort[1] ? ` (${tbShort[1]})` : ""}</th>
-              <th style={styles.thCenter}>TB3{tbShort[2] ? ` (${tbShort[2]})` : ""}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((r) => (
-              <tr key={r.user_name}>
-                <td style={styles.tdLeft}>{r.user_name}</td>
+      // 2) Get games for this week (so table columns are correct)
+      const { data: g, error: gErr } = await supabase
+        .from("games")
+        .select("id, season, week, away, home, kickoff")
+        .eq("season", season)
+        .eq("week", week)
+        .order("kickoff", { ascending: true });
 
-                {/* Game picks (logos or Tie text) */}
-                {weekMeta.games.map((g) => {
-                  const pick = r.picks[g.id];
-                  let team = null;
-                  if (pick === "AWAY") team = g.away;
-                  else if (pick === "HOME") team = g.home;
-                  else if (pick === "TIE") team = "Tie";
+      if (gErr) throw gErr;
+      setGames(g || []);
 
-                  return (
-                    <td key={g.id} style={styles.tdCenter}>
-                      {team && team !== "Tie" && logoSrc(team) ? (
-                        <img src={logoSrc(team)} alt={team} style={{ width: 28, height: 28 }} />
-                      ) : (
-                        <span style={{ fontSize: 12, color: "#333" }}>{team || ""}</span>
-                      )}
-                    </td>
-                  );
-                })}
+      // 3) week_meta for deadline + tiebreakers
+      const { data: wm, error: wmErr } = await supabase
+        .from("week_meta")
+        .select("deadline, tiebreakers")
+        .eq("season", season)
+        .eq("week", week)
+        .maybeSingle();
 
-                {/* TB1–TB3 totals (cell title shows full matchup) */}
-                {[1,2,3].map((n) => {
-                  const tb = r.tbs[n];
-                  let title = "";
-                  if (tb?.game_id) {
-                    const g = weekMeta.games.find(x => x.id === tb.game_id);
-                    if (g) title = `${g.away} @ ${g.home}`;
-                  }
-                  return (
-                    <td key={`tb_${n}_${r.user_name}`} style={styles.tdCenter} title={title}>
-                      {typeof tb?.total === "number" ? tb.total : ""}
-                    </td>
-                  );
-                })}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      if (wmErr) throw wmErr;
 
-      
-    </Wrap>
+      setDeadline(wm?.deadline || null);
+
+      const tbIds = Array.isArray(wm?.tiebreakers) ? wm.tiebreakers.slice(0, 3).map(String) : [];
+      setTbGameIds(tbIds);
+
+      // 4) picks for this week (try season column first; fallback if table doesn’t have it)
+      let picks = [];
+      {
+        const q1 = await supabase.from("picks").select("user_name, game_id, pick").eq("season", season).eq("week", week);
+        if (!q1.error) {
+          picks = q1.data || [];
+        } else {
+          const q2 = await supabase.from("picks").select("user_name, game_id, pick").eq("week", week);
+          if (q2.error) throw q2.error;
+          picks = q2.data || [];
+        }
+      }
+      setPicksRows(picks);
+
+      // 5) tiebreakers guesses (optional—only if you want the TB columns like your screenshot)
+      // If your tiebreakers table doesn’t have season, we filter by week only (same as current code base)
+      const { data: tb, error: tbErr } = await supabase
+        .from("tiebreakers")
+        .select("user_name, tb_no, game_id, total")
+        .eq("week", week);
+
+      if (tbErr) {
+        // Non-fatal (table can still work)
+        console.warn("tiebreakers load warning:", tbErr);
+        setTbRows([]);
+      } else {
+        setTbRows(tb || []);
+      }
+    } catch (e) {
+      setErr(String(e?.message || e));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    loadAll();
+  }, []);
+
+  // realtime refresh if picks change (optional but nice)
+  useEffect(() => {
+    if (!meta.season || !meta.week) return;
+
+    const pCh = supabase
+      .channel("results_picks_live")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "picks", filter: `week=eq.${meta.week}` },
+        () => loadAll()
+      )
+      .subscribe();
+
+    const wmCh = supabase
+      .channel("results_week_meta_live")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "week_meta", filter: `season=eq.${meta.season},week=eq.${meta.week}` },
+        () => loadAll()
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(pCh);
+      supabase.removeChannel(wmCh);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [meta.season, meta.week]);
+
+  const lockMs = useMemo(
+    () => computeLockMs({ deadlineIso: deadline, games }),
+    [deadline, games]
   );
-}
 
-function Wrap({ children }) {
+  const isLocked = useMemo(() => {
+    if (!Number.isFinite(lockMs)) return false; // if we can’t determine lock time, default to hidden
+    return nowTs >= lockMs;
+  }, [nowTs, lockMs]);
+
+  // ---- Build table model ----
+  const gameById = useMemo(() => {
+    const m = {};
+    for (const g of games || []) m[String(g.id)] = g;
+    return m;
+  }, [games]);
+
+  const users = useMemo(() => {
+    const set = new Set();
+    for (const r of picksRows || []) {
+      const u = String(r.user_name || "").trim();
+      if (u) set.add(u);
+    }
+    return Array.from(set).sort((a, b) => a.localeCompare(b));
+  }, [picksRows]);
+
+  const pickByUserGame = useMemo(() => {
+    const m = {}; // m[user][gameId] = pick
+    for (const r of picksRows || []) {
+      const u = String(r.user_name || "").trim();
+      const gid = String(r.game_id || "").trim();
+      const pick = String(r.pick || "").trim();
+      if (!u || !gid) continue;
+      if (!m[u]) m[u] = {};
+      m[u][gid] = pick;
+    }
+    return m;
+  }, [picksRows]);
+
+  const tbByUserNo = useMemo(() => {
+    const m = {}; // m[user][tbNo] = total
+    for (const r of tbRows || []) {
+      const u = String(r.user_name || "").trim();
+      const no = Number(r.tb_no);
+      if (!u || ![1, 2, 3].includes(no)) continue;
+      if (!m[u]) m[u] = {};
+      m[u][no] = r.total;
+    }
+    return m;
+  }, [tbRows]);
+
+  // helper: render a pick cell (logo)
+  function renderPickCell(userName, gid) {
+    const raw = pickByUserGame?.[userName]?.[gid];
+    const pick = String(raw || "").toUpperCase();
+    const g = gameById[gid];
+
+    if (!pick || !g) return <span style={{ color: "#999" }}>—</span>;
+
+    if (pick === "TIE") return <span style={styles.tiePill}>TIE</span>;
+
+    // pick is AWAY/HOME
+    const team = pick === "AWAY" ? g.away : pick === "HOME" ? g.home : null;
+    const src = team ? logoSrc(team) : null;
+
+    if (!team || !src) return <span style={{ fontSize: 12 }}>{team || pick}</span>;
+
+    return (
+      <img
+        src={src}
+        alt={team}
+        title={team}
+        style={{ width: 28, height: 28, objectFit: "contain", display: "block", margin: "0 auto" }}
+        onError={(e) => (e.currentTarget.style.display = "none")}
+      />
+    );
+  }
+
+  if (loading) return <div style={{ maxWidth: 1100, margin: "24px auto", padding: 16 }}>Loading…</div>;
+  if (err) return <div style={{ maxWidth: 1100, margin: "24px auto", padding: 16, color: "red" }}>{err}</div>;
+
+  const lockLabel =
+    Number.isFinite(lockMs) ? `Locks at: ${new Date(lockMs).toLocaleString()}` : "Lock time: unknown";
+
   return (
-    <div style={{ padding: 20, maxWidth: 1200, margin: "0 auto" }}>
-      {children}
+    <div style={{ maxWidth: 1200, margin: "24px auto", padding: 16, fontFamily: "system-ui" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 12, flexWrap: "wrap" }}>
+        <div>
+          <h1 style={{ margin: 0 }}>View Picks Table</h1>
+          <div style={{ marginTop: 6, color: "#555" }}>
+            Season <b>{meta.season}</b> • Week <b>{meta.week}</b>
+          </div>
+          <div style={{ marginTop: 6, fontSize: 13, color: "#666" }}>{lockLabel}</div>
+        </div>
+
+        <div style={{ display: "flex", gap: 8 }}>
+          <button onClick={loadAll} style={{ padding: "8px 12px", cursor: "pointer" }}>
+            Refresh
+          </button>
+          <Link to="/">
+            <button style={{ padding: "8px 12px", cursor: "pointer" }}>← Back</button>
+          </Link>
+        </div>
+      </div>
+
+      {!isLocked ? (
+        <div style={{ marginTop: 18, border: "1px solid #ddd", borderRadius: 12, padding: 14, background: "#fff" }}>
+          <div style={{ fontWeight: 900, fontSize: 16 }}>Table will be shown after all picks have been submitted.</div>
+          <div style={{ marginTop: 8, color: "#666", fontSize: 13 }}>
+            Once picks lock, this page will automatically show everyone’s selections.
+          </div>
+        </div>
+      ) : (
+        <div style={{ marginTop: 18, border: "1px solid #ddd", borderRadius: 12, padding: 12, background: "#fff" }}>
+          <div style={{ overflowX: "auto" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 900 }}>
+              <thead>
+                <tr>
+                  <th style={thStickyLeft}>#</th>
+                  <th style={thStickyName}>Participant</th>
+
+                  {(games || []).map((g, idx) => (
+                    <th key={g.id} style={th}>
+                      Game {idx + 1}
+                      <div style={{ fontSize: 11, fontWeight: 600, color: "#666", marginTop: 2 }}>
+                        {fmtMatchup(g)}
+                      </div>
+                    </th>
+                  ))}
+
+                  {/* Optional TB columns (if you want them like the screenshot) */}
+                  {tbGameIds.length === 3 ? (
+                    tbGameIds.map((gid, i) => {
+                      const g = gameById[gid];
+                      return (
+                        <th key={`tb_${i + 1}`} style={th}>
+                          TB{i + 1}
+                          <div style={{ fontSize: 11, fontWeight: 600, color: "#666", marginTop: 2 }}>
+                            {g ? fmtMatchup(g) : gid}
+                          </div>
+                        </th>
+                      );
+                    })
+                  ) : null}
+                </tr>
+              </thead>
+
+              <tbody>
+                {users.length === 0 ? (
+                  <tr>
+                    <td colSpan={(games?.length || 0) + 2 + (tbGameIds.length === 3 ? 3 : 0)} style={{ padding: 14, color: "#666" }}>
+                      No picks found for this week yet.
+                    </td>
+                  </tr>
+                ) : (
+                  users.map((u, i) => (
+                    <tr key={u} style={{ borderTop: "1px solid #eee" }}>
+                      <td style={tdNum}>{i + 1}</td>
+                      <td style={tdName}>{u}</td>
+
+                      {(games || []).map((g) => (
+                        <td key={`${u}_${g.id}`} style={tdCenter}>
+                          {renderPickCell(u, String(g.id))}
+                        </td>
+                      ))}
+
+                      {tbGameIds.length === 3 ? (
+                        [1, 2, 3].map((tbNo) => (
+                          <td key={`${u}_tb_${tbNo}`} style={tdCenter}>
+                            {tbByUserNo?.[u]?.[tbNo] ?? <span style={{ color: "#999" }}>—</span>}
+                          </td>
+                        ))
+                      ) : null}
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          <div style={{ marginTop: 10, fontSize: 12, color: "#777", textAlign: "center" }}>
+            This table is informational. If there’s a discrepancy, submitted picks in the database are the source of truth.
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
+/* ---------- table styles ---------- */
+const th = {
+  padding: "10px 8px",
+  textAlign: "center",
+  fontWeight: 900,
+  fontSize: 12,
+  color: "#111",
+  borderBottom: "1px solid #ddd",
+  whiteSpace: "nowrap",
+};
+
+const thStickyLeft = {
+  ...th,
+  position: "sticky",
+  left: 0,
+  background: "#fff",
+  zIndex: 3,
+  textAlign: "right",
+  width: 42,
+};
+
+const thStickyName = {
+  ...th,
+  position: "sticky",
+  left: 42,
+  background: "#fff",
+  zIndex: 3,
+  textAlign: "left",
+  minWidth: 180,
+};
+
+const tdCenter = {
+  padding: "10px 8px",
+  textAlign: "center",
+  whiteSpace: "nowrap",
+};
+
+const tdNum = {
+  ...tdCenter,
+  position: "sticky",
+  left: 0,
+  background: "#fff",
+  zIndex: 2,
+  textAlign: "right",
+  fontWeight: 800,
+  color: "#444",
+};
+
+const tdName = {
+  ...tdCenter,
+  position: "sticky",
+  left: 42,
+  background: "#fff",
+  zIndex: 2,
+  textAlign: "left",
+  fontWeight: 800,
+};
+
 const styles = {
-  btn: {
-    padding: "8px 12px",
-    border: "1px solid rgba(0,0,0,0.15)",
-    borderRadius: 8,
-    background: "#fff",
-    cursor: "pointer"
+  tiePill: {
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    height: 24,
+    minWidth: 28,
+    padding: "0 8px",
+    borderRadius: 999,
+    background: "rgba(0,0,0,0.06)",
+    color: "#111",
+    fontSize: 12,
+    fontWeight: 800,
   },
-  table: {
-    width: "100%",
-    borderCollapse: "collapse",
-    background: "#fff",
-    border: "1px solid #ddd"
-  },
-  thLeft:   { textAlign: "left",  padding: "10px 8px", background: "#111", color: "#fff", position: "sticky", left: 0 },
-  thCenter: { textAlign: "center", padding: "10px 8px", background: "#111", color: "#fff" },
-  tdLeft:   { textAlign: "left",  padding: "8px", borderTop: "1px solid #eee", position: "sticky", left: 0, background: "#fafafa" },
-  tdCenter: { textAlign: "center", padding: "8px", borderTop: "1px solid #eee" }
 };

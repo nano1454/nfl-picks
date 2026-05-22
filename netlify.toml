@@ -1,2 +1,7 @@
 [build]
   functions = "netlify/functions"
+[functions]
+  directory = "netlify/functions"
+
+[functions."updateResults"]
+  schedule = "*/2 * * * *"
