@@ -307,6 +307,20 @@ export default function Admin() {
     }
   }
 
+  async function removeParticipant(user_name) {
+    if (!window.confirm(`Remove "${user_name}" from the dropdown list?\n\nTheir picks history is NOT deleted — they just won't appear in the returning participant dropdown.`)) return;
+    try {
+      const { error } = await supabase
+        .from("participants")
+        .update({ active: false })
+        .eq("user_name", user_name);
+      if (error) throw error;
+      await loadAll();
+    } catch (e) {
+      alert(`Could not remove participant: ${String(e?.message || e)}`);
+    }
+  }
+
   async function addParticipant() {
     const name = normalizeName(newName);
     if (!name) return alert("Enter a participant name.");
@@ -637,6 +651,41 @@ export default function Admin() {
             {importingNames ? "Importing…" : "Import names from this week’s submissions"}
           </button>
         </div>
+
+        {/* Active participants list */}
+        {participants.length > 0 && (
+          <div style={{ marginTop: 14 }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: "#555", textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 8 }}>
+              Active in dropdown ({participants.length})
+            </div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+              {participants.map((p) => (
+                <div key={p.user_name} style={{
+                  display: "inline-flex", alignItems: "center", gap: 6,
+                  background: "#f4f4f4", border: "1px solid #ddd",
+                  borderRadius: 20, padding: "4px 10px 4px 12px",
+                  fontSize: 13,
+                }}>
+                  <span>{p.user_name}</span>
+                  <button
+                    onClick={() => removeParticipant(p.user_name)}
+                    title={`Remove ${p.user_name} from dropdown`}
+                    style={{
+                      background: "none", border: "none", cursor: "pointer",
+                      color: "#c00", fontWeight: 900, fontSize: 14,
+                      lineHeight: 1, padding: "0 2px",
+                    }}
+                  >
+                    ×
+                  </button>
+                </div>
+              ))}
+            </div>
+            <p style={{ margin: "8px 0 0", fontSize: 11, color: "#999" }}>
+              Removing a name only hides it from the dropdown — their picks history stays intact.
+            </p>
+          </div>
+        )}
       </div>
 
       {/* Step 4 — Monitor Submissions */}
