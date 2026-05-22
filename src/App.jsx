@@ -256,6 +256,7 @@ export default function App() {
   const [navResultsStyle, setNavResultsStyle] = useState(styles.navBtn);
   const [navAdminStyle, setNavAdminStyle] = useState(styles.navBtn);
   const [navLeaderboardStyle, setNavLeaderboardStyle] = useState(styles.navBtn);
+  const [navRulesStyle, setNavRulesStyle] = useState(styles.navBtn);
 
   const [user, setUser] = useState({ name: "", email: "" });
   const [picks, setPicks] = useState({}); // { [gameId]: "AWAY" | "HOME" | "TIE" }
@@ -649,6 +650,17 @@ export default function App() {
                 onMouseLeave={() => setNavLeaderboardStyle(styles.navBtn)}
               >
                 Live Leaderboard
+              </button>
+            </Link>
+
+            <Link to="/rules">
+              <button
+                type="button"
+                style={navRulesStyle}
+                onMouseEnter={() => setNavRulesStyle({ ...styles.navBtn, ...styles.navBtnHover })}
+                onMouseLeave={() => setNavRulesStyle(styles.navBtn)}
+              >
+                Rules
               </button>
             </Link>
           </div>
