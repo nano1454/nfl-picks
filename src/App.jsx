@@ -1,6 +1,8 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { supabase } from "./supabaseClient";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
+import { getSession, clearSession } from "./auth";
+import { pageBackgroundStyle } from "./backgroundStyle";
 
 /** Optional: keep Formspree so you still receive an email copy (no mailto popups) */
 const FORMSPREE_ENDPOINT = "https://formspree.io/f/xovlredw";
@@ -263,13 +265,12 @@ export default function App() {
   const [navRulesStyle, setNavRulesStyle] = useState(styles.navBtn);
   const [navReglasStyle, setNavReglasStyle] = useState(styles.navBtn);
 
-  const [user, setUser] = useState({ name: "", email: "" });
+  const navigate = useNavigate();
+  const session = getSession();
+
+  const [user, setUser] = useState({ name: session?.fullName || "", email: "" });
   const [picks, setPicks] = useState({}); // { [gameId]: "AWAY" | "HOME" }
   const [tbs, setTbs] = useState([]); // [{ gameId, total }]
-
-  // Returning participants dropdown
-  const [returningParticipants, setReturningParticipants] = useState([]);
-  const [selectedReturning, setSelectedReturning] = useState("");
 
   // % stats per game: { [gameId]: { away, home, tie, total } }
   const [stats, setStats] = useState({});
@@ -334,23 +335,10 @@ export default function App() {
     return () => clearInterval(t);
   }, []);
 
-  // Load returning participants (active participants managed by admin)
-  useEffect(() => {
-    (async () => {
-      try {
-        const { data, error } = await supabase
-          .from("participants")
-          .select("user_name")
-          .eq("active", true)
-          .order("user_name", { ascending: true });
-        if (!error && data) {
-          setReturningParticipants(data.map((p) => p.user_name));
-        }
-      } catch {
-        // silently ignore — dropdown is optional
-      }
-    })();
-  }, []);
+  function logout() {
+    clearSession();
+    navigate("/login");
+  }
 
   // ✅ GLOBAL DEADLINE LOCK (whole sheet)
   const deadlineObj = useMemo(() => {
@@ -690,78 +678,27 @@ export default function App() {
                 Reglas
               </button>
             </Link>
+
+            <button type="button" style={styles.navBtn} onClick={logout} title="Log out">
+              Log out
+            </button>
           </div>
         </div>
+
+        {session?.fullName && (
+          <p style={{ ...styles.mutedSmall, marginTop: 10 }}>
+            Signed in as <b>{session.fullName}</b> (@{session.username})
+          </p>
+        )}
 
         <form onSubmit={submitEmail} style={{ display: "grid", gap: 16, marginTop: 14 }}>
           {/* Player info */}
           <Card>
-            {/* ── Returning participant quick-select ── */}
-            {returningParticipants.length > 0 && (
-              <div style={{ marginBottom: 16 }}>
-                <div style={{ fontSize: 13, fontWeight: 700, color: "#555", marginBottom: 6, letterSpacing: 0.3, textTransform: "uppercase" }}>
-                  🔄 Returning Participant
-                </div>
-                <select
-                  value={selectedReturning}
-                  disabled={isDeadlineLocked}
-                  onChange={(e) => {
-                    const val = e.target.value;
-                    setSelectedReturning(val);
-                    if (val) setUser((u) => ({ ...u, name: val }));
-                  }}
-                  style={{
-                    width: "100%",
-                    padding: "9px 12px",
-                    borderRadius: 8,
-                    border: "1px solid rgba(0,0,0,0.2)",
-                    fontSize: 14,
-                    background: "#fff",
-                    color: selectedReturning ? "#111" : "#888",
-                    cursor: isDeadlineLocked ? "not-allowed" : "pointer",
-                    appearance: "auto",
-                  }}
-                >
-                  <option value="">— Select your name if you've played before —</option>
-                  {returningParticipants.map((name) => (
-                    <option key={name} value={name}>{name}</option>
-                  ))}
-                </select>
-                {selectedReturning && (
-                  <p style={{ margin: "5px 0 0", fontSize: 12, color: "#2a7a2a" }}>
-                    ✅ Name auto-filled below. Verify it looks correct, then add your email.
-                  </p>
-                )}
-              </div>
-            )}
-
-            {/* Divider only shown when there are returning participants */}
-            {returningParticipants.length > 0 && (
-              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
-                <div style={{ flex: 1, height: 1, background: "rgba(0,0,0,0.10)" }} />
-                <span style={{ fontSize: 12, color: "#999", fontWeight: 600, whiteSpace: "nowrap" }}>
-                  OR enter manually (new participant)
-                </span>
-                <div style={{ flex: 1, height: 1, background: "rgba(0,0,0,0.10)" }} />
-              </div>
-            )}
-
-            {/* Name + Email inputs */}
             <div style={styles.row}>
-              <Field label="Full name" required error={errors.name}>
-                <input
-                  style={styles.input}
-                  placeholder="Your full name"
-                  value={user.name}
-                  disabled={isDeadlineLocked}
-                  onChange={(e) => {
-                    setUser({ ...user, name: e.target.value });
-                    // Clear dropdown selection if user edits name manually
-                    if (selectedReturning && e.target.value !== selectedReturning) {
-                      setSelectedReturning("");
-                    }
-                  }}
-                />
+              <Field label="Full name">
+                <div style={{ ...styles.input, background: "#eee", color: "#111", cursor: "not-allowed" }}>
+                  {user.name}
+                </div>
               </Field>
               <Field label="Email" required error={errors.email}>
                 <input
@@ -1294,20 +1231,7 @@ function Shell({ children }) {
         `}
       </style>
 
-      <div
-        id="app-shell"
-        style={{
-          background: "url('/background.png') center / cover no-repeat",
-          minHeight: "100vh",
-          width: "100%",
-          display: "flex",
-          justifyContent: "center",
-          alignItems: "flex-start",
-          padding: 24,
-          boxSizing: "border-box",
-          color: "#000",
-        }}
-      >
+      <div id="app-shell" style={pageBackgroundStyle}>
         {children}
       </div>
     </>

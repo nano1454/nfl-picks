@@ -7,17 +7,20 @@ import Admin from "./Admin.jsx";
 import Leaderboard from "./Leaderboard";
 import Rules from "./Rules.jsx";
 import Reglas from "./Reglas.jsx";
+import Login from "./Login.jsx";
+import RequireAuth from "./RequireAuth.jsx";
 
 ReactDOM.createRoot(document.getElementById("root")).render(
   <React.StrictMode>
     <BrowserRouter>
       <Routes>
-        <Route path="/" element={<App />} />
-        <Route path="/results" element={<Results />} />
-        <Route path="/admin" element={<Admin />} />
-        <Route path="/leaderboard" element={<Leaderboard />} />
-        <Route path="/rules" element={<Rules />} />
-        <Route path="/reglas" element={<Reglas />} />
+        <Route path="/login" element={<Login />} />
+        <Route path="/" element={<RequireAuth><App /></RequireAuth>} />
+        <Route path="/results" element={<RequireAuth><Results /></RequireAuth>} />
+        <Route path="/admin" element={<RequireAuth><Admin /></RequireAuth>} />
+        <Route path="/leaderboard" element={<RequireAuth><Leaderboard /></RequireAuth>} />
+        <Route path="/rules" element={<RequireAuth><Rules /></RequireAuth>} />
+        <Route path="/reglas" element={<RequireAuth><Reglas /></RequireAuth>} />
       </Routes>
     </BrowserRouter>
   </React.StrictMode>
