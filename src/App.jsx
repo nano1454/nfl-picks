@@ -48,7 +48,7 @@ const styles = {
   h2: { fontSize: 18, fontWeight: 700, margin: "0 0 8px" },
   muted: { color: "rgba(0,0,0,0.75)", margin: "0 0 0" },
   mutedSmall: { color: "rgba(0,0,0,0.75)", fontSize: 13, margin: "4px 0 12px" },
-  row: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 },
+  row: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, alignItems: "start" },
 
   input: {
     padding: "10px 12px",
