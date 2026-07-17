@@ -696,9 +696,13 @@ export default function App() {
           <Card>
             <div style={styles.row}>
               <Field label="Full name">
-                <div style={{ ...styles.input, background: "#eee", color: "#111", cursor: "not-allowed" }}>
-                  {user.name}
-                </div>
+                <input
+                  type="text"
+                  style={{ ...styles.input, cursor: "not-allowed" }}
+                  value={user.name}
+                  disabled
+                  readOnly
+                />
               </Field>
               <Field label="Email" required error={errors.email}>
                 <input
