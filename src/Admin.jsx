@@ -176,25 +176,23 @@ export default function Admin() {
         }
       }
 
-      // 2) Load participants (active only)
-      const { data: partData, error: partErr } = await supabase
-        .from("participants")
-        .select("user_name, buy_in, active")
-        .eq("active", true)
-        .order("user_name", { ascending: true });
+      // 2) Load participants + this week's payment status (server-side, PIN-gated —
+      //    these two tables have no public policies, only the service role can touch them)
+      const pinToUse = (sessionPin || pin || "").trim();
+      if (!pinToUse) throw new Error("PIN missing. Unlock again.");
 
-      if (partErr) throw partErr;
-      setParticipants(partData || []);
+      const adminDataRes = await fetch(
+        `/.netlify/functions/getAdminParticipants?week=${wkNum}&pin=${encodeURIComponent(pinToUse)}`,
+        { cache: "no-store" }
+      );
+      const adminData = await adminDataRes.json().catch(() => ({}));
+      if (!adminDataRes.ok || !adminData.ok) {
+        throw new Error(adminData?.error || `Could not load participants (HTTP ${adminDataRes.status})`);
+      }
+      setParticipants(adminData.participants || []);
 
-      // 3) Load week payments
-      const { data: payData, error: payErr } = await supabase
-        .from("week_payments")
-        .select("user_name, paid")
-        .eq("week", wkNum);
-
-      if (payErr) throw payErr;
       const payMap = {};
-      for (const r of payData || []) payMap[normalizeName(r.user_name)] = !!r.paid;
+      for (const [name, paid] of Object.entries(adminData.payments || {})) payMap[normalizeName(name)] = !!paid;
       setPayments(payMap);
 
       // 4) Load picks for the week
@@ -293,14 +291,19 @@ export default function Admin() {
 
   async function togglePaid(user_name, nextPaid) {
     const wk = Number(weekMeta.week);
+    const pinToUse = (sessionPin || pin || "").trim();
+    if (!pinToUse) return alert("PIN missing. Unlock again.");
+
     try {
-      await supabase.from("participants").upsert([{ user_name }], { onConflict: "user_name" });
+      const url =
+        `/.netlify/functions/setWeekPayment?week=${wk}` +
+        `&user_name=${encodeURIComponent(user_name)}` +
+        `&paid=${!!nextPaid}` +
+        `&pin=${encodeURIComponent(pinToUse)}`;
+      const res = await fetch(url, { cache: "no-store" });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.ok) throw new Error(data?.error || `Failed (HTTP ${res.status})`);
 
-      const { error } = await supabase
-        .from("week_payments")
-        .upsert([{ week: wk, user_name, paid: !!nextPaid }], { onConflict: "week,user_name" });
-
-      if (error) throw error;
       setPayments((m) => ({ ...m, [user_name]: !!nextPaid }));
     } catch (e) {
       alert(`Could not update paid status: ${String(e?.message || e)}`);
@@ -309,12 +312,16 @@ export default function Admin() {
 
   async function removeParticipant(user_name) {
     if (!window.confirm(`Remove "${user_name}" from the dropdown list?\n\nTheir picks history is NOT deleted — they just won't appear in the returning participant dropdown.`)) return;
+    const pinToUse = (sessionPin || pin || "").trim();
+    if (!pinToUse) return alert("PIN missing. Unlock again.");
+
     try {
-      const { error } = await supabase
-        .from("participants")
-        .update({ active: false })
-        .eq("user_name", user_name);
-      if (error) throw error;
+      const url =
+        `/.netlify/functions/setParticipantActive?user_name=${encodeURIComponent(user_name)}` +
+        `&active=false&pin=${encodeURIComponent(pinToUse)}`;
+      const res = await fetch(url, { cache: "no-store" });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.ok) throw new Error(data?.error || `Failed (HTTP ${res.status})`);
       await loadAll();
     } catch (e) {
       alert(`Could not remove participant: ${String(e?.message || e)}`);
@@ -327,11 +334,16 @@ export default function Admin() {
     const buyIn = newBuyIn === "" ? 0 : Number(newBuyIn);
     if (Number.isNaN(buyIn) || buyIn < 0) return alert("Buy-in must be a number (0 or more).");
 
+    const pinToUse = (sessionPin || pin || "").trim();
+    if (!pinToUse) return alert("PIN missing. Unlock again.");
+
     try {
-      const { error } = await supabase
-        .from("participants")
-        .upsert([{ user_name: name, buy_in: buyIn, active: true }], { onConflict: "user_name" });
-      if (error) throw error;
+      const url =
+        `/.netlify/functions/upsertParticipant?user_name=${encodeURIComponent(name)}` +
+        `&buy_in=${buyIn}&active=true&pin=${encodeURIComponent(pinToUse)}`;
+      const res = await fetch(url, { cache: "no-store" });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.ok) throw new Error(data?.error || `Failed (HTTP ${res.status})`);
 
       setNewName("");
       setNewBuyIn("");
@@ -418,28 +430,23 @@ export default function Admin() {
 
   async function importNamesFromWeek() {
     if (!weekMeta.week) return alert("Week not loaded yet.");
+    const pinToUse = (sessionPin || pin || "").trim();
+    if (!pinToUse) return alert("PIN missing. Unlock again.");
 
     setImportingNames(true);
     try {
-      const names = new Set();
-      for (const n of Object.keys(picksByUser || {})) names.add(normalizeName(n));
-      for (const n of Object.keys(tbsByUser || {})) names.add(normalizeName(n));
-      names.delete("");
+      const url = `/.netlify/functions/importParticipantNames?week=${weekMeta.week}&pin=${encodeURIComponent(pinToUse)}`;
+      const res = await fetch(url, { cache: "no-store" });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.ok) throw new Error(data?.error || `Failed (HTTP ${res.status})`);
 
-      const existing = new Set((participants || []).map((p) => normalizeName(p.user_name)));
-      const toAdd = [...names].filter((n) => n && !existing.has(n));
-
-      if (toAdd.length === 0) {
+      const added = data.added || [];
+      if (added.length === 0) {
         alert("No new names found to add.");
         return;
       }
 
-      const rows = toAdd.map((user_name) => ({ user_name, buy_in: 0, active: true }));
-
-      const { error } = await supabase.from("participants").upsert(rows, { onConflict: "user_name" });
-      if (error) throw error;
-
-      alert(`Added ${toAdd.length} new participant(s):\n${toAdd.join(", ")}`);
+      alert(`Added ${added.length} new participant(s):\n${added.join(", ")}`);
       await loadAll();
     } catch (e) {
       alert(`Could not import names: ${String(e?.message || e)}`);
