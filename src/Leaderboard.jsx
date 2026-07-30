@@ -175,7 +175,7 @@ function LeaderboardHeader() {
 
         <span style={{
           fontFamily: "'Black Ops One', sans-serif",
-          fontSize: 96*sc, lineHeight: 1, letterSpacing: 2, whiteSpace: 'nowrap',
+          fontSize: `clamp(26px, 8vw, ${96*sc}px)`, lineHeight: 1, letterSpacing: 2, whiteSpace: 'nowrap',
           color: '#fff', userSelect: 'none', display: 'block',
           textShadow: `
             0 0 20px #fff, 0 0 40px #1a3a6e, 0 0 70px #0d2550, 0 0 110px #071830,

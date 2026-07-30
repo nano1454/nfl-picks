@@ -48,7 +48,7 @@ const styles = {
   h2: { fontSize: 18, fontWeight: 700, margin: "0 0 8px" },
   muted: { color: "rgba(0,0,0,0.75)", margin: "0 0 0" },
   mutedSmall: { color: "rgba(0,0,0,0.75)", fontSize: 13, margin: "4px 0 12px" },
-  row: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, alignItems: "start" },
+  row: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 12, alignItems: "start" },
 
   input: {
     padding: "10px 12px",
@@ -103,13 +103,14 @@ const styles = {
 
   gameRow: {
     display: "flex",
+    flexWrap: "wrap",
     justifyContent: "space-between",
     alignItems: "center",
     padding: "12px 0",
     borderBottom: "1px solid rgba(0,0,0,0.08)",
     gap: 12,
   },
-  pickGroup: { display: "flex", gap: 10, alignItems: "center" },
+  pickGroup: { display: "flex", gap: 10, alignItems: "center", flexWrap: "nowrap" },
 
   radioActual: { position: "absolute", opacity: 0, pointerEvents: "none" },
   logoOnly: { height: 28, width: 28, objectFit: "contain", display: "block" },
@@ -611,7 +612,7 @@ export default function App() {
 
   return (
     <Shell>
-      <div style={styles.pageOverlay}>
+      <div className="page-overlay" style={styles.pageOverlay}>
         {/* Header row: title left, nav buttons right */}
         <div style={styles.headerRow}>
           <div style={styles.headerLeft}>
@@ -1225,6 +1226,11 @@ function Shell({ children }) {
           @media (max-width: 768px) {
             #app-shell { background-attachment: scroll !important; }
           }
+          @media (max-width: 480px) {
+            #app-shell { padding: 10px !important; }
+            .page-overlay { padding: 12px !important; }
+            .app-card { padding: 12px !important; }
+          }
           @keyframes vsBurstSpin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
           @keyframes vsRingPulse { 0% { transform: scale(0.6); opacity: 1; } 100% { transform: scale(1.4); opacity: 0; } }
           @keyframes vsSparkFly { 0% { opacity: 1; transform: scaleY(1) translateY(0); } 100% { opacity: 0; transform: scaleY(0.2) translateY(-20px); } }
@@ -1247,7 +1253,7 @@ function Shell({ children }) {
 }
 
 function Card({ children }) {
-  return <div style={styles.card}>{children}</div>;
+  return <div className="app-card" style={styles.card}>{children}</div>;
 }
 function Field({ label, required, error, children }) {
   return (
