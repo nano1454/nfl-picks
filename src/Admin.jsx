@@ -34,11 +34,8 @@ export default function Admin() {
   // A2: collapse/expand per row
   const [expandedMissing, setExpandedMissing] = useState(() => ({})); // { [user_name]: true/false }
 
-  // A1: import names button state
-  const [importingNames, setImportingNames] = useState(false);
-
-  // Add participant inputs
-  const [newName, setNewName] = useState("");
+  // Buy-in adjustment inputs
+  const [selectedParticipant, setSelectedParticipant] = useState("");
   const [newBuyIn, setNewBuyIn] = useState("");
 
   const [runningResults, setRunningResults] = useState(false);
@@ -301,7 +298,7 @@ export default function Admin() {
   }
 
   async function removeParticipant(user_name) {
-    if (!window.confirm(`Remove "${user_name}" from the dropdown list?\n\nTheir picks history is NOT deleted — they just won't appear in the returning participant dropdown.`)) return;
+    if (!window.confirm(`Remove "${user_name}" from admin tracking?\n\nTheir picks history is NOT deleted — they just won't appear in the participant list above.`)) return;
     if (!adminToken) return alert("Not signed in as an admin.");
 
     try {
@@ -317,9 +314,9 @@ export default function Admin() {
     }
   }
 
-  async function addParticipant() {
-    const name = normalizeName(newName);
-    if (!name) return alert("Enter a participant name.");
+  async function saveBuyIn() {
+    const name = normalizeName(selectedParticipant);
+    if (!name) return alert("Select a participant.");
     const buyIn = newBuyIn === "" ? 0 : Number(newBuyIn);
     if (Number.isNaN(buyIn) || buyIn < 0) return alert("Buy-in must be a number (0 or more).");
 
@@ -333,11 +330,11 @@ export default function Admin() {
       const data = await res.json().catch(() => ({}));
       if (!res.ok || !data.ok) throw new Error(data?.error || `Failed (HTTP ${res.status})`);
 
-      setNewName("");
+      setSelectedParticipant("");
       setNewBuyIn("");
       await loadAll();
     } catch (e) {
-      alert(`Could not add participant: ${String(e?.message || e)}`);
+      alert(`Could not save buy-in: ${String(e?.message || e)}`);
     }
   }
 
@@ -410,32 +407,6 @@ export default function Admin() {
       alert(`Picks and tiebreakers for ${user_name} (Week ${wk}) have been removed.`);
     } catch (e) {
       alert(`Could not remove picks: ${String(e?.message || e)}`);
-    }
-  }
-
-  async function importNamesFromWeek() {
-    if (!weekMeta.week) return alert("Week not loaded yet.");
-    if (!adminToken) return alert("Not signed in as an admin.");
-
-    setImportingNames(true);
-    try {
-      const url = `/.netlify/functions/importParticipantNames?week=${weekMeta.week}&token=${encodeURIComponent(adminToken)}`;
-      const res = await fetch(url, { cache: "no-store" });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok || !data.ok) throw new Error(data?.error || `Failed (HTTP ${res.status})`);
-
-      const added = data.added || [];
-      if (added.length === 0) {
-        alert("No new names found to add.");
-        return;
-      }
-
-      alert(`Added ${added.length} new participant(s):\n${added.join(", ")}`);
-      await loadAll();
-    } catch (e) {
-      alert(`Could not import names: ${String(e?.message || e)}`);
-    } finally {
-      setImportingNames(false);
     }
   }
 
@@ -590,34 +561,31 @@ export default function Admin() {
         </div>
       </div>
 
-      {/* Step 3 — Add / Activate Participant */}
+      {/* Step 3 — Adjust Buy-In */}
       <div style={{ border: "1px solid #ddd", borderRadius: 10, padding: 12, marginTop: 12 }}>
-        <h3 style={{ marginTop: 0 }}>Step 3 — Add / Activate Participant</h3>
+        <h3 style={{ marginTop: 0 }}>Step 3 — Adjust Buy-In</h3>
         <p style={{ margin: "0 0 10px", fontSize: 13, color: "#555" }}>
-          🔄 Participants added here (with <b>active = true</b>) will appear in the <b>Returning Participant</b> dropdown on the picks page,
-          letting them select their name to avoid typos that would break their history.
+          New participants are added automatically when they create an account. Use this to set or update someone's buy-in amount.
         </p>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          <input
-            value={newName}
-            onChange={(e) => setNewName(e.target.value)}
-            placeholder="Full name"
+          <select
+            value={selectedParticipant}
+            onChange={(e) => setSelectedParticipant(e.target.value)}
             style={{ padding: 10, minWidth: 220 }}
-          />
+          >
+            <option value="">— Select participant —</option>
+            {participants.map((p) => (
+              <option key={p.user_name} value={p.user_name}>{p.user_name}</option>
+            ))}
+          </select>
           <input
             value={newBuyIn}
             onChange={(e) => setNewBuyIn(e.target.value.replace(/[^0-9.]/g, ""))}
-            placeholder="Buy-in (optional)"
+            placeholder="Buy-in"
             style={{ padding: 10, width: 160 }}
           />
-          <button onClick={addParticipant} style={{ padding: "10px 14px", cursor: "pointer" }}>
+          <button onClick={saveBuyIn} style={{ padding: "10px 14px", cursor: "pointer" }}>
             Save
-          </button>
-        </div>
-
-        <div style={{ marginTop: 10 }}>
-          <button onClick={importNamesFromWeek} disabled={importingNames} style={{ padding: "10px 14px", cursor: "pointer" }}>
-            {importingNames ? "Importing…" : "Import names from this week’s submissions"}
           </button>
         </div>
 
@@ -625,7 +593,7 @@ export default function Admin() {
         {participants.length > 0 && (
           <div style={{ marginTop: 14 }}>
             <div style={{ fontSize: 12, fontWeight: 700, color: "#555", textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 8 }}>
-              Active in dropdown ({participants.length})
+              Active participants ({participants.length})
             </div>
             <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
               {participants.map((p) => (
@@ -638,7 +606,7 @@ export default function Admin() {
                   <span>{p.user_name}</span>
                   <button
                     onClick={() => removeParticipant(p.user_name)}
-                    title={`Remove ${p.user_name} from dropdown`}
+                    title={`Remove ${p.user_name} from tracking`}
                     style={{
                       background: "none", border: "none", cursor: "pointer",
                       color: "#c00", fontWeight: 900, fontSize: 14,
@@ -651,7 +619,7 @@ export default function Admin() {
               ))}
             </div>
             <p style={{ margin: "8px 0 0", fontSize: 11, color: "#999" }}>
-              Removing a name only hides it from the dropdown — their picks history stays intact.
+              Removing a name hides them from admin tracking above — their picks history stays intact.
             </p>
           </div>
         )}
