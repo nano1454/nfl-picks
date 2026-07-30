@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "./supabaseClient";
 import { Link, useNavigate } from "react-router-dom";
 import { getSession, clearSession } from "./auth";
@@ -679,6 +679,8 @@ export default function App() {
               </button>
             </Link>
 
+            <PaymentMenu />
+
             <button type="button" style={styles.navBtn} onClick={logout} title="Log out">
               Log out
             </button>
@@ -1266,5 +1268,100 @@ function Footer() {
     <p style={{ textAlign: "center", fontSize: 12, color: "rgba(0,0,0,0.75)", marginTop: 16 }}>
       © NFL Weekly Picks — Print to save a PDF copy.
     </p>
+  );
+}
+
+/* ---------- Payment Options dropdown ---------- */
+const ZELLE_CONTACT = "926.235.4891";
+const PAYMENT_LINKS = [
+  { name: "Venmo", url: "https://www.venmo.com/u/Adrian-Perez-21" },
+  { name: "Cash App", url: "https://cash.app/$nano1454" },
+  { name: "PayPal", url: "https://paypal.me/AdrianPerez184" },
+];
+
+function PaymentMenu() {
+  const [open, setOpen] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const wrapRef = useRef(null);
+
+  useEffect(() => {
+    if (!open) return;
+    function onDocClick(e) {
+      if (wrapRef.current && !wrapRef.current.contains(e.target)) setOpen(false);
+    }
+    document.addEventListener("mousedown", onDocClick);
+    return () => document.removeEventListener("mousedown", onDocClick);
+  }, [open]);
+
+  function copyZelle() {
+    if (navigator.clipboard?.writeText) {
+      navigator.clipboard.writeText(ZELLE_CONTACT);
+    }
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  }
+
+  const menuItemStyle = {
+    display: "block",
+    width: "100%",
+    textAlign: "left",
+    padding: "9px 12px",
+    borderRadius: 6,
+    border: "none",
+    background: "transparent",
+    cursor: "pointer",
+    fontSize: 14,
+    fontWeight: 600,
+    color: "#111",
+    textDecoration: "none",
+  };
+
+  return (
+    <div ref={wrapRef} style={{ position: "relative" }}>
+      <button type="button" style={styles.navBtn} onClick={() => setOpen((o) => !o)}>
+        Payment Options
+      </button>
+
+      {open && (
+        <div
+          style={{
+            position: "absolute",
+            right: 0,
+            top: "calc(100% + 6px)",
+            background: "#fff",
+            border: "1px solid rgba(0,0,0,0.12)",
+            borderRadius: 10,
+            boxShadow: "0 8px 20px rgba(0,0,0,0.18)",
+            padding: 6,
+            minWidth: 190,
+            zIndex: 20,
+          }}
+        >
+          {PAYMENT_LINKS.map((opt) => (
+            <a
+              key={opt.name}
+              href={opt.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={() => setOpen(false)}
+              style={menuItemStyle}
+              onMouseEnter={(e) => (e.currentTarget.style.background = "#f2f2f2")}
+              onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+            >
+              {opt.name}
+            </a>
+          ))}
+          <button
+            type="button"
+            onClick={copyZelle}
+            style={menuItemStyle}
+            onMouseEnter={(e) => (e.currentTarget.style.background = "#f2f2f2")}
+            onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+          >
+            {copied ? "✅ Zelle number copied!" : `Zelle — ${ZELLE_CONTACT}`}
+          </button>
+        </div>
+      )}
+    </div>
   );
 }
