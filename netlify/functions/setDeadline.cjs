@@ -1,22 +1,23 @@
 // netlify/functions/setWeekDeadline.js
 const { createClient } = require("@supabase/supabase-js");
+const { requireAdmin } = require("./_adminAuth.cjs");
 
 exports.handler = async (event) => {
   try {
     const supabaseUrl = process.env.SUPABASE_URL;
     const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-    const adminPin = process.env.ADMIN_PIN;
 
     if (!supabaseUrl) return j(500, { ok: false, error: "Missing SUPABASE_URL." });
     if (!serviceKey) return j(500, { ok: false, error: "Missing SUPABASE_SERVICE_ROLE_KEY." });
-    if (!adminPin) return j(500, { ok: false, error: "Missing ADMIN_PIN." });
 
-    const pin = String(event.queryStringParameters?.pin || "");
+    const token = String(event.queryStringParameters?.token || "");
     const season = Number(event.queryStringParameters?.season || "");
     const week = Number(event.queryStringParameters?.week || "");
     const deadlineRaw = String(event.queryStringParameters?.deadline || "").trim();
 
-    if (pin !== String(adminPin)) return j(401, { ok: false, error: "Unauthorized (bad pin)." });
+    const admin = createClient(supabaseUrl, serviceKey);
+
+    if (!(await requireAdmin(admin, token))) return j(401, { ok: false, error: "Unauthorized." });
     if (!season || !week) return j(400, { ok: false, error: "Missing season/week." });
     if (!deadlineRaw) return j(400, { ok: false, error: "Missing deadline." });
 
@@ -24,8 +25,6 @@ exports.handler = async (event) => {
     if (!deadlineIso || deadlineIso === "Invalid Date") {
       return j(400, { ok: false, error: "Invalid deadline date. Use ISO format." });
     }
-
-    const admin = createClient(supabaseUrl, serviceKey);
 
     // week_meta
     const { error: metaErr } = await admin

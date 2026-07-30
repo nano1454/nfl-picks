@@ -1,7 +1,8 @@
 import { createClient } from "@supabase/supabase-js";
+import crypto from "crypto";
 
 /**
- * /.netlify/functions/recalcLeaderboard?season=2025&week=10&pin=0287
+ * /.netlify/functions/recalcLeaderboard?season=2025&week=10&token=<adminToken>
  *
  * Computes leaderboard rows using:
  * - game_results.winner  ("AWAY" | "HOME" | "TIE")
@@ -19,25 +20,57 @@ import { createClient } from "@supabase/supabase-js";
  * Env required:
  *  - SUPABASE_URL
  *  - SUPABASE_SERVICE_ROLE_KEY
- *  - ADMIN_PIN
+ *  - ADMIN_SESSION_SECRET
  */
+
+// Kept in sync with netlify/functions/_adminAuth.cjs's requireAdmin -- this
+// function uses Netlify's ESM/V2 handler style so it can't require() that
+// CommonJS helper, hence the small duplicated copy here.
+async function verifyAdminToken(admin, token) {
+  const secret = process.env.ADMIN_SESSION_SECRET;
+  if (!secret || !token) return null;
+
+  let username, issuedAtStr, sig;
+  try {
+    const decoded = Buffer.from(String(token), "base64url").toString("utf8");
+    [username, issuedAtStr, sig] = decoded.split("|");
+  } catch {
+    return null;
+  }
+  if (!username || !issuedAtStr || !sig) return null;
+
+  const issuedAt = Number(issuedAtStr);
+  if (!Number.isFinite(issuedAt)) return null;
+  if (Date.now() - issuedAt > 24 * 60 * 60 * 1000) return null;
+
+  const expected = crypto.createHmac("sha256", secret).update(`${username}|${issuedAt}`).digest("hex");
+  const a = Buffer.from(sig, "hex");
+  const b = Buffer.from(expected, "hex");
+  if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) return null;
+
+  const { data, error } = await admin.from("app_users").select("username, is_admin").ilike("username", username).maybeSingle();
+  if (error || !data || !data.is_admin) return null;
+  return { username: data.username };
+}
+
 export default async (req) => {
   try {
     const url = new URL(req.url);
 
-    const pin = String(url.searchParams.get("pin") || "");
+    const token = String(url.searchParams.get("token") || "");
     const season = Number(url.searchParams.get("season") || "");
     const week = Number(url.searchParams.get("week") || "");
 
-    if (!process.env.ADMIN_PIN) return j(500, { ok: false, error: "Missing ADMIN_PIN on server env." });
+    if (!process.env.ADMIN_SESSION_SECRET)
+      return j(500, { ok: false, error: "Missing ADMIN_SESSION_SECRET on server env." });
     if (!process.env.SUPABASE_URL) return j(500, { ok: false, error: "Missing SUPABASE_URL on server env." });
     if (!process.env.SUPABASE_SERVICE_ROLE_KEY)
       return j(500, { ok: false, error: "Missing SUPABASE_SERVICE_ROLE_KEY on server env." });
 
-    if (pin !== String(process.env.ADMIN_PIN)) return j(401, { ok: false, error: "Unauthorized (bad pin)." });
-    if (!season || !week) return j(400, { ok: false, error: "Missing season/week." });
-
     const admin = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
+
+    if (!(await verifyAdminToken(admin, token))) return j(401, { ok: false, error: "Unauthorized." });
+    if (!season || !week) return j(400, { ok: false, error: "Missing season/week." });
 
     // 1) Get FINAL results for this week
     const { data: finals, error: finalsErr } = await admin

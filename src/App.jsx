@@ -829,23 +829,25 @@ export default function App() {
         </form>
 
         {/* Admin box */}
-        <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 24 }}>
-          <div style={{ border: "1px solid #ddd", borderRadius: 10, padding: "10px 14px", textAlign: "right", background: "rgba(255,255,255,0.7)" }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: "#999", letterSpacing: 0.5, marginBottom: 8, textTransform: "uppercase" }}>
-              Only for Admins
+        {session?.isAdmin && (
+          <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 24 }}>
+            <div style={{ border: "1px solid #ddd", borderRadius: 10, padding: "10px 14px", textAlign: "right", background: "rgba(255,255,255,0.7)" }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: "#999", letterSpacing: 0.5, marginBottom: 8, textTransform: "uppercase" }}>
+                Only for Admins
+              </div>
+              <Link to="/admin">
+                <button
+                  type="button"
+                  style={navAdminStyle}
+                  onMouseEnter={() => setNavAdminStyle({ ...styles.navBtn, ...styles.navBtnHover })}
+                  onMouseLeave={() => setNavAdminStyle(styles.navBtn)}
+                >
+                  Admin Dashboard
+                </button>
+              </Link>
             </div>
-            <Link to="/admin">
-              <button
-                type="button"
-                style={navAdminStyle}
-                onMouseEnter={() => setNavAdminStyle({ ...styles.navBtn, ...styles.navBtnHover })}
-                onMouseLeave={() => setNavAdminStyle(styles.navBtn)}
-              >
-                Admin Dashboard
-              </button>
-            </Link>
           </div>
-        </div>
+        )}
 
         <Footer />
       </div>

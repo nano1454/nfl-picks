@@ -1,14 +1,16 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { supabase } from "./supabaseClient";
+import { getSession } from "./auth";
 
 function normalizeName(s) {
   return (s || "").trim();
 }
 
 export default function Admin() {
-  const [pin, setPin] = useState("");
-  const [unlocked, setUnlocked] = useState(false);
+  const session = getSession();
+  const adminToken = session?.adminToken || "";
+  const isAdmin = !!session?.isAdmin && !!adminToken;
 
   const [weekMeta, setWeekMeta] = useState({ week: 0, games: [], tbIds: [] });
   const [loading, setLoading] = useState(true);
@@ -39,16 +41,7 @@ export default function Admin() {
   const [newName, setNewName] = useState("");
   const [newBuyIn, setNewBuyIn] = useState("");
 
-  // Keep a copy of the PIN used to unlock so the import button always has it
-  const [sessionPin, setSessionPin] = useState("");
-
-  const adminPin = import.meta.env.VITE_ADMIN_PIN || "";
-
   const [runningResults, setRunningResults] = useState(false);
-
-  useEffect(() => {
-    setUnlocked(false);
-  }, []);
 
   function formatMissingMatchups(matchups, showAll) {
     const list = Array.isArray(matchups) ? matchups : [];
@@ -62,9 +55,8 @@ export default function Admin() {
   }
 
   async function importScheduleNow() {
-    const pinToUse = (sessionPin || pin || "").trim();
-    if (!pinToUse) {
-      alert("PIN is missing. Unlock again and then try importing.");
+    if (!adminToken) {
+      alert("Not signed in as an admin.");
       return;
     }
 
@@ -78,8 +70,8 @@ export default function Admin() {
 
     setImportingSchedule(true);
     try {
-      const url = `/.netlify/functions/importSchedule?season=${season}&week=${week}&pin=${encodeURIComponent(
-        pinToUse
+      const url = `/.netlify/functions/importSchedule?season=${season}&week=${week}&token=${encodeURIComponent(
+        adminToken
       )}`;
 
       const res = await fetch(url);
@@ -176,13 +168,12 @@ export default function Admin() {
         }
       }
 
-      // 2) Load participants + this week's payment status (server-side, PIN-gated —
+      // 2) Load participants + this week's payment status (server-side, admin-token-gated —
       //    these two tables have no public policies, only the service role can touch them)
-      const pinToUse = (sessionPin || pin || "").trim();
-      if (!pinToUse) throw new Error("PIN missing. Unlock again.");
+      if (!adminToken) throw new Error("Not signed in as an admin.");
 
       const adminDataRes = await fetch(
-        `/.netlify/functions/getAdminParticipants?week=${wkNum}&pin=${encodeURIComponent(pinToUse)}`,
+        `/.netlify/functions/getAdminParticipants?week=${wkNum}&token=${encodeURIComponent(adminToken)}`,
         { cache: "no-store" }
       );
       const adminData = await adminDataRes.json().catch(() => ({}));
@@ -235,10 +226,10 @@ export default function Admin() {
   }
 
   useEffect(() => {
-    if (!unlocked) return;
+    if (!isAdmin) return;
     loadAll();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [unlocked]);
+  }, [isAdmin]);
 
   const gameCount = weekMeta.games.length;
 
@@ -291,15 +282,14 @@ export default function Admin() {
 
   async function togglePaid(user_name, nextPaid) {
     const wk = Number(weekMeta.week);
-    const pinToUse = (sessionPin || pin || "").trim();
-    if (!pinToUse) return alert("PIN missing. Unlock again.");
+    if (!adminToken) return alert("Not signed in as an admin.");
 
     try {
       const url =
         `/.netlify/functions/setWeekPayment?week=${wk}` +
         `&user_name=${encodeURIComponent(user_name)}` +
         `&paid=${!!nextPaid}` +
-        `&pin=${encodeURIComponent(pinToUse)}`;
+        `&token=${encodeURIComponent(adminToken)}`;
       const res = await fetch(url, { cache: "no-store" });
       const data = await res.json().catch(() => ({}));
       if (!res.ok || !data.ok) throw new Error(data?.error || `Failed (HTTP ${res.status})`);
@@ -312,13 +302,12 @@ export default function Admin() {
 
   async function removeParticipant(user_name) {
     if (!window.confirm(`Remove "${user_name}" from the dropdown list?\n\nTheir picks history is NOT deleted — they just won't appear in the returning participant dropdown.`)) return;
-    const pinToUse = (sessionPin || pin || "").trim();
-    if (!pinToUse) return alert("PIN missing. Unlock again.");
+    if (!adminToken) return alert("Not signed in as an admin.");
 
     try {
       const url =
         `/.netlify/functions/setParticipantActive?user_name=${encodeURIComponent(user_name)}` +
-        `&active=false&pin=${encodeURIComponent(pinToUse)}`;
+        `&active=false&token=${encodeURIComponent(adminToken)}`;
       const res = await fetch(url, { cache: "no-store" });
       const data = await res.json().catch(() => ({}));
       if (!res.ok || !data.ok) throw new Error(data?.error || `Failed (HTTP ${res.status})`);
@@ -334,13 +323,12 @@ export default function Admin() {
     const buyIn = newBuyIn === "" ? 0 : Number(newBuyIn);
     if (Number.isNaN(buyIn) || buyIn < 0) return alert("Buy-in must be a number (0 or more).");
 
-    const pinToUse = (sessionPin || pin || "").trim();
-    if (!pinToUse) return alert("PIN missing. Unlock again.");
+    if (!adminToken) return alert("Not signed in as an admin.");
 
     try {
       const url =
         `/.netlify/functions/upsertParticipant?user_name=${encodeURIComponent(name)}` +
-        `&buy_in=${buyIn}&active=true&pin=${encodeURIComponent(pinToUse)}`;
+        `&buy_in=${buyIn}&active=true&token=${encodeURIComponent(adminToken)}`;
       const res = await fetch(url, { cache: "no-store" });
       const data = await res.json().catch(() => ({}));
       if (!res.ok || !data.ok) throw new Error(data?.error || `Failed (HTTP ${res.status})`);
@@ -354,15 +342,14 @@ export default function Admin() {
   }
 
   async function setCurrentWeekNow() {
-    const pinToUse = (sessionPin || pin || "").trim();
-    if (!pinToUse) return alert("PIN missing. Unlock again.");
+    if (!adminToken) return alert("Not signed in as an admin.");
 
     const season = Number(String(importSeason).trim());
     const week = Number(String(importWeek).trim());
     if (!season || !week) return alert("Enter a valid season/week first.");
 
     try {
-      const url = `/.netlify/functions/setCurrentWeek?season=${season}&week=${week}&pin=${encodeURIComponent(pinToUse)}`;
+      const url = `/.netlify/functions/setCurrentWeek?season=${season}&week=${week}&token=${encodeURIComponent(adminToken)}`;
       const res = await fetch(url);
       const data = await res.json().catch(() => ({}));
 
@@ -376,15 +363,14 @@ export default function Admin() {
   }
 
   async function runResultsNow() {
-    const pinToUse = (sessionPin || pin || "").trim();
-    if (!pinToUse) return alert("PIN is missing. Unlock again.");
+    if (!adminToken) return alert("Not signed in as an admin.");
 
     const season = Number(String(importSeason).trim());
     const week = Number(String(weekMeta.week || "").trim());
 
     setRunningResults(true);
     try {
-      const url = `/.netlify/functions/recalcLeaderboard?season=${season}&week=${week}&pin=${encodeURIComponent(pinToUse)}`;
+      const url = `/.netlify/functions/recalcLeaderboard?season=${season}&week=${week}&token=${encodeURIComponent(adminToken)}`;
 
       const res = await fetch(url, { cache: "no-store" });
       const text = await res.text();
@@ -413,11 +399,10 @@ export default function Admin() {
     const wk = Number(weekMeta.week);
     if (!window.confirm(`Remove all picks and tiebreakers for ${user_name} in Week ${wk}?`)) return;
 
-    const pinToUse = (sessionPin || pin || "").trim();
-    if (!pinToUse) return alert("PIN missing. Unlock again.");
+    if (!adminToken) return alert("Not signed in as an admin.");
 
     try {
-      const url = `/.netlify/functions/removeUserPicks?week=${wk}&user_name=${encodeURIComponent(user_name)}&pin=${encodeURIComponent(pinToUse)}`;
+      const url = `/.netlify/functions/removeUserPicks?week=${wk}&user_name=${encodeURIComponent(user_name)}&token=${encodeURIComponent(adminToken)}`;
       const res = await fetch(url, { cache: "no-store" });
       const data = await res.json().catch(() => ({}));
       if (!res.ok || data.ok === false) throw new Error(data?.error || `Failed (HTTP ${res.status})`);
@@ -430,12 +415,11 @@ export default function Admin() {
 
   async function importNamesFromWeek() {
     if (!weekMeta.week) return alert("Week not loaded yet.");
-    const pinToUse = (sessionPin || pin || "").trim();
-    if (!pinToUse) return alert("PIN missing. Unlock again.");
+    if (!adminToken) return alert("Not signed in as an admin.");
 
     setImportingNames(true);
     try {
-      const url = `/.netlify/functions/importParticipantNames?week=${weekMeta.week}&pin=${encodeURIComponent(pinToUse)}`;
+      const url = `/.netlify/functions/importParticipantNames?week=${weekMeta.week}&token=${encodeURIComponent(adminToken)}`;
       const res = await fetch(url, { cache: "no-store" });
       const data = await res.json().catch(() => ({}));
       if (!res.ok || !data.ok) throw new Error(data?.error || `Failed (HTTP ${res.status})`);
@@ -457,8 +441,7 @@ export default function Admin() {
 
   // ✅ Save deadline via Netlify function
   async function saveDeadlineNow() {
-    const pinToUse = (sessionPin || pin || "").trim();
-    if (!pinToUse) return alert("PIN missing. Unlock again.");
+    if (!adminToken) return alert("Not signed in as an admin.");
 
     const season = Number(String(importSeason).trim());
     const week = Number(String(weekMeta.week || importWeek || "").trim());
@@ -475,7 +458,7 @@ export default function Admin() {
         `/.netlify/functions/setDeadline?season=${season}` +
         `&week=${week}` +
         `&deadline=${encodeURIComponent(iso)}` +
-        `&pin=${encodeURIComponent(pinToUse)}`;
+        `&token=${encodeURIComponent(adminToken)}`;
 
       const res = await fetch(url, { cache: "no-store" });
       const text = await res.text();
@@ -502,41 +485,20 @@ export default function Admin() {
     }
   }
 
-  // PIN gate UI
-  if (!unlocked) {
+  // This account isn't an admin — the server-side functions independently enforce
+  // this too, so this is just so a non-admin sees a clear message instead of a
+  // dashboard that fails on every request.
+  if (!isAdmin) {
     return (
       <div style={{ maxWidth: 680, margin: "24px auto", padding: 16, fontFamily: "system-ui" }}>
         <h1 style={{ marginTop: 0 }}>Admin</h1>
-        <p style={{ color: "#444" }}>Enter your admin PIN to view the dashboard.</p>
+        <p style={{ color: "#444" }}>
+          Your account (@{session?.username || "?"}) isn't an admin, so there's nothing to show here.
+        </p>
 
-        <input
-          type="password"
-          value={pin}
-          onChange={(e) => setPin(e.target.value)}
-          placeholder="Admin PIN"
-          style={{ padding: 10, width: "100%", maxWidth: 280 }}
-        />
-
-        <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
-          <button
-            onClick={() => {
-              if (!adminPin) return alert("No VITE_ADMIN_PIN is set in env vars.");
-              if (pin === String(adminPin)) {
-                setUnlocked(true);
-                setSessionPin(pin);
-              } else {
-                alert("Wrong PIN.");
-              }
-            }}
-            style={{ padding: "10px 14px", cursor: "pointer" }}
-          >
-            Unlock
-          </button>
-
-          <Link to="/">
-            <button style={{ padding: "10px 14px", cursor: "pointer" }}>← Back</button>
-          </Link>
-        </div>
+        <Link to="/">
+          <button style={{ padding: "10px 14px", cursor: "pointer" }}>← Back</button>
+        </Link>
       </div>
     );
   }

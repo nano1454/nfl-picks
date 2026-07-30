@@ -1,5 +1,6 @@
 // netlify/functions/importSchedule.cjs
 const { createClient } = require("@supabase/supabase-js");
+const { requireAdmin } = require("./_adminAuth.cjs");
 
 const CSV_URL = "https://raw.githubusercontent.com/nflverse/nfldata/master/data/games.csv";
 
@@ -46,20 +47,18 @@ exports.handler = async (event) => {
   try {
     const supabaseUrl = process.env.SUPABASE_URL;
     const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-    const adminPin = process.env.ADMIN_PIN;
 
     if (!supabaseUrl) return json(500, { ok: false, error: "Missing SUPABASE_URL." });
     if (!serviceKey) return json(500, { ok: false, error: "Missing SUPABASE_SERVICE_ROLE_KEY." });
-    if (!adminPin) return json(500, { ok: false, error: "Missing ADMIN_PIN." });
 
-    const pin = String(event.queryStringParameters?.pin || "");
+    const token = String(event.queryStringParameters?.token || "");
     const season = Number(event.queryStringParameters?.season);
     const week = Number(event.queryStringParameters?.week);
 
-    if (pin !== String(adminPin)) return json(401, { ok: false, error: "Unauthorized (bad pin)." });
-    if (!season || !week) return json(400, { ok: false, error: "Missing season/week." });
-
     const admin = createClient(supabaseUrl, serviceKey);
+
+    if (!(await requireAdmin(admin, token))) return json(401, { ok: false, error: "Unauthorized." });
+    if (!season || !week) return json(400, { ok: false, error: "Missing season/week." });
 
     // 1) Fetch NFLverse CSV
     const csvRes = await fetch(CSV_URL, { headers: { "User-Agent": "netlify-function" } });

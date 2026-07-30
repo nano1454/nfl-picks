@@ -1,6 +1,7 @@
 // netlify/functions/auth.js
 const { createClient } = require("@supabase/supabase-js");
 const crypto = require("crypto");
+const { issueAdminToken } = require("./_adminAuth.cjs");
 
 function hashPin(pin, salt) {
   return crypto.scryptSync(String(pin), salt, 64).toString("hex");
@@ -77,7 +78,7 @@ exports.handler = async (event) => {
     if (action === "login") {
       const { data: found, error: findErr } = await admin
         .from("app_users")
-        .select("username, full_name, pin_hash, pin_salt")
+        .select("username, full_name, pin_hash, pin_salt, is_admin")
         .ilike("username", username)
         .maybeSingle();
       if (findErr) throw findErr;
@@ -85,7 +86,11 @@ exports.handler = async (event) => {
         return j(401, { ok: false, error: "Incorrect username or PIN." });
       }
 
-      return j(200, { ok: true, user: { username: found.username, fullName: found.full_name } });
+      const isAdmin = !!found.is_admin;
+      const user = { username: found.username, fullName: found.full_name, isAdmin };
+      if (isAdmin) user.adminToken = issueAdminToken(found.username);
+
+      return j(200, { ok: true, user });
     }
 
     return j(400, { ok: false, error: "Unknown action." });
