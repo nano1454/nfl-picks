@@ -2,20 +2,23 @@ import { createClient } from "@supabase/supabase-js";
 
 const CSV_URL = "https://raw.githubusercontent.com/nflverse/nfldata/master/data/games.csv";
 
+// No auth check here on purpose: this function is invoked automatically every
+// 2 minutes by the schedule in netlify.toml, and Netlify's scheduler has no
+// way to supply a PIN/token (a static ADMIN_PIN check here previously made
+// every scheduled run fail with 401, silently, forever). That's an acceptable
+// tradeoff because this only recomputes the leaderboard from public game
+// scores -- it can't corrupt picks, expose private data, or do anything a
+// participant couldn't already see by refreshing the Leaderboard page.
 export default async (req) => {
   try {
     const url = new URL(req.url);
 
-    const pin = String(url.searchParams.get("pin") || "");
     const seasonParam = url.searchParams.get("season");
     const weekParam = url.searchParams.get("week");
 
-    if (!process.env.ADMIN_PIN) return json(500, { ok: false, error: "Missing ADMIN_PIN on server env." });
     if (!process.env.SUPABASE_URL) return json(500, { ok: false, error: "Missing SUPABASE_URL on server env." });
     if (!process.env.SUPABASE_SERVICE_ROLE_KEY)
       return json(500, { ok: false, error: "Missing SUPABASE_SERVICE_ROLE_KEY on server env." });
-
-    if (pin !== String(process.env.ADMIN_PIN)) return json(401, { ok: false, error: "Unauthorized (bad pin)." });
 
     const admin = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
 

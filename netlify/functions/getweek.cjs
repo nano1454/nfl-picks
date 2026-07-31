@@ -131,7 +131,7 @@ exports.handler = async () => {
     // 3) Load games for that season/week
     const { data: games, error: gamesErr } = await admin
       .from("games")
-      .select("id, season, week, away, home, kickoff")
+      .select("id, season, week, away, home, kickoff, spread_line")
       .eq("season", season)
       .eq("week", week)
       .order("kickoff", { ascending: true });
@@ -147,11 +147,17 @@ exports.handler = async () => {
       console.error("fetchTeamRecords failed:", e);
     }
 
-    const gamesWithRecords = (games || []).map((g) => ({
-      ...g,
-      awayRecord: records[g.away] || null,
-      homeRecord: records[g.home] || null,
-    }));
+    const gamesWithRecords = (games || []).map((g) => {
+      const line = g.spread_line === null || g.spread_line === undefined ? null : Number(g.spread_line);
+      return {
+        ...g,
+        awayRecord: records[g.away] || null,
+        homeRecord: records[g.home] || null,
+        // spread_line is the home team's number (negative = home favored)
+        awaySpread: formatSpread(line === null ? null : -line),
+        homeSpread: formatSpread(line),
+      };
+    });
 
     return j(200, {
       ok: true,
@@ -166,6 +172,12 @@ exports.handler = async () => {
     return j(500, { ok: false, error: String(e?.message || e) });
   }
 };
+
+function formatSpread(n) {
+  if (n === null || n === undefined || Number.isNaN(n)) return null;
+  if (n === 0) return "PK";
+  return n > 0 ? `+${n}` : `${n}`;
+}
 
 function j(statusCode, body) {
   return {

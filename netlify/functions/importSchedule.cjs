@@ -93,15 +93,31 @@ exports.handler = async (event) => {
         // If you later want exact kickoff time, we can upgrade to a datetime field from nflverse
         const kickoff = pickKickoffIso(r);
 
-        return { id, season, week, away, home, kickoff };
+        const spreadRaw = String(r.spread_line ?? "").trim();
+        const spreadLine = spreadRaw === "" ? null : Number(spreadRaw);
+
+        return { id, season, week, away, home, kickoff, spreadLine: Number.isFinite(spreadLine) ? spreadLine : null };
       })
       .filter(Boolean);
 
     if (games.length === 0) return json(404, { ok: false, error: "No REG games found for that season/week." });
 
-    // 4) Upsert games into "games"
-    const { error: gamesErr } = await admin.from("games").upsert(games, { onConflict: "id" });
+    // 4) Upsert games into "games" (spread handled separately below so re-imports never touch it)
+    const gameRows = games.map(({ spreadLine, ...g }) => g);
+    const { error: gamesErr } = await admin.from("games").upsert(gameRows, { onConflict: "id" });
     if (gamesErr) return json(500, { ok: false, error: `games upsert: ${gamesErr.message}` });
+
+    // 4b) Freeze each game's spread the FIRST time it's imported. Only fills
+    // it in where it's still null, so re-importing later in the week (e.g.
+    // to fix a kickoff time) never overwrites the number participants have
+    // already been picking against.
+    await Promise.all(
+      games
+        .filter((g) => g.spreadLine !== null)
+        .map((g) =>
+          admin.from("games").update({ spread_line: g.spreadLine }).eq("id", g.id).is("spread_line", null)
+        )
+    );
 
     // 5) Assign TBs: last Thursday game (TB1), last Sunday game (TB2), last Monday game (TB3)
     //    Falls back to games[0/1/2] (sorted by kickoff) when that day has no games.
@@ -139,6 +155,28 @@ exports.handler = async (event) => {
 
     const tiebreakers = [tb1, tb2, tb3].filter(Boolean);
 
+    // Compute actual bye teams: any of the 32 teams not playing in one of
+    // this week's games (previously this was always hardcoded to [], so the
+    // "Teams on Bye" section never showed anything).
+    const allTeams = new Set(Object.values(TEAM_ABBR_TO_FULL));
+    const playingTeams = new Set();
+    for (const g of games) {
+      playingTeams.add(g.away);
+      playingTeams.add(g.home);
+    }
+    const byes = [...allTeams].filter((t) => !playingTeams.has(t)).sort();
+
+    // Preserve an already-set deadline: re-importing a week later (e.g. to
+    // fix a kickoff time) shouldn't silently wipe out a deadline the admin
+    // already saved via "Set Weekly Deadline".
+    const { data: existingMeta } = await admin
+      .from("week_meta")
+      .select("deadline")
+      .eq("season", season)
+      .eq("week", week)
+      .maybeSingle();
+    const preservedDeadline = existingMeta?.deadline ?? null;
+
     // 6) Week meta (tiebreakers/byes/deadline)
     const { error: metaErr } = await admin
       .from("week_meta")
@@ -148,8 +186,8 @@ exports.handler = async (event) => {
             season,
             week,
             tiebreakers,
-            byes: [],
-            deadline: null,
+            byes,
+            deadline: preservedDeadline,
           },
         ],
         { onConflict: "season,week" }
@@ -170,8 +208,8 @@ exports.handler = async (event) => {
             season,
             week,
             is_current: true,
-            deadline: null,
-            byes: [],
+            deadline: preservedDeadline,
+            byes,
             tiebreakers,
           },
         ],

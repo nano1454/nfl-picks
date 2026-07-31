@@ -224,6 +224,12 @@ function logoSrc(team) {
   return slug ? `/logos/${slug}.png` : null;
 }
 
+/** e.g. teamMeta("0-3", "-3") -> " (0-3, -3)"; either piece may be missing. */
+function teamMeta(record, spread) {
+  const parts = [record, spread].filter(Boolean);
+  return parts.length ? ` (${parts.join(", ")})` : "";
+}
+
 /* ---------- Simple validator ---------- */
 function validate({ user, week, picks, tiebreakers }) {
   const e = {};
@@ -1015,8 +1021,8 @@ function GameRow({ game, index, pick, onPick, gameStats, locked, kickoffIso, loc
       {/* ── Left: game info + stats ── */}
       <div style={{ minWidth: 0, position: "relative", zIndex: 1 }}>
         <div style={{ fontWeight: 700, fontSize: 16, color: "#000", display: "flex", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
-          Game {index + 1}: {game.away}{game.awayRecord ? ` (${game.awayRecord})` : ""} @ {game.home}
-          {game.homeRecord ? ` (${game.homeRecord})` : ""}
+          Game {index + 1}: {game.away}{teamMeta(game.awayRecord, game.awaySpread)} @ {game.home}
+          {teamMeta(game.homeRecord, game.homeSpread)}
           {selectedTeam && (
             <span style={{
               fontSize: 12, fontWeight: 800, color: "#1a7a28",
