@@ -1015,7 +1015,8 @@ function GameRow({ game, index, pick, onPick, gameStats, locked, kickoffIso, loc
       {/* ── Left: game info + stats ── */}
       <div style={{ minWidth: 0, position: "relative", zIndex: 1 }}>
         <div style={{ fontWeight: 700, fontSize: 16, color: "#000", display: "flex", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
-          Game {index + 1}: {game.away} @ {game.home}
+          Game {index + 1}: {game.away}{game.awayRecord ? ` (${game.awayRecord})` : ""} @ {game.home}
+          {game.homeRecord ? ` (${game.homeRecord})` : ""}
           {selectedTeam && (
             <span style={{
               fontSize: 12, fontWeight: 800, color: "#1a7a28",
