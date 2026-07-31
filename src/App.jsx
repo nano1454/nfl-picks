@@ -872,7 +872,7 @@ export default function App() {
 }
 
 /* ---------- Table + bars summary per game (higher % = green) ---------- */
-function PickSummary({ awayLabel, homeLabel, awayCount, homeCount, awayLogo, homeLogo }) {
+function PickSummary({ awayLabel, homeLabel, awayCount, homeCount, awayLogo, homeLogo, awayRecord, homeRecord }) {
   const total = (awayCount || 0) + (homeCount || 0);
   const awayPct = total ? Math.round((awayCount / total) * 100) : 0;
   const homePct = total ? 100 - awayPct : 0;
@@ -924,7 +924,10 @@ function PickSummary({ awayLabel, homeLabel, awayCount, homeCount, awayLogo, hom
         <div style={logoBox} title={awayLabel}>
           {awayLogo ? <img src={awayLogo} alt={awayLabel} style={logoImg} /> : null}
         </div>
-        <div>{awayLabel}</div>
+        <div>
+          {awayLabel}
+          {awayRecord && <span style={{ color: "#666", fontWeight: 400 }}> ({awayRecord})</span>}
+        </div>
         <div style={{ textAlign: "right" }}>{awayCount || 0}</div>
         <div style={{ textAlign: "right" }}>{awayPct}%</div>
       </div>
@@ -936,7 +939,10 @@ function PickSummary({ awayLabel, homeLabel, awayCount, homeCount, awayLogo, hom
         <div style={logoBox} title={homeLabel}>
           {homeLogo ? <img src={homeLogo} alt={homeLabel} style={logoImg} /> : null}
         </div>
-        <div>{homeLabel}</div>
+        <div>
+          {homeLabel}
+          {homeRecord && <span style={{ color: "#666", fontWeight: 400 }}> ({homeRecord})</span>}
+        </div>
         <div style={{ textAlign: "right" }}>{homeCount || 0}</div>
         <div style={{ textAlign: "right" }}>{homePct}%</div>
       </div>
@@ -1021,8 +1027,8 @@ function GameRow({ game, index, pick, onPick, gameStats, locked, kickoffIso, loc
       {/* ── Left: game info + stats ── */}
       <div style={{ minWidth: 0, position: "relative", zIndex: 1 }}>
         <div style={{ fontWeight: 700, fontSize: 16, color: "#000", display: "flex", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
-          Game {index + 1}: {game.away}{teamMeta(game.awayRecord, game.awaySpread)} @ {game.home}
-          {teamMeta(game.homeRecord, game.homeSpread)}
+          Game {index + 1}: {game.away}{teamMeta(null, game.awaySpread)} @ {game.home}
+          {teamMeta(null, game.homeSpread)}
           {selectedTeam && (
             <span style={{
               fontSize: 12, fontWeight: 800, color: "#1a7a28",
@@ -1046,6 +1052,8 @@ function GameRow({ game, index, pick, onPick, gameStats, locked, kickoffIso, loc
           homeCount={homeCount}
           awayLogo={awayLogo}
           homeLogo={homeLogo}
+          awayRecord={game.awayRecord}
+          homeRecord={game.homeRecord}
         />
       </div>
 
