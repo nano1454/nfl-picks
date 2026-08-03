@@ -164,6 +164,22 @@ exports.handler = async () => {
       };
     });
 
+    // 5) Active participant names -- participants has no public policy (it's
+    // service-role-only), so this is the only way pages like Results.jsx can
+    // show a row for someone who hasn't submitted any picks yet at all.
+    let activeParticipants = [];
+    try {
+      const { data: partRows, error: partErr } = await admin
+        .from("participants")
+        .select("user_name")
+        .eq("active", true)
+        .order("user_name", { ascending: true });
+      if (partErr) throw partErr;
+      activeParticipants = (partRows || []).map((p) => p.user_name);
+    } catch (e) {
+      console.error("participants lookup failed:", e);
+    }
+
     return j(200, {
       ok: true,
       season,
@@ -172,6 +188,7 @@ exports.handler = async () => {
       byes,
       tiebreakers: (tiebreakers || []).slice(0, 3),
       games: gamesWithRecords,
+      activeParticipants,
     });
   } catch (e) {
     return j(500, { ok: false, error: String(e?.message || e) });

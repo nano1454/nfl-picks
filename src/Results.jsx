@@ -77,6 +77,7 @@ export default function Results() {
   const [games, setGames] = useState([]);
   const [deadline, setDeadline] = useState(null);
 
+  const [activeParticipants, setActiveParticipants] = useState([]); // [user_name]
   const [picksRows, setPicksRows] = useState([]); // { user_name, game_id, pick }
   const [spreadPicksRows, setSpreadPicksRows] = useState([]); // { user_name, game_id, pick }
   const [tbGameIds, setTbGameIds] = useState([]); // 3 ids
@@ -108,6 +109,7 @@ export default function Results() {
       const season = Number(data.season);
       const week = Number(data.week);
       setMeta({ season, week });
+      setActiveParticipants(Array.isArray(data.activeParticipants) ? data.activeParticipants : []);
 
       // 2) Get games for this week (so table columns are correct)
       const { data: g, error: gErr } = await supabase
@@ -253,12 +255,19 @@ export default function Results() {
 
   const users = useMemo(() => {
     const set = new Set();
+    // Every active participant gets a row, even with zero picks -- otherwise
+    // someone who never submitted just doesn't appear at all, instead of
+    // showing up as a full row of "no pick" placeholders.
+    for (const u of activeParticipants || []) {
+      const name = String(u || "").trim();
+      if (name) set.add(name);
+    }
     for (const r of picksRows || []) {
       const u = String(r.user_name || "").trim();
       if (u) set.add(u);
     }
     return Array.from(set).sort((a, b) => a.localeCompare(b));
-  }, [picksRows]);
+  }, [activeParticipants, picksRows]);
 
   const pickByUserGame = useMemo(() => {
     const m = {}; // m[user][gameId] = pick
@@ -323,7 +332,16 @@ export default function Results() {
     const pick = String(raw || "").toUpperCase();
     const g = gameById[gid];
 
-    if (!pick || !g) return <span style={{ color: "#999" }}>—</span>;
+    if (!pick || !g) {
+      return (
+        <img
+          src="/logos/nfl.png"
+          alt="No pick"
+          title="No pick submitted"
+          style={{ width: 28, height: 28, objectFit: "contain", display: "block", margin: "0 auto", opacity: 0.55 }}
+        />
+      );
+    }
 
     if (pick === "TIE") return <span style={styles.tiePill}>TIE</span>;
 
