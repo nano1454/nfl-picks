@@ -43,6 +43,12 @@ function logoSrc(team) {
   return slug ? `/logos/${slug}.png` : null;
 }
 
+function formatSpread(n) {
+  if (n === null || n === undefined || Number.isNaN(n)) return null;
+  if (n === 0) return "PK";
+  return n > 0 ? `+${n}` : `${n}`;
+}
+
 function fmtMatchup(g) {
   const away = String(g?.away || "").trim();
   const home = String(g?.home || "").trim();
@@ -72,6 +78,7 @@ export default function Results() {
   const [deadline, setDeadline] = useState(null);
 
   const [picksRows, setPicksRows] = useState([]); // { user_name, game_id, pick }
+  const [spreadPicksRows, setSpreadPicksRows] = useState([]); // { user_name, game_id, pick }
   const [tbGameIds, setTbGameIds] = useState([]); // 3 ids
   const [tbRows, setTbRows] = useState([]); // { user_name, tb_no, game_id, total }
 
@@ -105,7 +112,7 @@ export default function Results() {
       // 2) Get games for this week (so table columns are correct)
       const { data: g, error: gErr } = await supabase
         .from("games")
-        .select("id, season, week, away, home, kickoff")
+        .select("id, season, week, away, home, kickoff, spread_line")
         .eq("season", season)
         .eq("week", week)
         .order("kickoff", { ascending: true });
@@ -141,6 +148,19 @@ export default function Results() {
         }
       }
       setPicksRows(picks);
+
+      // 4b) spread (bonus) picks for this week
+      const { data: sp, error: spErr } = await supabase
+        .from("spread_picks")
+        .select("user_name, game_id, pick")
+        .eq("week", week);
+
+      if (spErr) {
+        console.warn("spread_picks load warning:", spErr);
+        setSpreadPicksRows([]);
+      } else {
+        setSpreadPicksRows(sp || []);
+      }
 
       // 5) tiebreakers guesses (optional—only if you want the TB columns like your screenshot)
       // If your tiebreakers table doesn’t have season, we filter by week only (same as current code base)
@@ -180,6 +200,15 @@ export default function Results() {
       )
       .subscribe();
 
+    const spCh = supabase
+      .channel("results_spread_picks_live")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "spread_picks", filter: `week=eq.${meta.week}` },
+        () => loadAll()
+      )
+      .subscribe();
+
     const wmCh = supabase
       .channel("results_week_meta_live")
       .on(
@@ -191,6 +220,7 @@ export default function Results() {
 
     return () => {
       supabase.removeChannel(pCh);
+      supabase.removeChannel(spCh);
       supabase.removeChannel(wmCh);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -243,6 +273,19 @@ export default function Results() {
     return m;
   }, [picksRows]);
 
+  const spreadPickByUserGame = useMemo(() => {
+    const m = {}; // m[user][gameId] = "AWAY" | "HOME"
+    for (const r of spreadPicksRows || []) {
+      const u = String(r.user_name || "").trim();
+      const gid = String(r.game_id || "").trim();
+      const pick = String(r.pick || "").trim();
+      if (!u || !gid) continue;
+      if (!m[u]) m[u] = {};
+      m[u][gid] = pick;
+    }
+    return m;
+  }, [spreadPicksRows]);
+
   const tbByUserNo = useMemo(() => {
     const m = {}; // m[user][tbNo] = total
     for (const r of tbRows || []) {
@@ -254,6 +297,25 @@ export default function Results() {
     }
     return m;
   }, [tbRows]);
+
+  // helper: render the small "who covers" badge below a pick cell
+  function renderSpreadBadge(userName, gid) {
+    const raw = spreadPickByUserGame?.[userName]?.[gid];
+    const pick = String(raw || "").toUpperCase();
+    const g = gameById[gid];
+    if (!pick || !g || g.spread_line === null || g.spread_line === undefined) return null;
+
+    const line = Number(g.spread_line);
+    const team = pick === "AWAY" ? g.away : pick === "HOME" ? g.home : null;
+    const spread = pick === "AWAY" ? formatSpread(-line) : pick === "HOME" ? formatSpread(line) : null;
+    if (!team || spread === null) return null;
+
+    return (
+      <div style={{ fontSize: 10, color: "#2563eb", marginTop: 2, fontWeight: 700 }} title={`${team} ${spread}`}>
+        {spread}
+      </div>
+    );
+  }
 
   // helper: render a pick cell (logo)
   function renderPickCell(userName, gid) {
@@ -386,7 +448,12 @@ export default function Results() {
                         return (
                           <td key={`${u}_${g.id}`} style={tdCenter}>
                             {gameLocked
-                              ? renderPickCell(u, String(g.id))
+                              ? (
+                                <>
+                                  {renderPickCell(u, String(g.id))}
+                                  {renderSpreadBadge(u, String(g.id))}
+                                </>
+                              )
                               : <span title="Picks hidden until game locks" style={{ color: "#ccc", fontSize: 16 }}>🔒</span>
                             }
                           </td>
@@ -415,7 +482,7 @@ export default function Results() {
           </div>
 
           <div style={{ marginTop: 10, fontSize: 12, color: "#777", textAlign: "center" }}>
-            🔒 = picks still hidden (game hasn’t locked yet) &nbsp;·&nbsp; This table updates automatically as games lock.
+            🔒 = picks still hidden (game hasn’t locked yet) &nbsp;·&nbsp; small blue number = spread (bonus) pick &nbsp;·&nbsp; This table updates automatically as games lock.
           </div>
         </div>
       )}

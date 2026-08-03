@@ -88,10 +88,11 @@ export default async (req) => {
 
     const finalGameIds = finals.map((f) => String(f.game_id)).filter(Boolean);
 
-    // 2) Load games (for legacy pick support if pick stored as team name)
+    // 2) Load games (for legacy pick support if pick stored as team name, and
+    //    spread_line for scoring beat-the-spread bonus picks)
     const { data: games, error: gamesErr } = await admin
       .from("games")
-      .select("id, away, home")
+      .select("id, away, home, spread_line")
       .eq("season", season)
       .eq("week", week)
       .in("id", finalGameIds);
@@ -121,6 +122,29 @@ export default async (req) => {
       const w = String(f.winner || "").trim().toUpperCase();
       if (!gid || !w) continue;
       winnerSideByGame[gid] = w; // AWAY/HOME/TIE
+    }
+
+    // 4b) Spread cover map -- who covered the frozen spread_line for each
+    // FINAL game. spread_line is the home team's number (negative = home
+    // favored); home covers if their margin beats -spread_line. An exact
+    // push (only possible on a non-.5 line) leaves the game unset, so
+    // nobody's bonus pick can be scored for it either way.
+    const coverSideByGame = {};
+    for (const f of finals) {
+      const gid = String(f.game_id || "").trim();
+      const g = gameById[gid];
+      if (!gid || !g || g.spread_line === null || g.spread_line === undefined) continue;
+
+      const homeScore = Number(f.home_score);
+      const awayScore = Number(f.away_score);
+      if (!Number.isFinite(homeScore) || !Number.isFinite(awayScore)) continue;
+
+      const margin = homeScore - awayScore;
+      const threshold = -Number(g.spread_line);
+
+      if (margin > threshold) coverSideByGame[gid] = "HOME";
+      else if (margin < threshold) coverSideByGame[gid] = "AWAY";
+      // else: push -- leave unset
     }
 
     // 5) Score picks (only FINAL games)
@@ -159,6 +183,33 @@ export default async (req) => {
       }
     }
 
+    // 5b) Load and score spread (bonus) picks: +0.5 for each correct cover
+    // pick on a FINAL game that didn't push.
+    const { data: spreadPicksRows, error: spreadPicksErr } = await admin
+      .from("spread_picks")
+      .select("user_name, game_id, pick")
+      .eq("week", week);
+    if (spreadPicksErr) throw spreadPicksErr;
+
+    let spreadCorrect = 0;
+    for (const sp of spreadPicksRows || []) {
+      const name = String(sp.user_name || "").trim();
+      const gid = String(sp.game_id || "").trim();
+      if (!name || !gid) continue;
+
+      const coverSide = coverSideByGame[gid];
+      if (!coverSide) continue; // not FINAL yet, no spread on file, or a push
+
+      const pickUpper = String(sp.pick || "").trim().toUpperCase();
+      if (pickUpper !== "AWAY" && pickUpper !== "HOME") continue;
+
+      if (!totals[name]) totals[name] = { points: 0, correct: 0 };
+      if (pickUpper === coverSide) {
+        totals[name].points += 0.5;
+        spreadCorrect += 1;
+      }
+    }
+
     // 6) Upsert leaderboard (same as you already do)
     const lbRows = Object.entries(totals).map(([user_name, t]) => ({
       season,
@@ -191,6 +242,8 @@ export default async (req) => {
       week,
       finals: finalGameIds.length,
       picks_seen: picks.length,
+      spread_picks_seen: (spreadPicksRows || []).length,
+      spread_correct: spreadCorrect,
       leaderboard_rows: lbRows.length,
       tiebreak, // <-- UI can display this
     });

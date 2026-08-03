@@ -22,6 +22,9 @@ exports.handler = async (event) => {
     const { error: pickErr } = await admin.from("picks").delete().eq("week", week).eq("user_name", user_name);
     if (pickErr) return j(500, { ok: false, error: `picks delete: ${pickErr.message}` });
 
+    const { error: spreadErr } = await admin.from("spread_picks").delete().eq("week", week).eq("user_name", user_name);
+    if (spreadErr) return j(500, { ok: false, error: `spread_picks delete: ${spreadErr.message}` });
+
     const { error: tbErr } = await admin.from("tiebreakers").delete().eq("week", week).eq("user_name", user_name);
     if (tbErr) return j(500, { ok: false, error: `tiebreakers delete: ${tbErr.message}` });
 

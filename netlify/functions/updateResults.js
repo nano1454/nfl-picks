@@ -114,7 +114,7 @@ export default async (req) => {
     // picks are storing actual team names (e.g. "Carolina Panthers"), not "HOME/AWAY"
     const { data: games, error: gamesErr } = await admin
       .from("games")
-      .select("id, away, home")
+      .select("id, away, home, spread_line")
       .eq("season", season)
       .eq("week", week)
       .in("id", finalRows.map((x) => x.game_id));
@@ -124,7 +124,9 @@ export default async (req) => {
     const gameMap = {};
     for (const g of games || []) gameMap[g.id] = g;
 
-    const winnerByGame = {};
+    const winnerByGame = {}; // team NAME (legacy picks compare against this)
+    const winnerSideByGame = {}; // AWAY/HOME/TIE (current picks compare against this)
+    const coverSideByGame = {};
     const finalGameIds = [];
 
     for (const f of finalRows) {
@@ -139,11 +141,22 @@ export default async (req) => {
       const homeScore = Number(f.home_score);
 
       let winnerName = "TIE";
-      if (homeScore > awayScore) winnerName = homeName;
-      else if (awayScore > homeScore) winnerName = awayName;
+      let winnerSide = "TIE";
+      if (homeScore > awayScore) { winnerName = homeName; winnerSide = "HOME"; }
+      else if (awayScore > homeScore) { winnerName = awayName; winnerSide = "AWAY"; }
 
       winnerByGame[gid] = winnerName;
+      winnerSideByGame[gid] = winnerSide;
       finalGameIds.push(gid);
+
+      // Beat-the-spread cover side (see recalcLeaderboard.js for the same logic)
+      if (g.spread_line !== null && g.spread_line !== undefined) {
+        const margin = homeScore - awayScore;
+        const threshold = -Number(g.spread_line);
+        if (margin > threshold) coverSideByGame[gid] = "HOME";
+        else if (margin < threshold) coverSideByGame[gid] = "AWAY";
+        // else: push -- leave unset
+      }
     }
 
     if (finalGameIds.length === 0) {
@@ -159,25 +172,60 @@ export default async (req) => {
 
     if (picksErr) throw picksErr;
 
-    // 5) Score: 1 point per correct pick (can upgrade later)
+    // 5) Score: 1 point per correct pick. Picks are stored as AWAY/HOME/TIE
+    // (see App.jsx's submitEmail), but this fell back to comparing against a
+    // literal team name -- a stale assumption from before the app switched to
+    // AWAY/HOME, which meant this always scored 0 correct for every current
+    // pick. Support both, same as recalcLeaderboard.js.
     const totals = {}; // user -> { points, correct }
     for (const p of picks || []) {
       const name = String(p.user_name || "").trim();
       const gid = p.game_id;
-      const pick = String(p.pick || "").trim();
+      const pickRaw = String(p.pick || "").trim();
+      const pickUpper = pickRaw.toUpperCase();
 
-      if (!name || !gid || !pick) continue;
+      if (!name || !gid || !pickRaw) continue;
 
-      const winner = winnerByGame[gid];
-      if (!winner) continue;
+      const winnerSide = winnerSideByGame[gid];
+      if (!winnerSide) continue;
 
-      const correct = pick.toLowerCase() === String(winner).toLowerCase();
+      let correct = false;
+      if (pickUpper === "AWAY" || pickUpper === "HOME" || pickUpper === "TIE") {
+        correct = pickUpper === winnerSide;
+      } else {
+        // Legacy case: pick stored as a literal team name
+        correct = pickRaw.toLowerCase() === String(winnerByGame[gid] || "").toLowerCase();
+      }
 
       if (!totals[name]) totals[name] = { points: 0, correct: 0 };
       if (correct) {
         totals[name].points += 1;
         totals[name].correct += 1;
       }
+    }
+
+    // 5b) Score spread (bonus) picks: +0.5 for each correct cover pick on a
+    // FINAL game that didn't push. Kept in sync with recalcLeaderboard.js.
+    const { data: spreadPicksRows, error: spreadPicksErr } = await admin
+      .from("spread_picks")
+      .select("user_name, game_id, pick")
+      .eq("week", week)
+      .in("game_id", finalGameIds);
+    if (spreadPicksErr) throw spreadPicksErr;
+
+    for (const sp of spreadPicksRows || []) {
+      const name = String(sp.user_name || "").trim();
+      const gid = sp.game_id;
+      if (!name || !gid) continue;
+
+      const coverSide = coverSideByGame[gid];
+      if (!coverSide) continue;
+
+      const pickUpper = String(sp.pick || "").trim().toUpperCase();
+      if (pickUpper !== "AWAY" && pickUpper !== "HOME") continue;
+
+      if (!totals[name]) totals[name] = { points: 0, correct: 0 };
+      if (pickUpper === coverSide) totals[name].points += 0.5;
     }
 
     const lbRows = Object.entries(totals).map(([user_name, t]) => ({

@@ -150,6 +150,46 @@ const styles = {
     color: "#111",
     fontSize: 12,
   },
+
+  spreadSection: {
+    width: "100%",
+    marginTop: 10,
+    paddingTop: 10,
+    borderTop: "1px dashed rgba(0,0,0,0.12)",
+    position: "relative",
+    zIndex: 1,
+  },
+  spreadLabel: {
+    fontSize: 12,
+    fontWeight: 700,
+    color: "rgba(0,0,0,0.6)",
+    marginBottom: 6,
+  },
+  spreadPillGroup: { display: "flex", gap: 8, flexWrap: "wrap" },
+  spreadPill: {
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 6,
+    padding: "6px 12px",
+    borderRadius: 999,
+    border: "1px solid rgba(0,0,0,0.15)",
+    background: "rgba(255,255,255,0.9)",
+    color: "#111",
+    cursor: "pointer",
+    fontSize: 13,
+    fontWeight: 700,
+    transition: "background 0.2s, border-color 0.2s, transform 0.1s",
+  },
+  spreadPillSelected: {
+    border: "2px solid rgba(37, 99, 235, 0.85)",
+    boxShadow: "0 0 0 3px rgba(37, 99, 235, 0.18)",
+    background: "rgba(37, 99, 235, 0.08)",
+    transform: "scale(1.03)",
+  },
+  spreadPillDisabled: {
+    opacity: 0.55,
+    cursor: "not-allowed",
+  },
   srOnly: {
     position: "absolute",
     width: 1,
@@ -231,7 +271,7 @@ function teamMeta(record, spread) {
 }
 
 /* ---------- Simple validator ---------- */
-function validate({ user, week, picks, tiebreakers }) {
+function validate({ user, week, picks, spreadPicks, tiebreakers }) {
   const e = {};
   if (!user?.name?.trim()) e.name = "Full name is required";
   if (!/^\S+@\S+\.\S+$/.test(user?.email || "")) e.email = "Valid email is required";
@@ -239,6 +279,12 @@ function validate({ user, week, picks, tiebreakers }) {
   const totalGames = (week?.games || []).length;
   const picksMade = Object.values(picks || {}).filter(Boolean).length;
   if (totalGames > 0 && picksMade < totalGames) e.picks = "Please pick every matchup";
+
+  const gamesNeedingSpread = (week?.games || []).filter((g) => g.awaySpread && g.homeSpread);
+  const spreadPicksMade = gamesNeedingSpread.filter((g) => spreadPicks?.[g.id]).length;
+  if (gamesNeedingSpread.length > 0 && spreadPicksMade < gamesNeedingSpread.length) {
+    e.spreadPicks = "Please make a spread pick for every matchup";
+  }
 
   const tb = tiebreakers || [];
   if (tb.length !== 3 || tb.some((t) => String(t.total || "").trim() === "")) {
@@ -277,6 +323,7 @@ export default function App() {
 
   const [user, setUser] = useState({ name: session?.fullName || "", email: "" });
   const [picks, setPicks] = useState({}); // { [gameId]: "AWAY" | "HOME" }
+  const [spreadPicks, setSpreadPicks] = useState({}); // { [gameId]: "AWAY" | "HOME" }
   const [tbs, setTbs] = useState([]); // [{ gameId, total }]
 
   // % stats per game: { [gameId]: { away, home, tie, total } }
@@ -392,11 +439,18 @@ export default function App() {
     };
   }, [week.week, week.games.length]);
 
-  const errors = useMemo(() => validate({ user, week, picks, tiebreakers: tbs }), [user, week, picks, tbs]);
+  const errors = useMemo(
+    () => validate({ user, week, picks, spreadPicks, tiebreakers: tbs }),
+    [user, week, picks, spreadPicks, tbs]
+  );
   const isValid = Object.keys(errors).length === 0;
 
   function setPick(gameId, value) {
     setPicks((p) => ({ ...p, [gameId]: value }));
+  }
+
+  function setSpreadPick(gameId, value) {
+    setSpreadPicks((p) => ({ ...p, [gameId]: value }));
   }
 
   function setTBTotal(i, value) {
@@ -458,7 +512,7 @@ export default function App() {
   }
 
   /* ---------- Build concise (for Formspree email body) ---------- */
-  function buildConciseSubmission({ user, week, picks, tiebreakers }) {
+  function buildConciseSubmission({ user, week, picks, spreadPicks, tiebreakers }) {
     const games = week.games.map((g) => ({
       id: g.id,
       label: `${g.away} @ ${g.home}`,
@@ -466,6 +520,14 @@ export default function App() {
     }));
 
     const selected = games.filter((g) => !!picks[g.id]);
+
+    const spreadLines = week.games
+      .filter((g) => g.awaySpread && g.homeSpread && spreadPicks[g.id])
+      .map((g) => {
+        const team = spreadPicks[g.id] === "HOME" ? g.home : g.away;
+        const spread = spreadPicks[g.id] === "HOME" ? g.homeSpread : g.awaySpread;
+        return `${g.away} @ ${g.home}: ${team} ${spread}`;
+      });
 
     const tbLines = tiebreakers.map((tb) => {
       const g = week.games.find((x) => x.id === tb.gameId);
@@ -479,6 +541,7 @@ export default function App() {
     return {
       _subject: `Week ${week.week} — ${user.name} (${user.email})`,
       picks: selected.map((g) => `${g.label} → ${g.pick}`),
+      spreadPicks: spreadLines,
       tiebreakers: tbLines.map((t) => `${t.label}: ${t.total} total`),
     };
   }
@@ -512,6 +575,25 @@ export default function App() {
     if (missingGames.length > 0) {
       alert(
         `You missed ${missingGames.length} game${missingGames.length > 1 ? "s" : ""}. Please make all selections before submitting.`
+      );
+      return;
+    }
+
+    const gamesNeedingSpread = week.games.filter((g) => g.awaySpread && g.homeSpread);
+    const missingSpread = gamesNeedingSpread.filter((g) => !spreadPicks[g.id]);
+
+    const lockedMissingSpread = missingSpread.filter((g) => isGameLocked(g.id));
+    if (lockedMissingSpread.length > 0) {
+      const names = lockedMissingSpread.map((g) => `${g.away} @ ${g.home}`).join(", ");
+      alert(
+        `Too late — these games already started and are missing a spread pick:\n${names}\n\nYou can’t submit after kickoff if a spread pick is missing.`
+      );
+      return;
+    }
+
+    if (missingSpread.length > 0) {
+      alert(
+        `You missed the spread pick for ${missingSpread.length} game${missingSpread.length > 1 ? "s" : ""}. Please make all selections before submitting.`
       );
       return;
     }
@@ -565,6 +647,32 @@ export default function App() {
         return;
       }
 
+      // 2b) Save SPREAD PICKS (bonus, +0.5 pt each)
+      const spreadRows = gamesNeedingSpread
+        .filter((g) => spreadPicks[g.id])
+        .map((g) => ({
+          week: week.week,
+          game_id: g.id,
+          pick: spreadPicks[g.id], // "AWAY" | "HOME"
+          user_name: name,
+        }));
+
+      if (spreadRows.length > 0) {
+        const { error: spreadError } = await supabase
+          .from("spread_picks")
+          .upsert(spreadRows, { onConflict: "week,game_id,user_name" });
+
+        if (spreadError) {
+          if (spreadError.code === "23505") {
+            alert("Looks like you already submitted a spread pick for one or more games this week under this name.");
+            return;
+          }
+          console.error("Supabase spread_picks error:", spreadError);
+          alert("Your picks were saved, but there was a problem saving your spread picks.");
+          return;
+        }
+      }
+
       // 3) Build rows for TIEBREAKERS
       const tbRows = (tbs || []).map((tb, idx) => ({
         week: week.week,
@@ -588,7 +696,7 @@ export default function App() {
       // 4) Optional Formspree email
       if (FORMSPREE_ENDPOINT) {
         try {
-          const concise = buildConciseSubmission({ user, week, picks, tiebreakers: tbs });
+          const concise = buildConciseSubmission({ user, week, picks, spreadPicks, tiebreakers: tbs });
           await fetch(FORMSPREE_ENDPOINT, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -737,6 +845,8 @@ export default function App() {
                   game={g}
                   pick={picks[g.id]}
                   onPick={setPick}
+                  spreadPick={spreadPicks[g.id]}
+                  onSpreadPick={setSpreadPick}
                   gameStats={stats[g.id]}
                   locked={isAnyLockActiveForGame(g.id)}
                   kickoffIso={kickoffById[g.id] || ""}
@@ -745,6 +855,7 @@ export default function App() {
               ))}
             </div>
             {errors.picks && <ErrorText>{errors.picks}</ErrorText>}
+            {errors.spreadPicks && <ErrorText>{errors.spreadPicks}</ErrorText>}
           </Card>
 
           {/* Predetermined tiebreakers */}
@@ -958,7 +1069,7 @@ function PickSummary({ awayLabel, homeLabel, awayCount, homeCount, awayLogo, hom
 }
 
 /* ---------- Game row (summary + pick buttons) ---------- */
-function GameRow({ game, index, pick, onPick, gameStats, locked, kickoffIso, lockedReason }) {
+function GameRow({ game, index, pick, onPick, spreadPick, onSpreadPick, gameStats, locked, kickoffIso, lockedReason }) {
   const awayLogo = logoSrc(game.away);
   const homeLogo = logoSrc(game.home);
 
@@ -1099,6 +1210,44 @@ function GameRow({ game, index, pick, onPick, gameStats, locked, kickoffIso, loc
           return acc;
         }, [])}
       </div>
+
+      {/* ── Bonus: beat-the-spread pick (only if a spread was on file at import time) ── */}
+      {game.awaySpread && game.homeSpread && (
+        <div style={styles.spreadSection}>
+          <div style={styles.spreadLabel}>Bonus (+0.5 pt): who covers the spread?</div>
+          <div style={styles.spreadPillGroup}>
+            {[
+              { v: "AWAY", label: game.away, spread: game.awaySpread },
+              { v: "HOME", label: game.home, spread: game.homeSpread },
+            ].map((opt) => {
+              const isSelected = spreadPick === opt.v;
+              const disabled = locked;
+              return (
+                <label
+                  key={opt.v}
+                  style={{
+                    ...styles.spreadPill,
+                    ...(isSelected ? styles.spreadPillSelected : {}),
+                    ...(disabled ? styles.spreadPillDisabled : {}),
+                  }}
+                  title={disabled ? "Locked" : `${opt.label} ${opt.spread}`}
+                >
+                  <input
+                    type="radio"
+                    name={`spread_${game.id}`}
+                    checked={isSelected}
+                    disabled={disabled}
+                    onChange={() => !disabled && onSpreadPick(game.id, opt.v)}
+                    style={styles.radioActual}
+                    aria-label={`${opt.label} ${opt.spread}`}
+                  />
+                  {opt.label} {opt.spread}
+                </label>
+              );
+            })}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
