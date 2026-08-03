@@ -54,6 +54,11 @@ async function fetchTeamRecords(season, week) {
 
   const rows = parseCsv(await res.text());
   const tally = {};
+  // Seed every team at 0-0 so a team with no completed games yet (e.g. week 1
+  // of a new season) still gets a real record instead of no entry at all.
+  for (const team of new Set(Object.values(TEAM_ABBR_TO_FULL))) {
+    tally[team] = { w: 0, l: 0, t: 0 };
+  }
   const bump = (team, key) => {
     if (!tally[team]) tally[team] = { w: 0, l: 0, t: 0 };
     tally[team][key]++;
