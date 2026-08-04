@@ -107,7 +107,7 @@ const styles = {
     justifyContent: "space-between",
     alignItems: "center",
     padding: "12px 0",
-    borderBottom: "1px solid rgba(0,0,0,0.08)",
+    borderBottom: "3px solid rgba(0,0,0,0.18)",
     gap: 12,
   },
   pickGroup: { display: "flex", gap: 10, alignItems: "center", flexWrap: "nowrap" },
