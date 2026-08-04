@@ -45,22 +45,33 @@ export default function Reglas() {
         {/* Descripción general */}
         <Section title="📋 ¿De qué se trata?">
           <p>
-            Cada semana los participantes predicen al ganador de cada partido de la NFL. El que
-            acierte más partidos se lleva el pozo de esa semana. Si hay empate en puntos, los
-            marcadores de desempate deciden al ganador.
+            Cada semana los participantes predicen al ganador de cada partido de la NFL, además de
+            un pick extra de medio punto por elegir qué equipo cubre el spread en cada partido. El
+            participante con más puntos en total al final de la semana se lleva el pozo de esa
+            semana. Si hay empate en puntos, los marcadores de desempate deciden al ganador.
           </p>
         </Section>
 
         {/* Cómo participar */}
         <Section title="📝 Cómo Registrar tus Picks">
           <ol style={{ paddingLeft: 20, lineHeight: 2 }}>
-            <li>Entra a la página de picks e ingresa tu <b>nombre completo</b> y <b>correo electrónico</b>.</li>
-            <li>Selecciona al ganador de <b>cada partido</b> del calendario de esa semana.</li>
+            <li>
+              Inicia sesión con tu nombre de usuario y PIN de 4 dígitos (crea una cuenta la primera
+              vez — tu nombre completo queda ligado a tu cuenta, así que siempre se registra
+              correctamente).
+            </li>
+            <li>Ingresa tu <b>correo electrónico</b> (se usa para enviarte una copia de tus picks).</li>
+            <li>
+              Para cada partido, selecciona a tu <b>ganador</b> — y a qué equipo crees que
+              <b> cubre el spread</b> (se muestra junto al nombre de cada equipo) para ganar 0.5
+              puntos extra.
+            </li>
             <li>Ingresa tu predicción de <b>puntos totales combinados</b> para los tres partidos de desempate.</li>
             <li>Dale clic a <b>"Submit Picks"</b> antes del límite de tiempo. ¡Listo!</li>
           </ol>
-          <Callout>
-            ✅ Puedes volver a enviar tus picks antes del límite para actualizarlos — tu último envío reemplaza al anterior.
+          <Callout type="warning">
+            ⚠️ Revisa todo antes de enviar — por ahora no se puede volver a enviar para cambiar un
+            pick individual, así que es mejor acertarle desde la primera vez.
           </Callout>
         </Section>
 
@@ -74,27 +85,40 @@ export default function Reglas() {
               se bloquea y no se aceptan más envíos.
             </li>
             <li>
-              <b>Bloqueo por partido</b> — Cada partido se bloquea automáticamente <b>1 hora antes
-              del kickoff</b>. Si un partido ya está bloqueado cuando intentas enviar, debes
-              seleccionar todos los demás partidos disponibles — no puedes enviar con un pick
-              faltante de un partido que ya empezó.
+              <b>Bloqueo por partido</b> — Cada partido (y su pick de spread) se bloquea
+              automáticamente <b>1 hora antes del kickoff</b>. Si un partido ya está bloqueado
+              cuando intentas enviar, debes seleccionar todos los demás partidos disponibles — no
+              puedes enviar con un pick faltante de un partido que ya empezó.
             </li>
           </ul>
           <Callout type="warning">
             ⚠️ No esperes hasta el último momento. Si el límite pasa o un partido arranca antes
             de que envíes, tus picks no serán aceptados para esa semana.
           </Callout>
+          <p style={{ marginTop: 12, fontSize: 13, color: "#666" }}>
+            Cuando un partido se bloquea, su columna en la <b>Tabla de Picks</b> revela el pick de
+            todos para ese partido. Si alguien no envió un pick, en su lugar aparece el logo de la NFL.
+          </p>
         </Section>
 
         {/* Puntuación */}
         <Section title="🏆 Puntuación">
           <ul style={{ paddingLeft: 20, lineHeight: 2 }}>
             <li><b>1 punto</b> por cada partido que aciertes correctamente.</li>
+            <li><b>+0.5 puntos extra</b> por cada pick correcto de "cubrir el spread".</li>
             <li><b>0 puntos</b> por un pick incorrecto o un partido que no seleccionaste.</li>
             <li>El participante con <b>más puntos</b> al final de la semana gana el pozo.</li>
           </ul>
+          <p style={{ marginTop: 10, fontSize: 13, color: "#666" }}>
+            El spread es un número que empareja el partido — un equipo favorito de "-3.5" necesita
+            ganar por más de 3.5 puntos para "cubrir"; el equipo menos favorito con "+3.5" cubre
+            perdiendo por menos de eso, o ganando el partido. Se fija en cuanto se publica el
+            calendario de la semana, así que todos escogen contra el mismo número sin importar
+            cuándo envíen sus picks.
+          </p>
           <p style={{ marginTop: 12 }}>
-            Ejemplo: Si hay 16 partidos y aciertas 11, tu puntaje es <b>11</b>.
+            Ejemplo: Si hay 16 partidos y aciertas 11 ganadores más 6 picks de spread correctos,
+            tu puntaje es 11 + (6 × 0.5) = <b>14</b>.
           </p>
         </Section>
 
@@ -140,6 +164,10 @@ export default function Reglas() {
             <li>El participante con <b>más picks correctos</b> se lleva todo el pozo semanal.</li>
             <li>El pago debe ser confirmado por el administrador antes de que se finalicen los resultados.</li>
             <li>El monto de la aportación y los detalles del premio los comunica el organizador cada semana.</li>
+            <li>
+              Usa el botón de <b>Payment Options</b> en el encabezado del sitio para pagar por
+              Venmo, Cash App, PayPal o Zelle.
+            </li>
           </ul>
           <Callout type="warning">
             ⚠️ Si no se recibe el pago antes del límite, el administrador se reserva el derecho
@@ -152,7 +180,8 @@ export default function Reglas() {
           <ul style={{ paddingLeft: 20, lineHeight: 2 }}>
             <li>Envía tus picks con tiempo — no te arriesgues a perder el límite o a que se bloquee un partido.</li>
             <li>Para los desempates, ve un poco por debajo de lo que intuyes — pasarte anula tu entrada.</li>
-            <li>Usa tu nombre <b>exactamente igual</b> cada semana para que tu historial se registre correctamente.</li>
+            <li>Tu nombre completo queda ligado a tu cuenta, así que siempre se registra igual — ya no tienes que preocuparte por escribirlo distinto cada semana.</li>
+            <li>Antes de hacer tus picks, revisa el récord de cada equipo y el spread, que se muestran justo en la página de picks.</li>
             <li>Revisa el <b>Marcador en Vivo</b> durante la semana para ver cómo vas mientras los partidos se van cerrando.</li>
           </ul>
         </Section>

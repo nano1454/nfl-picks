@@ -45,8 +45,9 @@ export default function Rules() {
         {/* Overview */}
         <Section title="📋 Overview">
           <p>
-            Each week, participants predict the winner of every scheduled NFL game. The participant
-            with the most correct picks at the end of the week wins the weekly pot. In the event of
+            Each week, participants predict the winner of every scheduled NFL game, plus a bonus
+            half-point pick for which team beats the point spread on each game. The participant
+            with the most total points at the end of the week wins the weekly pot. In the event of
             a tie, tiebreaker scores determine the winner.
           </p>
         </Section>
@@ -54,13 +55,21 @@ export default function Rules() {
         {/* How to Submit */}
         <Section title="📝 How to Submit Your Picks">
           <ol style={{ paddingLeft: 20, lineHeight: 2 }}>
-            <li>Visit the picks page and enter your <b>full name</b> and <b>email address</b>.</li>
-            <li>Select your predicted winner for <b>every game</b> on the schedule.</li>
+            <li>
+              Log in with your username and 4-digit PIN (create an account the first time — your
+              full name is tied to your account, so it's always entered correctly).
+            </li>
+            <li>Enter your <b>email address</b> (used to send you a copy of your picks).</li>
+            <li>
+              For every game, select your predicted <b>winner</b> — and which team you think will
+              <b> beat the point spread</b> (shown next to each team's name) for a bonus 0.5 points.
+            </li>
             <li>Enter your <b>total points prediction</b> for all three tiebreaker games.</li>
             <li>Click <b>"Submit Picks"</b> before the deadline. You're done!</li>
           </ol>
-          <Callout>
-            ✅ You can resubmit before the deadline to update your picks — your latest submission overwrites the previous one.
+          <Callout type="warning">
+            ⚠️ Double-check everything before submitting — resubmitting to change an individual
+            pick isn't currently supported, so it's best to get it right the first time.
           </Callout>
         </Section>
 
@@ -74,26 +83,39 @@ export default function Rules() {
               new submissions are accepted.
             </li>
             <li>
-              <b>Individual game locks</b> — Each game automatically locks <b>1 hour before kickoff</b>.
-              If a specific game is already locked when you submit, you must still pick all
-              remaining unlocked games — you cannot submit with a missing pick for a started game.
+              <b>Individual game locks</b> — Each game (and its spread pick) automatically locks
+              <b> 1 hour before kickoff</b>. If a specific game is already locked when you submit,
+              you must still pick all remaining unlocked games — you cannot submit with a missing
+              pick for a started game.
             </li>
           </ul>
           <Callout type="warning">
             ⚠️ Do not wait until the last minute. If the deadline passes or a game kicks off before
             you submit, your picks will not be accepted for that week.
           </Callout>
+          <p style={{ marginTop: 12, fontSize: 13, color: "#666" }}>
+            Once a game locks, its column in the <b>View Picks Table</b> reveals everyone's pick
+            for that game. If someone didn't submit a pick, the NFL logo shows in their spot instead.
+          </p>
         </Section>
 
         {/* Scoring */}
         <Section title="🏆 Scoring">
           <ul style={{ paddingLeft: 20, lineHeight: 2 }}>
             <li><b>1 point</b> for each correctly predicted game winner.</li>
+            <li><b>+0.5 bonus point</b> for each correct "beat the spread" pick.</li>
             <li><b>0 points</b> for an incorrect pick or a missed game.</li>
             <li>The participant with the <b>most points</b> at the end of the week wins.</li>
           </ul>
+          <p style={{ marginTop: 10, fontSize: 13, color: "#666" }}>
+            The spread is a number that levels the matchup — a team favored by "-3.5" needs to win
+            by more than 3.5 points to "cover"; the underdog at "+3.5" covers by losing by less than
+            that, or by winning outright. It's frozen as soon as the week's schedule is posted, so
+            everyone picks against the same number no matter when they submit.
+          </p>
           <p style={{ marginTop: 12 }}>
-            Example: If there are 16 games and you pick 11 correctly, your score is <b>11</b>.
+            Example: If there are 16 games and you pick 11 winners correctly plus 6 spread picks
+            correctly, your score is 11 + (6 × 0.5) = <b>14</b>.
           </p>
         </Section>
 
@@ -138,6 +160,10 @@ export default function Rules() {
             <li>The participant with the <b>most correct picks</b> wins the entire weekly pot.</li>
             <li>Payment must be confirmed by the admin before results are finalized.</li>
             <li>Buy-in amounts and prize details are communicated by the pool organizer each week.</li>
+            <li>
+              Use the <b>Payment Options</b> button in the site header to pay via Venmo, Cash App,
+              PayPal, or Zelle.
+            </li>
           </ul>
           <Callout type="warning">
             ⚠️ If payment is not received before the deadline, the admin reserves the right to
@@ -150,7 +176,8 @@ export default function Rules() {
           <ul style={{ paddingLeft: 20, lineHeight: 2 }}>
             <li>Submit early — don't risk missing the deadline or a game locking.</li>
             <li>For tiebreakers, go slightly under your gut feeling — going over voids your entry.</li>
-            <li>Your name must be entered <b>exactly the same</b> every week so your history tracks correctly.</li>
+            <li>Your full name is tied to your account, so it's always consistent — no more worrying about typing it differently.</li>
+            <li>Check each team's win-loss record and point spread, shown right on the picks page, before making your picks.</li>
             <li>Check the <b>Live Leaderboard</b> during the week to see how you're doing as games go final.</li>
           </ul>
         </Section>
