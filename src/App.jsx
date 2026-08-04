@@ -264,10 +264,16 @@ function logoSrc(team) {
   return slug ? `/logos/${slug}.png` : null;
 }
 
-/** e.g. teamMeta("0-3", "-3") -> " (0-3, -3)"; either piece may be missing. */
-function teamMeta(record, spread) {
-  const parts = [record, spread].filter(Boolean);
-  return parts.length ? ` (${parts.join(", ")})` : "";
+/** e.g. formatCountdown(90 * 60 * 1000) -> "1h 30m"; returns "" once the target has passed. */
+function formatCountdown(msRemaining) {
+  if (!Number.isFinite(msRemaining) || msRemaining <= 0) return "";
+  const totalMinutes = Math.floor(msRemaining / 60_000);
+  const days = Math.floor(totalMinutes / (60 * 24));
+  const hours = Math.floor((totalMinutes % (60 * 24)) / 60);
+  const minutes = totalMinutes % 60;
+  if (days > 0) return `${days}d ${hours}h`;
+  if (hours > 0) return `${hours}h ${minutes}m`;
+  return `${minutes}m`;
 }
 
 /* ---------- Simple validator ---------- */
@@ -851,6 +857,7 @@ export default function App() {
                   locked={isAnyLockActiveForGame(g.id)}
                   kickoffIso={kickoffById[g.id] || ""}
                   lockedReason={isDeadlineLocked ? "deadline" : isGameLocked(g.id) ? "kickoff" : ""}
+                  nowTs={nowTs}
                 />
               ))}
             </div>
@@ -1069,7 +1076,7 @@ function PickSummary({ awayLabel, homeLabel, awayCount, homeCount, awayLogo, hom
 }
 
 /* ---------- Game row (summary + pick buttons) ---------- */
-function GameRow({ game, index, pick, onPick, spreadPick, onSpreadPick, gameStats, locked, kickoffIso, lockedReason }) {
+function GameRow({ game, index, pick, onPick, spreadPick, onSpreadPick, gameStats, locked, kickoffIso, lockedReason, nowTs }) {
   const awayLogo = logoSrc(game.away);
   const homeLogo = logoSrc(game.home);
 
@@ -1085,7 +1092,8 @@ function GameRow({ game, index, pick, onPick, spreadPick, onSpreadPick, gameStat
   } else {
     if (kickoffIso) {
       const lockTime = new Date(new Date(kickoffIso).getTime() - 60 * 60 * 1000);
-      lockNote = `Locks 1 hr before kickoff: ${lockTime.toLocaleString()}`;
+      const countdown = formatCountdown(lockTime.getTime() - nowTs);
+      lockNote = `Locks 1 hr before kickoff: ${lockTime.toLocaleString()}${countdown ? ` (${countdown})` : ""}`;
     }
   }
 
@@ -1138,8 +1146,7 @@ function GameRow({ game, index, pick, onPick, spreadPick, onSpreadPick, gameStat
       {/* ── Left: game info + stats ── */}
       <div style={{ minWidth: 0, position: "relative", zIndex: 1 }}>
         <div style={{ fontWeight: 700, fontSize: 16, color: "#000", display: "flex", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
-          Game {index + 1}: {game.away}{teamMeta(null, game.awaySpread)} @ {game.home}
-          {teamMeta(null, game.homeSpread)}
+          Game {index + 1}: {game.away} @ {game.home}
           {selectedTeam && (
             <span style={{
               fontSize: 12, fontWeight: 800, color: "#1a7a28",
