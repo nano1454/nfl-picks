@@ -43,158 +43,81 @@ function logoSrc(team) {
   return slug ? `/logos/${slug}.png` : null;
 }
 
-function LeaderboardHeader() {
-  const sc = 0.7;
-  const sceneW = Math.round(760 * sc);
-  const sceneH = Math.round(340 * sc);
-
-  const sparks = useMemo(() => {
-    const colors = ['#1a3a6e', '#0d2550', '#ffcc00', '#071830', '#2a5298', '#fff', '#ffd700'];
-    return Array.from({ length: 24 }, (_, i) => {
-      const angle = (i / 24) * 360;
-      const x = Math.cos(angle * Math.PI / 180) * 180 * sc;
-      const y = Math.sin(angle * Math.PI / 180) * 70 * sc;
-      return {
-        angle, x, y,
-        h: (14 + (i % 5) * 6) * sc,
-        color: colors[i % colors.length],
-        delay: (i / 24) * 1.9,
-        duration: 1.1 + (i % 3) * 0.3,
-      };
-    });
-  }, []);
-
-  const embers = useMemo(() => {
-    const colors = ['#1a3a6e', '#0d2550', '#ffcc00', '#071830', '#2a5298', '#fff', '#ffd700'];
-    return Array.from({ length: 28 }, (_, i) => ({
-      s: (2 + (i % 4)) * sc,
-      x: (30 + (i / 28) * 700) * sc,
-      y: (60 + (i % 7) * 31) * sc,
-      dx: ((i % 2 === 0 ? 1 : -1) * (10 + i * 3)) * sc,
-      dur: 1.4 + (i % 4) * 0.55,
-      color: colors[i % colors.length],
-      delay: (i / 28) * 2.5,
-    }));
-  }, []);
-
-  const bolts = useMemo(() =>
-    [10, 55, 100, 155, 210, 265, 310, 355].map((angle, i) => ({
-      angle,
-      len: (55 + (i % 4) * 22) * sc,
-      delay: i * 0.35,
-      duration: 2.2 + (i % 3) * 0.45,
-    }))
-  , []);
-
-  const rings = [
-    { w: 340*sc, h: 120*sc, color: 'rgba(13,37,80,0.9)',   delay: 0 },
-    { w: 480*sc, h: 170*sc, color: 'rgba(26,58,110,0.65)', delay: 0.45 },
-    { w: 620*sc, h: 220*sc, color: 'rgba(255,200,0,0.35)', delay: 0.9 },
-    { w: 760*sc, h: 270*sc, color: 'rgba(13,37,80,0.25)',  delay: 1.35 },
-  ];
-
+function LeaderboardTitle() {
   return (
-    <div style={{ position: 'relative', width: sceneW, maxWidth: '100%', height: sceneH, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', margin: '0 auto' }}>
-      {/* Burst rays */}
-      <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', animation: 'lbBurstSpin 16s linear infinite' }}>
-        <svg viewBox="0 0 1000 580" style={{ width: '100%', height: '100%', position: 'absolute' }}>
-          <defs>
-            <radialGradient id="lbRayGrad" cx="50%" cy="50%" r="50%">
-              <stop offset="0%"   stopColor="#1a3a6e" stopOpacity="0.9" />
-              <stop offset="40%"  stopColor="#0d2550" stopOpacity="0.5" />
-              <stop offset="100%" stopColor="#071830" stopOpacity="0" />
-            </radialGradient>
-          </defs>
-          <g transform="translate(500,290)" fill="url(#lbRayGrad)">
-            {Array.from({ length: 30 }, (_, i) => (
-              <polygon key={i} points="0,-10 6,-320 -6,-320" transform={`rotate(${i * 12})`} opacity={i % 2 === 0 ? 0.95 : 0.55} />
-            ))}
-          </g>
-        </svg>
-      </div>
-
-      {/* Elliptical rings */}
-      {rings.map((r, i) => (
-        <div key={i} style={{
-          position: 'absolute', width: r.w, height: r.h,
-          borderRadius: '50%', border: `2px solid ${r.color}`,
-          animation: `lbRingPulse 2.2s ease-out ${r.delay}s infinite`,
-        }} />
-      ))}
-
-      {/* Sparks */}
-      {sparks.map((s, i) => (
-        <div key={i} style={{
-          position: 'absolute', width: 3, height: s.h, borderRadius: 2,
-          left: `calc(50% + ${s.x}px)`, top: `calc(50% + ${s.y}px)`,
-          background: `linear-gradient(to top, transparent, ${s.color})`,
-          transform: `rotate(${s.angle + 90}deg)`, transformOrigin: 'center bottom',
-          animation: `lbSparkFly ${s.duration}s ${s.delay}s ease-out infinite`,
-        }} />
-      ))}
-
-      {/* Embers */}
-      {embers.map((em, i) => (
-        <div key={i} style={{
-          position: 'absolute', width: em.s, height: em.s, borderRadius: '50%',
-          left: em.x, top: em.y, background: em.color,
-          '--lb-dx': `${em.dx}px`,
-          boxShadow: `0 0 ${em.s * 2}px ${em.color}`,
-          animation: `lbEmberFloat ${em.dur}s ${em.delay}s linear infinite`,
-        }} />
-      ))}
-
-      {/* Lightning */}
-      {bolts.map((b, i) => (
-        <div key={i} style={{
-          position: 'absolute', top: '50%', left: '50%', width: 2, height: b.len,
-          transform: `translate(-50%, -${b.len}px) rotate(${b.angle}deg)`,
-          transformOrigin: 'top center',
-          background: 'linear-gradient(to bottom, #fff, #ffcc00, rgba(26,58,110,0))',
-          boxShadow: '0 0 6px #ffcc00, 0 0 12px #1a3a6e',
-          animation: `lbBoltFlash ${b.duration}s ${b.delay}s ease-in-out infinite`,
-          opacity: 0, zIndex: 5,
-        }} />
-      ))}
-
-      {/* Center flare */}
-      <div style={{
-        position: 'absolute', width: 120*sc, height: 60*sc, borderRadius: '50%',
-        background: 'radial-gradient(ellipse, rgba(255,220,100,0.85) 0%, rgba(13,37,80,0.5) 40%, transparent 70%)',
-        zIndex: 8, animation: 'lbFlareBreath 1.6s ease-in-out infinite', mixBlendMode: 'screen',
-      }} />
-
-      {/* Text */}
-      <div style={{ position: 'relative', zIndex: 10, textAlign: 'center' }}>
-        <div style={{
-          position: 'absolute', top: -28*sc, left: '50%', transform: 'translateX(-50%)',
-          fontSize: 36*sc,
-          filter: 'drop-shadow(0 0 10px #ffcc00) drop-shadow(0 0 20px #ff6600)',
-          animation: 'lbCrownBob 2s ease-in-out infinite',
-        }}>🏆</div>
-
-        <span style={{
-          fontFamily: "'Black Ops One', sans-serif",
-          fontSize: `clamp(26px, 8vw, ${96*sc}px)`, lineHeight: 1, letterSpacing: 2, whiteSpace: 'nowrap',
-          color: '#fff', userSelect: 'none', display: 'block',
-          textShadow: `
-            0 0 20px #fff, 0 0 40px #1a3a6e, 0 0 70px #0d2550, 0 0 110px #071830,
-            2px 2px 0 #0f2d5e, 4px 4px 0 #0c2550, 6px 6px 0 #091d40,
-            8px 8px 0 #061530, 10px 10px 0 #040e20, 12px 12px 0 #020810,
-            -1px -1px 0 #ffcc00, 14px 18px 32px rgba(0,0,0,0.95)
-          `,
-          animation: 'lbFloat 3.2s ease-in-out infinite, lbPulse 1.6s ease-in-out infinite',
-        }}>Leaderboard</span>
-
-        <div style={{
-          position: 'absolute', bottom: -14*sc, left: '50%', transform: 'translateX(-50%)',
-          width: '85%', height: 4,
-          background: 'linear-gradient(90deg, transparent, #1a3a6e, #ffcc00, #1a3a6e, transparent)',
-          borderRadius: 2, zIndex: 11,
-          animation: 'lbBarGlow 1.6s ease-in-out infinite',
-        }} />
-      </div>
+    <div
+      style={{
+        position: "relative",
+        borderRadius: 20,
+        padding: "26px 20px",
+        textAlign: "center",
+        overflow: "hidden",
+        background: "linear-gradient(135deg, #0a0a0a 0%, #1c1c1c 55%, #000 100%)",
+        boxShadow: "0 10px 30px rgba(0,0,0,0.3), inset 0 0 0 1px rgba(255,215,0,0.25)",
+      }}
+    >
+      <div style={{ fontSize: 30, lineHeight: 1, marginBottom: 4 }}>🏆</div>
+      <h1
+        style={{
+          margin: 0,
+          fontSize: "clamp(32px, 6vw, 52px)",
+          fontWeight: 900,
+          letterSpacing: 1,
+          fontFamily: "system-ui, sans-serif",
+          background: "linear-gradient(180deg, #fff7d6 0%, #ffd700 45%, #b8860b 100%)",
+          WebkitBackgroundClip: "text",
+          backgroundClip: "text",
+          WebkitTextFillColor: "transparent",
+          color: "transparent",
+        }}
+      >
+        Leaderboard
+      </h1>
+      <div
+        style={{
+          width: 140,
+          height: 3,
+          margin: "10px auto 0",
+          borderRadius: 2,
+          background: "linear-gradient(90deg, transparent, #ffd700, transparent)",
+        }}
+      />
     </div>
+  );
+}
+
+function PillButton({ children, onClick, primary }) {
+  const [hover, setHover] = useState(false);
+  const base = primary
+    ? {
+        background: hover ? "#1a1a1a" : "#000",
+        color: "#ffd700",
+        border: "1px solid #000",
+      }
+    : {
+        background: hover ? "#fffbea" : "#fff",
+        color: "#111",
+        border: "1px solid rgba(184,134,11,0.4)",
+      };
+  return (
+    <button
+      onClick={onClick}
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+      style={{
+        ...base,
+        padding: "9px 16px",
+        borderRadius: 999,
+        fontWeight: 700,
+        fontSize: 13,
+        cursor: "pointer",
+        boxShadow: hover ? "0 4px 14px rgba(184,134,11,0.25)" : "0 2px 8px rgba(0,0,0,0.08)",
+        transition: "background 0.2s, box-shadow 0.2s, transform 0.1s",
+        transform: hover ? "translateY(-1px)" : "none",
+      }}
+    >
+      {children}
+    </button>
   );
 }
 
@@ -571,38 +494,33 @@ export default function Leaderboard() {
   return (
     <div style={{ maxWidth: 1100, margin: "24px auto", padding: 16, fontFamily: "system-ui" }}>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Black+Ops+One&display=swap');
-        @keyframes lbBurstSpin  { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-        @keyframes lbRingPulse  { 0% { transform: scale(0.55); opacity: 1; } 100% { transform: scale(1.35); opacity: 0; } }
-        @keyframes lbSparkFly   { 0% { opacity: 1; transform: scaleY(1) translateY(0); } 100% { opacity: 0; transform: scaleY(0.2) translateY(-${Math.round(130*0.7)}px); } }
-        @keyframes lbFloat      { 0%, 100% { transform: translateY(0) scale(1); } 50% { transform: translateY(-5px) scale(1.015); } }
-        @keyframes lbPulse      { 0%, 100% { filter: brightness(1) drop-shadow(0 0 14px #1a3a6e) drop-shadow(0 0 38px #0d2550); } 50% { filter: brightness(1.22) drop-shadow(0 0 24px #ffcc00) drop-shadow(0 0 60px #1a3a6e); } }
-        @keyframes lbBoltFlash  { 0%, 84%, 100% { opacity: 0; } 87%, 91% { opacity: 1; } }
-        @keyframes lbEmberFloat { 0% { transform: translateY(0) translateX(0) scale(1); opacity: 1; } 100% { transform: translateY(-154px) translateX(var(--lb-dx)) scale(0); opacity: 0; } }
-        @keyframes lbFlareBreath{ 0%, 100% { transform: scale(1); opacity: 0.8; } 50% { transform: scale(1.6); opacity: 1; } }
-        @keyframes lbCrownBob   { 0%, 100% { transform: translateX(-50%) translateY(0) scale(1); } 50% { transform: translateX(-50%) translateY(-5px) scale(1.08); } }
-        @keyframes lbBarGlow    { 0%, 100% { opacity: 0.7; box-shadow: 0 0 8px #1a3a6e; } 50% { opacity: 1; box-shadow: 0 0 20px #ffcc00, 0 0 40px #1a3a6e; } }
         @keyframes lbBarShimmer { 0% { transform: translateX(-150%); } 100% { transform: translateX(350%); } }
       `}</style>
 
-      <LeaderboardHeader />
+      <LeaderboardTitle />
 
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 8 }}>
-        <div style={{ color: "#555" }}>
-          Season <b>{meta.season}</b> • Week <b>{meta.week}</b>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 16, flexWrap: "wrap", gap: 10 }}>
+        <div style={{ color: "#555", fontSize: 14 }}>
+          Season <b style={{ color: "#111" }}>{meta.season}</b> • Week <b style={{ color: "#111" }}>{meta.week}</b>
         </div>
         <div style={{ display: "flex", gap: 8 }}>
-          <button onClick={loadMetaAndLeaderboard} style={{ padding: "8px 12px", cursor: "pointer" }}>
-            Refresh
-          </button>
-          <Link to="/">
-            <button style={{ padding: "8px 12px", cursor: "pointer" }}>← Back</button>
+          <PillButton onClick={loadMetaAndLeaderboard}>Refresh</PillButton>
+          <Link to="/" style={{ textDecoration: "none" }}>
+            <PillButton primary>← Back</PillButton>
           </Link>
         </div>
       </div>
 
       {!hasPoints ? (
-        <div style={{ marginTop: 18, border: "1px solid #ddd", borderRadius: 12, padding: 14 }}>
+        <div
+          style={{
+            marginTop: 18,
+            border: "1px solid rgba(184,134,11,0.3)",
+            borderRadius: 14,
+            padding: 16,
+            background: "linear-gradient(135deg, rgba(255,215,0,0.05), rgba(0,0,0,0.02))",
+          }}
+        >
           No points yet. This page updates automatically once games become FINAL.
           <div style={{ marginTop: 10, fontSize: 13, color: "#666" }}>
             Bars animate automatically as points change (realtime).
@@ -613,14 +531,14 @@ export default function Leaderboard() {
           {/* Points Tracker header */}
           <div
             style={{
-              border: "1px solid #ddd",
-              borderRadius: 12,
+              border: "1px solid rgba(184,134,11,0.3)",
+              borderRadius: 14,
               padding: 14,
-              background: "rgba(0,0,0,0.02)",
+              background: "linear-gradient(135deg, rgba(255,215,0,0.06), rgba(0,0,0,0.02))",
               marginBottom: 12,
             }}
           >
-            <div style={{ fontWeight: 900, fontSize: 16 }}>Points Tracker</div>
+            <div style={{ fontWeight: 900, fontSize: 16, color: "#111" }}>🏈 Points Tracker</div>
             <div style={{ marginTop: 4, color: "#555", fontSize: 13 }}>
               Live rankings based on completed games.
             </div>
@@ -679,11 +597,18 @@ function RaceList({ rows, leaderPoints }) {
 
   const max = leaderPoints || 0;
 
+  const medalStyle = [
+    { background: "linear-gradient(160deg, #fff7d6, #ffd700, #b8860b)", color: "#3a2a00" }, // gold
+    { background: "linear-gradient(160deg, #f4f4f4, #c9c9c9, #8f8f8f)", color: "#222" }, // silver
+    { background: "linear-gradient(160deg, #f0c9a0, #cd7f32, #8a4b17)", color: "#2a1500" }, // bronze
+  ];
+
   return (
     <div style={{ display: "grid", gap: 10 }}>
       {rows.map((r, idx) => {
         const points = Number(r.points || 0);
         const pct = max > 0 ? Math.max(2, Math.min(100, (points / max) * 100)) : 0;
+        const medal = medalStyle[idx];
 
         return (
           <div
@@ -693,19 +618,36 @@ function RaceList({ rows, leaderPoints }) {
               itemRefs.current.set(String(r.user_name), el);
             }}
             style={{
-              border: "1px solid #ddd",
+              border: idx === 0 ? "1px solid rgba(184,134,11,0.5)" : "1px solid rgba(0,0,0,0.08)",
               borderRadius: 14,
               padding: 12,
               display: "flex",
               gap: 12,
               alignItems: "center",
               background: "#fff",
-              boxShadow: "0 4px 14px rgba(0,0,0,0.05)",
+              boxShadow: idx === 0 ? "0 4px 18px rgba(184,134,11,0.18)" : "0 4px 14px rgba(0,0,0,0.05)",
             }}
           >
-            <div style={{ width: 34, textAlign: "right", fontWeight: 900, color: "#444" }}>#{idx + 1}</div>
+            <div
+              style={{
+                width: 32,
+                height: 32,
+                borderRadius: "50%",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontWeight: 900,
+                fontSize: 14,
+                flexShrink: 0,
+                background: medal ? medal.background : "#111",
+                color: medal ? medal.color : "#fff",
+                boxShadow: medal ? "0 2px 6px rgba(0,0,0,0.25)" : "none",
+              }}
+            >
+              {idx + 1}
+            </div>
 
-            <div style={{ width: 220, fontWeight: 800 }}>{r.user_name}</div>
+            <div style={{ width: 220, fontWeight: 800, color: "#111" }}>{r.user_name}</div>
 
             <div style={{ flex: 1 }}>
               <div style={{ height: 16, background: "#eee", borderRadius: 999, overflow: "hidden" }}>
@@ -713,7 +655,7 @@ function RaceList({ rows, leaderPoints }) {
                   style={{
                     height: "100%",
                     width: `${pct}%`,
-                    background: "#0d2550",
+                    background: "linear-gradient(90deg, #111 0%, #7a5c14 55%, #ffd700 100%)",
                     transition: "width 650ms cubic-bezier(0.2, 0.9, 0.2, 1)",
                     position: "relative",
                     overflow: "hidden",
@@ -735,7 +677,7 @@ function RaceList({ rows, leaderPoints }) {
               </div>
             </div>
 
-            <div style={{ width: 90, textAlign: "right", fontWeight: 900, fontSize: 18 }}>
+            <div style={{ width: 90, textAlign: "right", fontWeight: 900, fontSize: 18, color: idx === 0 ? "#b8860b" : "#111" }}>
               {Number(points).toFixed(1)}
             </div>
           </div>
@@ -749,16 +691,16 @@ function RaceList({ rows, leaderPoints }) {
 function TiebreakWatchPanel({ tbWatch }) {
   const card = {
     marginTop: 16,
-    border: "1px solid #ddd",
-    borderRadius: 12,
+    border: "1px solid rgba(184,134,11,0.3)",
+    borderRadius: 14,
     padding: 14,
-    background: "rgba(0,0,0,0.02)",
+    background: "linear-gradient(135deg, rgba(255,215,0,0.05), rgba(0,0,0,0.02))",
   };
 
   if (tbWatch?.error) {
     return (
       <div style={card}>
-        <div style={{ fontWeight: 900, marginBottom: 6 }}>Tiebreak Watch</div>
+        <div style={{ fontWeight: 900, marginBottom: 6, color: "#111" }}>⚖️ Tiebreak Watch</div>
         <div style={{ color: "#b00" }}>{tbWatch.error}</div>
       </div>
     );
@@ -782,7 +724,7 @@ function TiebreakWatchPanel({ tbWatch }) {
     <div style={card}>
       <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
         <div>
-          <div style={{ fontWeight: 900, fontSize: 16 }}>Tiebreak Watch</div>
+          <div style={{ fontWeight: 900, fontSize: 16, color: "#111" }}>⚖️ Tiebreak Watch</div>
           <div style={{ color: "#555", marginTop: 2 }}>
             Tie for 1st at <b>{tbWatch.maxPoints}</b> points: <b>{tbWatch.tiedUsers.join(", ")}</b>
           </div>
