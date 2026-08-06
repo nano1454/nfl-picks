@@ -210,56 +210,74 @@ const styles = {
     whiteSpace: "nowrap",
   },
 
-  teamPill: {
+  teamPillWrap: {
     flex: 1,
     display: "flex",
     flexDirection: "column",
     alignItems: "center",
-    gap: 6,
-    padding: "14px 8px",
-    borderRadius: 14,
-    border: "1px solid rgba(255,215,0,0.35)",
-    background: "linear-gradient(160deg, #000, #1a1a1a)",
+    gap: 8,
     cursor: "pointer",
-    transition: "transform 0.1s, border-color 0.2s, box-shadow 0.2s",
+  },
+  teamPillCaption: {
+    fontSize: 12,
+    fontWeight: 800,
+    color: "rgba(255,255,255,0.85)",
+    letterSpacing: 0.3,
+    textAlign: "center",
+  },
+  teamPill: {
     position: "relative",
+    width: "100%",
+    height: 64,
+    borderRadius: 14,
+    border: "1px solid rgba(0,0,0,0.08)",
+    background: "#fff",
+    boxShadow: "0 4px 14px rgba(0,0,0,0.35)",
+    transition: "transform 0.15s, box-shadow 0.2s",
+    overflow: "visible",
   },
   teamPillSelected: {
-    border: "2px solid #ffd700",
-    boxShadow: "0 0 0 3px rgba(255,215,0,0.2), 0 0 20px rgba(255,215,0,0.25)",
-    transform: "scale(1.03)",
+    boxShadow: "0 4px 14px rgba(0,0,0,0.35), 0 0 0 3px rgba(255,215,0,0.55), 0 0 22px rgba(255,215,0,0.35)",
+    transform: "scale(1.04)",
   },
   teamPillDisabled: {
     opacity: 0.4,
     cursor: "not-allowed",
   },
-  teamPillLabel: {
-    fontSize: 13,
-    fontWeight: 800,
-    color: "#ffd700",
-    letterSpacing: 0.3,
-    textAlign: "center",
+  teamPillLogo: {
+    position: "absolute",
+    left: "50%",
+    bottom: 2,
+    transform: "translateX(-50%)",
+    width: 104,
+    height: 104,
+    objectFit: "contain",
+    zIndex: 2,
+    pointerEvents: "none",
+    filter: "drop-shadow(0 6px 10px rgba(0,0,0,0.5))",
   },
 
-  spreadPillGroup: { display: "flex", gap: 8, flexWrap: "wrap" },
+  spreadPillGroup: { display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "center" },
   spreadPill: {
     display: "inline-flex",
     alignItems: "center",
     gap: 6,
     padding: "8px 14px",
     borderRadius: 999,
-    border: "1px solid rgba(255,215,0,0.35)",
-    background: "linear-gradient(160deg, #000, #1a1a1a)",
-    color: "#ffd700",
+    border: "1px solid rgba(0,0,0,0.12)",
+    background: "#fff",
+    color: "#111",
     cursor: "pointer",
     fontSize: 13,
     fontWeight: 800,
-    transition: "background 0.2s, border-color 0.2s, transform 0.1s",
+    boxShadow: "0 2px 8px rgba(0,0,0,0.25)",
+    transition: "background 0.2s, border-color 0.2s, transform 0.1s, box-shadow 0.2s",
   },
   spreadPillSelected: {
     border: "2px solid #ffd700",
-    boxShadow: "0 0 0 3px rgba(255,215,0,0.2), 0 0 20px rgba(255,215,0,0.25)",
-    transform: "scale(1.03)",
+    background: "rgba(255,215,0,0.15)",
+    boxShadow: "0 0 0 3px rgba(255,215,0,0.25), 0 0 16px rgba(255,215,0,0.3)",
+    transform: "scale(1.04)",
   },
   spreadPillDisabled: {
     opacity: 0.4,
@@ -1193,7 +1211,7 @@ function GamePickScreen({
         <div style={styles.sectionDividerLine} />
       </div>
 
-      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+      <div style={{ display: "flex", alignItems: "flex-start", gap: 10, marginTop: 34 }}>
         {[
           { v: "AWAY", label: game.away, logo: awayLogo, title: `${game.away} (Away)` },
           { v: "HOME", label: game.home, logo: homeLogo, title: `${game.home} (Home)` },
@@ -1203,11 +1221,7 @@ function GamePickScreen({
           acc.push(
             <label
               key={opt.v}
-              style={{
-                ...styles.teamPill,
-                ...(isSelected ? styles.teamPillSelected : {}),
-                ...(locked ? styles.teamPillDisabled : {}),
-              }}
+              style={{ ...styles.teamPillWrap, ...(locked ? styles.teamPillDisabled : {}) }}
               title={locked ? "Locked" : opt.title}
             >
               <input
@@ -1219,15 +1233,17 @@ function GamePickScreen({
                 style={styles.radioActual}
                 aria-label={opt.label}
               />
-              {opt.logo && (
-                <img
-                  src={opt.logo}
-                  alt={opt.label}
-                  style={{ height: 34, width: 34, objectFit: "contain", display: "block" }}
-                  onError={(e) => (e.currentTarget.style.display = "none")}
-                />
-              )}
-              <span style={styles.teamPillLabel}>{shortTeamName(opt.label)}</span>
+              <div style={{ ...styles.teamPill, ...(isSelected ? styles.teamPillSelected : {}) }}>
+                {opt.logo && (
+                  <img
+                    src={opt.logo}
+                    alt={opt.label}
+                    style={styles.teamPillLogo}
+                    onError={(e) => (e.currentTarget.style.display = "none")}
+                  />
+                )}
+              </div>
+              <span style={styles.teamPillCaption}>{shortTeamName(opt.label)}</span>
             </label>
           );
           return acc;
