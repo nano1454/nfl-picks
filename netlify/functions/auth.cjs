@@ -48,6 +48,12 @@ exports.handler = async (event) => {
       const fullName = String(body.fullName || "").trim();
       if (!fullName) return j(400, { ok: false, error: "Full name is required." });
 
+      const email = String(body.email || "").trim();
+      if (!email) return j(400, { ok: false, error: "Email is required." });
+      if (!/^\S+@\S+\.\S+$/.test(email)) {
+        return j(400, { ok: false, error: "That email address doesn't look valid." });
+      }
+
       const { data: existing, error: findErr } = await admin
         .from("app_users")
         .select("id")
@@ -61,7 +67,7 @@ exports.handler = async (event) => {
 
       const { error: insErr } = await admin
         .from("app_users")
-        .insert([{ username, full_name: fullName, pin_hash: pinHash, pin_salt: salt }]);
+        .insert([{ username, full_name: fullName, pin_hash: pinHash, pin_salt: salt, email: email || null }]);
       if (insErr) {
         if (insErr.code === "23505") return j(409, { ok: false, error: "That username is already taken." });
         throw insErr;

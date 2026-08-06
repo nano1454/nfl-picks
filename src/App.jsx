@@ -4,9 +4,6 @@ import { Link, useNavigate } from "react-router-dom";
 import { getSession, clearSession } from "./auth";
 import { pageBackgroundStyle } from "./backgroundStyle";
 
-/** Optional: keep Formspree so you still receive an email copy (no mailto popups) */
-const FORMSPREE_ENDPOINT = "https://formspree.io/f/xovlredw";
-
 /* ---------- Styles (MUST be above App so useState can reference it) ---------- */
 const styles = {
   pageOverlay: {
@@ -48,7 +45,6 @@ const styles = {
   h2: { fontSize: 18, fontWeight: 700, margin: "0 0 8px" },
   muted: { color: "rgba(0,0,0,0.75)", margin: "0 0 0" },
   mutedSmall: { color: "rgba(0,0,0,0.75)", fontSize: 13, margin: "4px 0 12px" },
-  row: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 12, alignItems: "start" },
 
   input: {
     padding: "10px 12px",
@@ -83,6 +79,26 @@ const styles = {
   },
   btnPrimaryHover: { background: "#333" },
 
+  btnGhost: {
+    padding: "10px 14px",
+    border: "1px solid transparent",
+    borderRadius: 10,
+    background: "transparent",
+    color: "#333",
+    cursor: "pointer",
+    fontWeight: 600,
+  },
+  btnOutlineWarn: {
+    padding: "10px 16px",
+    border: "1px solid rgba(160,0,0,0.3)",
+    borderRadius: 10,
+    background: "rgba(200,0,0,0.05)",
+    color: "#7a0000",
+    cursor: "pointer",
+    fontWeight: 700,
+  },
+  saveOkNote: { color: "#1a7a28", fontSize: 13, fontWeight: 700, marginTop: 10 },
+
   // Header-ish nav buttons (smaller + pill-ish)
   navBtn: {
     padding: "8px 12px",
@@ -101,15 +117,47 @@ const styles = {
     transform: "translateY(-1px)",
   },
 
-  gameRow: {
+  // Step progress strip
+  stepStrip: { display: "flex", flexWrap: "wrap", gap: 6, marginTop: 14 },
+  stepDot: {
+    width: 30,
+    height: 30,
+    borderRadius: 8,
     display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    fontSize: 11,
+    fontWeight: 800,
+    cursor: "pointer",
+    border: "1px solid rgba(0,0,0,0.15)",
+    background: "rgba(255,255,255,0.9)",
+    color: "#333",
+  },
+  stepDotAnswered: {
+    background: "rgba(25,185,55,0.15)",
+    border: "1px solid rgba(25,185,55,0.5)",
+    color: "#1a7a28",
+  },
+  stepDotLocked: {
+    background: "rgba(0,0,0,0.06)",
+    border: "1px solid rgba(0,0,0,0.15)",
+    color: "#999",
+  },
+  stepDotCurrent: {
+    boxShadow: "0 0 0 3px rgba(0,0,0,0.25)",
+    transform: "scale(1.08)",
+  },
+
+  screenWrap: { display: "grid", gap: 16, marginTop: 14 },
+  wizardFooter: {
+    display: "flex",
+    gap: 8,
     flexWrap: "wrap",
+    marginTop: 16,
     justifyContent: "space-between",
     alignItems: "center",
-    padding: "12px 0",
-    borderBottom: "3px solid rgba(0,0,0,0.18)",
-    gap: 12,
   },
+
   pickGroup: { display: "flex", gap: 10, alignItems: "center", flexWrap: "nowrap" },
 
   radioActual: { position: "absolute", opacity: 0, pointerEvents: "none" },
@@ -118,9 +166,9 @@ const styles = {
     display: "inline-flex",
     alignItems: "center",
     justifyContent: "center",
-    height: 40,
-    width: 40,
-    borderRadius: 12,
+    height: 52,
+    width: 52,
+    borderRadius: 14,
     border: "1px solid #ddd",
     background: "rgba(255,255,255,0.9)",
     cursor: "pointer",
@@ -138,24 +186,11 @@ const styles = {
     cursor: "not-allowed",
     filter: "grayscale(60%)",
   },
-  tiePill: {
-    display: "inline-flex",
-    alignItems: "center",
-    justifyContent: "center",
-    height: 28,
-    minWidth: 28,
-    padding: "0 8px",
-    borderRadius: 999,
-    background: "rgba(0,0,0,0.06)",
-    color: "#111",
-    fontSize: 12,
-  },
 
   spreadSection: {
     width: "100%",
     marginTop: 10,
     paddingTop: 10,
-    borderTop: "1px dashed rgba(0,0,0,0.12)",
     position: "relative",
     zIndex: 1,
   },
@@ -200,26 +235,6 @@ const styles = {
     clip: "rect(0,0,0,0)",
     whiteSpace: "nowrap",
     border: 0,
-  },
-  tbRow: {
-    display: "grid",
-    gap: 6,
-    padding: 10,
-    border: "1px solid rgba(0,0,0,0.08)",
-    borderRadius: 12,
-    background: "rgba(255,255,255,0.85)",
-  },
-  tbLabel: { fontSize: 13, fontWeight: 600, color: "rgba(0,0,0,0.85)" },
-
-  // Deadline lock banner
-  lockBanner: {
-    marginTop: 12,
-    border: "1px solid rgba(160,0,0,0.25)",
-    background: "rgba(200,0,0,0.07)",
-    borderRadius: 12,
-    padding: 12,
-    color: "#7a0000",
-    fontSize: 13,
   },
 };
 
@@ -276,29 +291,6 @@ function formatCountdown(msRemaining) {
   return `${minutes}m`;
 }
 
-/* ---------- Simple validator ---------- */
-function validate({ user, week, picks, spreadPicks, tiebreakers }) {
-  const e = {};
-  if (!user?.name?.trim()) e.name = "Full name is required";
-  if (!/^\S+@\S+\.\S+$/.test(user?.email || "")) e.email = "Valid email is required";
-
-  const totalGames = (week?.games || []).length;
-  const picksMade = Object.values(picks || {}).filter(Boolean).length;
-  if (totalGames > 0 && picksMade < totalGames) e.picks = "Please pick every matchup";
-
-  const gamesNeedingSpread = (week?.games || []).filter((g) => g.awaySpread && g.homeSpread);
-  const spreadPicksMade = gamesNeedingSpread.filter((g) => spreadPicks?.[g.id]).length;
-  if (gamesNeedingSpread.length > 0 && spreadPicksMade < gamesNeedingSpread.length) {
-    e.spreadPicks = "Please make a spread pick for every matchup";
-  }
-
-  const tb = tiebreakers || [];
-  if (tb.length !== 3 || tb.some((t) => String(t.total || "").trim() === "")) {
-    e.tiebreakers = "Enter totals for all 3 tiebreakers";
-  }
-  return e;
-}
-
 /** NFL season helper (Jan–Jul should usually be previous season) */
 function getDefaultNflSeasonYear() {
   const d = new Date();
@@ -308,14 +300,14 @@ function getDefaultNflSeasonYear() {
   return m < 7 ? y - 1 : y;
 }
 
+function isValidTBValue(v) {
+  return typeof v === "string" && /^[0-9]+$/.test(v);
+}
+
 export default function App() {
-  const [week, setWeek] = useState({ week: "", deadline: "", games: [], tiebreakers: [], byes: [] });
+  const [week, setWeek] = useState({ week: "", games: [], tiebreakers: [], byes: [] });
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState("");
-
-  // hover styles for bottom buttons
-  const [printBtnStyle, setPrintBtnStyle] = useState(styles.btn);
-  const [submitBtnStyle, setSubmitBtnStyle] = useState(styles.btnPrimary);
 
   // header-ish nav button hover styles
   const [navResultsStyle, setNavResultsStyle] = useState(styles.navBtn);
@@ -327,10 +319,20 @@ export default function App() {
   const navigate = useNavigate();
   const session = getSession();
 
-  const [user, setUser] = useState({ name: session?.fullName || "", email: "" });
   const [picks, setPicks] = useState({}); // { [gameId]: "AWAY" | "HOME" }
   const [spreadPicks, setSpreadPicks] = useState({}); // { [gameId]: "AWAY" | "HOME" }
   const [tbs, setTbs] = useState([]); // [{ gameId, total }]
+
+  // what's actually been saved to Supabase so far (used for progress + "unsaved change" detection)
+  const [savedPicks, setSavedPicks] = useState({}); // { [gameId]: "AWAY" | "HOME" }
+  const [savedSpreadPicks, setSavedSpreadPicks] = useState({}); // { [gameId]: "AWAY" | "HOME" }
+  const [savedTbTotals, setSavedTbTotals] = useState({}); // { [tb_no]: "41" }
+
+  // which step in the wizard is currently showing
+  const [activeStep, setActiveStep] = useState(0);
+  const [savingKey, setSavingKey] = useState(null);
+  const [saveOkKey, setSaveOkKey] = useState("");
+  const [saveErr, setSaveErr] = useState("");
 
   // % stats per game: { [gameId]: { away, home, tie, total } }
   const [stats, setStats] = useState({});
@@ -341,7 +343,7 @@ export default function App() {
   // ticking clock so locks update even if page stays open
   const [nowTs, setNowTs] = useState(() => Date.now());
 
-  /* Load week from DB (C2) */
+  /* Load week from DB */
   useEffect(() => {
     (async () => {
       try {
@@ -365,7 +367,6 @@ export default function App() {
 
         setWeek({
           week: data.week,
-          deadline: data.deadline || "", // ✅ deadline now used for global lock
           games: data.games || [],
           tiebreakers: tbIds,
           byes: Array.isArray(data.byes) ? data.byes : [],
@@ -389,6 +390,40 @@ export default function App() {
     })();
   }, []);
 
+  // Load this user's own previously-saved answers so they can resume where they left off
+  useEffect(() => {
+    if (!week.week || !session?.fullName) return;
+    (async () => {
+      const name = session.fullName;
+      const weekNum = Number(week.week);
+
+      const [{ data: pRows }, { data: sRows }, { data: tRows }] = await Promise.all([
+        supabase.from("picks").select("game_id, pick").eq("week", weekNum).eq("user_name", name),
+        supabase.from("spread_picks").select("game_id, pick").eq("week", weekNum).eq("user_name", name),
+        supabase.from("tiebreakers").select("tb_no, total").eq("week", weekNum).eq("user_name", name),
+      ]);
+
+      if (pRows?.length) {
+        const map = {};
+        for (const r of pRows) map[r.game_id] = r.pick;
+        setPicks((prev) => ({ ...prev, ...map }));
+        setSavedPicks(map);
+      }
+      if (sRows?.length) {
+        const map = {};
+        for (const r of sRows) map[r.game_id] = r.pick;
+        setSpreadPicks((prev) => ({ ...prev, ...map }));
+        setSavedSpreadPicks(map);
+      }
+      if (tRows?.length) {
+        const map = {};
+        for (const r of tRows) map[Number(r.tb_no)] = String(r.total);
+        setTbs((prev) => prev.map((tb, i) => (map[i + 1] !== undefined ? { ...tb, total: map[i + 1] } : tb)));
+        setSavedTbTotals(map);
+      }
+    })();
+  }, [week.week, session?.fullName]);
+
   // update "now" every 30 seconds so lock state updates on screen
   useEffect(() => {
     const t = setInterval(() => setNowTs(Date.now()), 30_000);
@@ -399,18 +434,6 @@ export default function App() {
     clearSession();
     navigate("/login");
   }
-
-  // ✅ GLOBAL DEADLINE LOCK (whole sheet)
-  const deadlineObj = useMemo(() => {
-    if (!week.deadline) return null;
-    const d = new Date(week.deadline);
-    return Number.isNaN(d.getTime()) ? null : d;
-  }, [week.deadline]);
-
-  const isDeadlineLocked = useMemo(() => {
-    if (!deadlineObj) return false; // If no deadline set, don't lock
-    return nowTs >= deadlineObj.getTime();
-  }, [deadlineObj, nowTs]);
 
   /* Load stats when week ready + (optional) realtime updates */
   useEffect(() => {
@@ -445,12 +468,6 @@ export default function App() {
     };
   }, [week.week, week.games.length]);
 
-  const errors = useMemo(
-    () => validate({ user, week, picks, spreadPicks, tiebreakers: tbs }),
-    [user, week, picks, spreadPicks, tbs]
-  );
-  const isValid = Object.keys(errors).length === 0;
-
   function setPick(gameId, value) {
     setPicks((p) => ({ ...p, [gameId]: value }));
   }
@@ -467,22 +484,13 @@ export default function App() {
     });
   }
 
-  function isValidTBValue(v) {
-    return typeof v === "string" && /^[0-9]+$/.test(v);
-  }
-
-  // helper: is a specific game locked yet? (locks 1 hour before kickoff)
+  // helper: is a specific game locked yet? (locks 1 hour before kickoff — the only lock now)
   function isGameLocked(gameId) {
     const kickoffIso = kickoffById?.[gameId];
     if (!kickoffIso) return false;
     const kickoffMs = new Date(kickoffIso).getTime();
     if (Number.isNaN(kickoffMs)) return false;
     return nowTs >= kickoffMs - 60 * 60 * 1000;
-  }
-
-  // ✅ unified lock: deadline OR kickoff
-  function isAnyLockActiveForGame(gameId) {
-    return isDeadlineLocked || isGameLocked(gameId);
   }
 
   /* ---------- Stats loader ---------- */
@@ -517,218 +525,151 @@ export default function App() {
     }
   }
 
-  /* ---------- Build concise (for Formspree email body) ---------- */
-  function buildConciseSubmission({ user, week, picks, spreadPicks, tiebreakers }) {
-    const games = week.games.map((g) => ({
-      id: g.id,
-      label: `${g.away} @ ${g.home}`,
-      pick: picks[g.id] === "HOME" ? g.home : picks[g.id] === "AWAY" ? g.away : "Tie",
-    }));
+  /* ---------- Wizard step model ---------- */
+  const steps = useMemo(() => {
+    const list = [{ type: "intro", key: "intro" }];
+    (week.games || []).forEach((g, i) => list.push({ type: "game", key: `game_${g.id}`, game: g, index: i }));
+    (week.tiebreakers || []).forEach((gid, i) => {
+      const g = (week.games || []).find((x) => x.id === gid);
+      list.push({ type: "tb", key: `tb_${i + 1}`, tbIndex: i, gameId: gid, game: g });
+    });
+    list.push({ type: "done", key: "done" });
+    return list;
+  }, [week.games, week.tiebreakers]);
 
-    const selected = games.filter((g) => !!picks[g.id]);
+  function statusOf(step) {
+    if (step.type === "game") {
+      if (savedPicks[step.game.id]) return "answered";
+      if (isGameLocked(step.game.id)) return "locked";
+      return "open";
+    }
+    if (step.type === "tb") {
+      const saved = savedTbTotals[step.tbIndex + 1];
+      if (saved !== undefined && String(saved).trim() !== "") return "answered";
+      if (step.gameId && isGameLocked(step.gameId)) return "locked";
+      return "open";
+    }
+    return "answered";
+  }
 
-    const spreadLines = week.games
-      .filter((g) => g.awaySpread && g.homeSpread && spreadPicks[g.id])
-      .map((g) => {
-        const team = spreadPicks[g.id] === "HOME" ? g.home : g.away;
-        const spread = spreadPicks[g.id] === "HOME" ? g.homeSpread : g.awaySpread;
-        return `${g.away} @ ${g.home}: ${team} ${spread}`;
+  function firstOpenIndex() {
+    const idx = steps.findIndex((s) => (s.type === "game" || s.type === "tb") && statusOf(s) === "open");
+    return idx === -1 ? steps.length - 1 : idx;
+  }
+
+  function goTo(idx) {
+    setActiveStep(Math.max(0, Math.min(steps.length - 1, idx)));
+    setSaveErr("");
+    setSaveOkKey("");
+  }
+
+  /* ---------- Per-item save (autosave, replaces the old batch Submit) ---------- */
+  async function saveGamePick(gameId, { advance } = {}) {
+    if (!session?.fullName) return;
+    const value = picks[gameId];
+    if (!value) {
+      if (advance) goTo(activeStep + 1);
+      return;
+    }
+
+    setSavingKey(gameId);
+    setSaveErr("");
+
+    const { error } = await supabase
+      .from("picks")
+      .upsert([{ week: week.week, game_id: gameId, pick: value, user_name: session.fullName }], {
+        onConflict: "week,game_id,user_name",
       });
 
-    const tbLines = tiebreakers.map((tb) => {
-      const g = week.games.find((x) => x.id === tb.gameId);
-      return {
-        id: tb.gameId,
-        label: g ? `${g.away} @ ${g.home}` : tb.gameId,
-        total: tb.total,
-      };
+    if (error) {
+      console.error("Supabase picks error:", error);
+      setSaveErr("There was a problem saving your pick. Please try again.");
+      setSavingKey(null);
+      return;
+    }
+    setSavedPicks((m) => ({ ...m, [gameId]: value }));
+
+    const spreadValue = spreadPicks[gameId];
+    const game = week.games.find((g) => g.id === gameId);
+    if (spreadValue && game?.awaySpread && game?.homeSpread) {
+      const { error: sErr } = await supabase
+        .from("spread_picks")
+        .upsert([{ week: week.week, game_id: gameId, pick: spreadValue, user_name: session.fullName }], {
+          onConflict: "week,game_id,user_name",
+        });
+
+      if (sErr) {
+        console.error("Supabase spread_picks error:", sErr);
+        setSaveErr("Your winner pick saved, but there was a problem saving your spread pick.");
+        setSavingKey(null);
+        return;
+      }
+      setSavedSpreadPicks((m) => ({ ...m, [gameId]: spreadValue }));
+    }
+
+    setSavingKey(null);
+    setSaveOkKey(gameId);
+    loadStats(week.week);
+    if (advance) goTo(activeStep + 1);
+  }
+
+  async function saveTiebreaker(tbIndex, { advance } = {}) {
+    if (!session?.fullName) return;
+    const tb = tbs[tbIndex];
+    if (!tb || !isValidTBValue(tb.total)) {
+      if (advance) goTo(activeStep + 1);
+      return;
+    }
+
+    setSavingKey(`tb_${tbIndex + 1}`);
+    setSaveErr("");
+
+    const { error } = await supabase.from("tiebreakers").upsert(
+      [
+        {
+          week: week.week,
+          user_name: session.fullName,
+          tb_no: tbIndex + 1,
+          game_id: tb.gameId,
+          total: Number.parseInt(tb.total, 10) || 0,
+        },
+      ],
+      { onConflict: "week,user_name,tb_no" }
+    );
+
+    if (error) {
+      console.error("Supabase tiebreakers error:", error);
+      setSaveErr("There was a problem saving this tiebreaker. Please try again.");
+      setSavingKey(null);
+      return;
+    }
+
+    setSavedTbTotals((m) => ({ ...m, [tbIndex + 1]: tb.total }));
+    setSavingKey(null);
+    setSaveOkKey(`tb_${tbIndex + 1}`);
+    if (advance) goTo(activeStep + 1);
+  }
+
+  function skipGame(gameId) {
+    setPicks((p) => ({ ...p, [gameId]: savedPicks[gameId] }));
+    setSpreadPicks((p) => ({ ...p, [gameId]: savedSpreadPicks[gameId] }));
+    goTo(activeStep + 1);
+  }
+
+  function skipTb(tbIndex) {
+    const savedTotal = savedTbTotals[tbIndex + 1] ?? "";
+    setTbs((arr) => {
+      const next = [...arr];
+      next[tbIndex] = { ...next[tbIndex], total: String(savedTotal) };
+      return next;
     });
-
-    return {
-      _subject: `Week ${week.week} — ${user.name} (${user.email})`,
-      picks: selected.map((g) => `${g.label} → ${g.pick}`),
-      spreadPicks: spreadLines,
-      tiebreakers: tbLines.map((t) => `${t.label}: ${t.total} total`),
-    };
-  }
-
-  /* ---------- Submit: save to Supabase (+ optional Formspree) ---------- */
-  async function submitEmail(e) {
-    e.preventDefault();
-
-    // ✅ Hard stop if global deadline locked
-    if (isDeadlineLocked) {
-      alert(
-        `Picks are locked (deadline passed).${
-          deadlineObj ? `\nDeadline was: ${deadlineObj.toLocaleString()}` : ""
-        }`
-      );
-      return;
-    }
-
-    const missingGames = week.games.filter((g) => !picks[g.id]);
-
-    // block submit if missing picks for games that already started
-    const lockedMissing = missingGames.filter((g) => isGameLocked(g.id));
-    if (lockedMissing.length > 0) {
-      const names = lockedMissing.map((g) => `${g.away} @ ${g.home}`).join(", ");
-      alert(
-        `Too late — these games already started and are missing picks:\n${names}\n\nYou can’t submit after kickoff if a pick is missing.`
-      );
-      return;
-    }
-
-    if (missingGames.length > 0) {
-      alert(
-        `You missed ${missingGames.length} game${missingGames.length > 1 ? "s" : ""}. Please make all selections before submitting.`
-      );
-      return;
-    }
-
-    const gamesNeedingSpread = week.games.filter((g) => g.awaySpread && g.homeSpread);
-    const missingSpread = gamesNeedingSpread.filter((g) => !spreadPicks[g.id]);
-
-    const lockedMissingSpread = missingSpread.filter((g) => isGameLocked(g.id));
-    if (lockedMissingSpread.length > 0) {
-      const names = lockedMissingSpread.map((g) => `${g.away} @ ${g.home}`).join(", ");
-      alert(
-        `Too late — these games already started and are missing a spread pick:\n${names}\n\nYou can’t submit after kickoff if a spread pick is missing.`
-      );
-      return;
-    }
-
-    if (missingSpread.length > 0) {
-      alert(
-        `You missed the spread pick for ${missingSpread.length} game${missingSpread.length > 1 ? "s" : ""}. Please make all selections before submitting.`
-      );
-      return;
-    }
-
-    if (!Array.isArray(tbs) || tbs.length !== 3) {
-      alert("Please enter totals for all 3 tiebreakers.");
-      return;
-    }
-
-    const tbMissing = tbs.findIndex((tb) => !isValidTBValue(tb?.total));
-    if (tbMissing !== -1) {
-      alert(`Please enter a number for Tiebreaker ${tbMissing + 1}.`);
-      document.getElementById(`tb_${tbMissing + 1}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
-      return;
-    }
-
-    if (!isValid) return;
-
-    try {
-      const name = (user.name || "").trim();
-      if (!name) {
-        alert("Please enter your name.");
-        return;
-      }
-
-      // 1) Build rows for PICKS
-      const rows = (week.games || [])
-        .filter((g) => g?.id && picks[g.id])
-        .map((g) => ({
-          week: week.week,
-          game_id: g.id,
-          pick: picks[g.id], // "AWAY" | "HOME" | "TIE"
-          user_name: name,
-        }));
-
-      if (rows.length === 0) {
-        alert("Please make at least one pick before submitting.");
-        return;
-      }
-
-      // 2) Save PICKS
-      const { error: pickError } = await supabase.from("picks").upsert(rows, { onConflict: "week,game_id,user_name" });
-
-      if (pickError) {
-        if (pickError.code === "23505") {
-          alert("Looks like you already submitted a pick for one or more games this week under this name.");
-          return;
-        }
-        console.error("Supabase picks error:", pickError);
-        alert("There was a problem saving your picks.");
-        return;
-      }
-
-      // 2b) Save SPREAD PICKS (bonus, +0.5 pt each)
-      const spreadRows = gamesNeedingSpread
-        .filter((g) => spreadPicks[g.id])
-        .map((g) => ({
-          week: week.week,
-          game_id: g.id,
-          pick: spreadPicks[g.id], // "AWAY" | "HOME"
-          user_name: name,
-        }));
-
-      if (spreadRows.length > 0) {
-        const { error: spreadError } = await supabase
-          .from("spread_picks")
-          .upsert(spreadRows, { onConflict: "week,game_id,user_name" });
-
-        if (spreadError) {
-          if (spreadError.code === "23505") {
-            alert("Looks like you already submitted a spread pick for one or more games this week under this name.");
-            return;
-          }
-          console.error("Supabase spread_picks error:", spreadError);
-          alert("Your picks were saved, but there was a problem saving your spread picks.");
-          return;
-        }
-      }
-
-      // 3) Build rows for TIEBREAKERS
-      const tbRows = (tbs || []).map((tb, idx) => ({
-        week: week.week,
-        user_name: name,
-        tb_no: idx + 1,
-        game_id: tb.gameId,
-        total: Number.parseInt(tb.total, 10) || 0,
-      }));
-
-      if (tbRows.length === 3) {
-        const { error: tbError } = await supabase
-          .from("tiebreakers")
-          .upsert(tbRows, { onConflict: "week,user_name,tb_no" });
-        if (tbError) {
-          console.error("Supabase tiebreakers error:", tbError);
-          alert("Your picks were saved, but there was a problem saving tiebreakers. Please try again.");
-          return;
-        }
-      }
-
-      // 4) Optional Formspree email
-      if (FORMSPREE_ENDPOINT) {
-        try {
-          const concise = buildConciseSubmission({ user, week, picks, spreadPicks, tiebreakers: tbs });
-          await fetch(FORMSPREE_ENDPOINT, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ ...concise }),
-          });
-        } catch (e) {
-          console.error("Formspree error (non-blocking):", e);
-        }
-      }
-
-      alert("Submitted! Thank you — your picks and tiebreakers were saved.");
-      loadStats(week.week);
-    } catch (err) {
-      console.error("submitEmail crashed:", err);
-      alert("There was a problem processing your submission.");
-    }
-  }
-
-  function printPDF() {
-    window.print();
+    goTo(activeStep + 1);
   }
 
   if (loading) return <Shell><p>Loading…</p></Shell>;
   if (err) return <Shell><p style={{ color: "red" }}>{err}</p></Shell>;
 
-  const deadline = deadlineObj;
+  const step = steps[activeStep] || steps[0];
 
   return (
     <Shell>
@@ -737,22 +678,7 @@ export default function App() {
         <div style={styles.headerRow}>
           <div style={styles.headerLeft}>
             <h1 style={styles.h1}>NFL Weekly Picks</h1>
-            <p style={styles.muted}>
-              Week {week.week}
-              {deadline ? ` • Due by ${deadline.toLocaleString()}` : ""}
-            </p>
-
-            {/* ✅ Deadline lock banner */}
-            {isDeadlineLocked ? (
-              <div style={styles.lockBanner}>
-                <b>🔒 Picks are locked.</b>{" "}
-                {deadline ? (
-                  <span>Deadline passed: <b>{deadline.toLocaleString()}</b></span>
-                ) : (
-                  <span>Deadline passed.</span>
-                )}
-              </div>
-            ) : null}
+            <p style={styles.muted}>Week {week.week}</p>
           </div>
 
           <div style={styles.headerRight}>
@@ -814,146 +740,66 @@ export default function App() {
           </p>
         )}
 
-        <form onSubmit={submitEmail} style={{ display: "grid", gap: 16, marginTop: 14 }}>
-          {/* Player info */}
-          <Card>
-            <div style={styles.row}>
-              <Field label="Full name">
-                <input
-                  type="text"
-                  style={{ ...styles.input, cursor: "not-allowed" }}
-                  value={user.name}
-                  disabled
-                  readOnly
-                />
-              </Field>
-              <Field label="Email" required error={errors.email}>
-                <input
-                  type="email"
-                  style={styles.input}
-                  placeholder="you@email.com"
-                  value={user.email}
-                  disabled={isDeadlineLocked}
-                  onChange={(e) => setUser({ ...user, email: e.target.value })}
-                />
-              </Field>
-            </div>
-          </Card>
+        <StepProgress steps={steps} activeStep={activeStep} statusOf={statusOf} onJump={goTo} />
 
-          {/* Games */}
-          <Card>
-            <h2 style={styles.h2}>Matchups</h2>
-            <div style={{ borderTop: "1px solid rgba(0,0,0,0.08)" }}>
-              {week.games.map((g, idx) => (
-                <GameRow
-                  key={g.id || idx}
-                  index={idx}
-                  game={g}
-                  pick={picks[g.id]}
-                  onPick={setPick}
-                  spreadPick={spreadPicks[g.id]}
-                  onSpreadPick={setSpreadPick}
-                  gameStats={stats[g.id]}
-                  locked={isAnyLockActiveForGame(g.id)}
-                  kickoffIso={kickoffById[g.id] || ""}
-                  lockedReason={isDeadlineLocked ? "deadline" : isGameLocked(g.id) ? "kickoff" : ""}
-                  nowTs={nowTs}
-                />
-              ))}
-            </div>
-            {errors.picks && <ErrorText>{errors.picks}</ErrorText>}
-            {errors.spreadPicks && <ErrorText>{errors.spreadPicks}</ErrorText>}
-          </Card>
+        <div style={styles.screenWrap} key={step.key}>
+          {step.type === "intro" && (
+            <IntroScreen
+              fullName={session?.fullName}
+              username={session?.username}
+              week={week.week}
+              steps={steps}
+              statusOf={statusOf}
+              onStart={() => goTo(firstOpenIndex())}
+            />
+          )}
 
-          {/* Predetermined tiebreakers */}
-          {(() => {
-            const allTbsFilled = tbs.length === 3 && tbs.every((tb) => String(tb.total || "").trim() !== "");
-            return (
-            <div style={{
-              ...styles.card,
-              background: allTbsFilled ? "rgba(10, 155, 45, 0.07)" : styles.card.background,
-              transition: "background 0.4s",
-            }}>
-            <h2 style={styles.h2}>Tiebreakers (total combined points)</h2>
-            <p style={styles.mutedSmall}>We picked the games. Enter the total points for each.</p>
+          {step.type === "game" && (
+            <GamePickScreen
+              game={step.game}
+              index={step.index}
+              totalGames={week.games.length}
+              pick={picks[step.game.id]}
+              spreadPick={spreadPicks[step.game.id]}
+              savedPick={savedPicks[step.game.id]}
+              savedSpreadPick={savedSpreadPicks[step.game.id]}
+              onPick={setPick}
+              onSpreadPick={setSpreadPick}
+              gameStats={stats[step.game.id]}
+              kickoffIso={kickoffById[step.game.id] || ""}
+              locked={isGameLocked(step.game.id)}
+              nowTs={nowTs}
+              saving={savingKey === step.game.id}
+              saveOk={saveOkKey === step.game.id}
+              saveErr={saveErr}
+              onBack={() => goTo(activeStep - 1)}
+              onSkip={() => skipGame(step.game.id)}
+              onSave={() => saveGamePick(step.game.id)}
+              onContinue={() => saveGamePick(step.game.id, { advance: true })}
+            />
+          )}
 
-            <div style={{ display: "grid", gap: 10 }}>
-              {tbs.map((tb, i) => {
-                const g = week.games.find((x) => x.id === tb.gameId);
-                if (!g) return null;
-                const filled = String(tb.total || "").trim() !== "";
-                return (
-                  <div key={tb.gameId} style={styles.tbRow}>
-                    <label style={styles.tbLabel}>
-                      Tiebreaker {i + 1}: {g.away} @ {g.home}
-                    </label>
-                    <input
-                      id={`tb_${i + 1}`}
-                      style={{
-                        ...styles.input,
-                        transition: "box-shadow 0.3s",
-                        boxShadow: filled
-                          ? "0 0 0 3px rgba(25, 185, 55, 0.45)"
-                          : "none",
-                      }}
-                      inputMode="numeric"
-                      placeholder="Total points"
-                      value={tb.total}
-                      disabled={isDeadlineLocked}
-                      onChange={(e) => setTBTotal(i, e.target.value)}
-                    />
-                  </div>
-                );
-              })}
-            </div>
+          {step.type === "tb" && (
+            <TiebreakerScreen
+              tbIndex={step.tbIndex}
+              game={step.game}
+              total={tbs[step.tbIndex]?.total || ""}
+              onChangeTotal={(v) => setTBTotal(step.tbIndex, v)}
+              locked={step.gameId ? isGameLocked(step.gameId) : false}
+              saving={savingKey === step.key}
+              saveOk={saveOkKey === step.key}
+              saveErr={saveErr}
+              onBack={() => goTo(activeStep - 1)}
+              onSkip={() => skipTb(step.tbIndex)}
+              onSave={() => saveTiebreaker(step.tbIndex)}
+              onContinue={() => saveTiebreaker(step.tbIndex, { advance: true })}
+            />
+          )}
 
-            {errors.tiebreakers && <ErrorText>{errors.tiebreakers}</ErrorText>}
-
-            {/* Teams on Bye */}
-            {week.byes?.length > 0 && (
-              <div style={{ marginTop: 20 }}>
-                <h3 style={{ margin: "8px 0 12px", fontSize: 18 }}>Teams on Bye</h3>
-                <div style={{ display: "flex", flexWrap: "wrap", gap: 12 }}>
-                  {week.byes.map((team) => (
-                    <div key={team} style={{ width: 64, textAlign: "center" }} title={team}>
-                      <img
-                        src={logoSrc(team)}
-                        alt={team}
-                        style={{ width: 48, height: 48, objectFit: "contain", display: "block", margin: "0 auto" }}
-                      />
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-            </div>
-            );
-          })()}
-
-          {/* Actions (bottom only) */}
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-            <button
-              type="submit"
-              style={submitBtnStyle}
-              onMouseEnter={() => setSubmitBtnStyle({ ...styles.btnPrimary, ...styles.btnPrimaryHover })}
-              onMouseLeave={() => setSubmitBtnStyle(styles.btnPrimary)}
-              disabled={!isValid || isDeadlineLocked}
-              title={isDeadlineLocked ? "Locked (deadline passed)" : ""}
-            >
-              {isDeadlineLocked ? "Locked" : "Submit Picks"}
-            </button>
-
-            <button
-              type="button"
-              style={printBtnStyle}
-              onMouseEnter={() => setPrintBtnStyle({ ...styles.btn, ...styles.btnHover })}
-              onMouseLeave={() => setPrintBtnStyle(styles.btn)}
-              onClick={printPDF}
-            >
-              Print / Save as PDF
-            </button>
-          </div>
-        </form>
+          {step.type === "done" && (
+            <DoneScreen steps={steps} statusOf={statusOf} byes={week.byes} onReview={() => goTo(firstOpenIndex())} />
+          )}
+        </div>
 
         {/* Admin box */}
         {session?.isAdmin && (
@@ -978,14 +824,127 @@ export default function App() {
 
         <Footer />
       </div>
-
-      {/* Print styles */}
-      <style>{`@media print {
-        button { display:none !important; }
-        input, select { border: none !important; }
-        body { background: white; }
-      }`}</style>
     </Shell>
+  );
+}
+
+/* ---------- Step progress strip (click any dot to jump straight there) ---------- */
+function StepProgress({ steps, activeStep, statusOf, onJump }) {
+  const items = steps.filter((s) => s.type === "game" || s.type === "tb");
+  return (
+    <div style={styles.stepStrip}>
+      {items.map((s) => {
+        const idx = steps.indexOf(s);
+        const status = statusOf(s);
+        const label = s.type === "game" ? String(s.index + 1) : `T${s.tbIndex + 1}`;
+        const title =
+          s.type === "game"
+            ? `${s.game.away} @ ${s.game.home}`
+            : s.game
+            ? `Tiebreaker: ${s.game.away} @ ${s.game.home}`
+            : `Tiebreaker ${s.tbIndex + 1}`;
+        return (
+          <button
+            key={s.key}
+            type="button"
+            title={title}
+            onClick={() => onJump(idx)}
+            style={{
+              ...styles.stepDot,
+              ...(status === "answered" ? styles.stepDotAnswered : {}),
+              ...(status === "locked" ? styles.stepDotLocked : {}),
+              ...(idx === activeStep ? styles.stepDotCurrent : {}),
+            }}
+          >
+            {label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+/* ---------- Intro / resume screen ---------- */
+function IntroScreen({ fullName, username, week, steps, statusOf, onStart }) {
+  const gameSteps = steps.filter((s) => s.type === "game");
+  const tbSteps = steps.filter((s) => s.type === "tb");
+  const answeredGames = gameSteps.filter((s) => statusOf(s) === "answered").length;
+  const answeredTbs = tbSteps.filter((s) => statusOf(s) === "answered").length;
+  const allDone = gameSteps.every((s) => statusOf(s) !== "open") && tbSteps.every((s) => statusOf(s) !== "open");
+  const anyProgress = answeredGames + answeredTbs > 0;
+
+  return (
+    <Card>
+      <h2 style={styles.h2}>
+        Welcome, {fullName}
+        {username ? ` (@${username})` : ""}
+      </h2>
+      <p style={styles.mutedSmall}>
+        Week {week}. Step through each game, save as you go — come back anytime to finish anything you skip.
+      </p>
+      <div style={{ display: "flex", gap: 18, marginTop: 10, flexWrap: "wrap", fontSize: 14 }}>
+        <div>
+          <b>{answeredGames}</b> / {gameSteps.length} games picked
+        </div>
+        <div>
+          <b>{answeredTbs}</b> / {tbSteps.length} tiebreakers picked
+        </div>
+      </div>
+      <div style={{ marginTop: 16 }}>
+        <button type="button" style={styles.btnPrimary} onClick={onStart}>
+          {allDone ? "Review My Picks" : anyProgress ? "Resume Picks →" : "Start Picks →"}
+        </button>
+      </div>
+    </Card>
+  );
+}
+
+/* ---------- Done / recap screen ---------- */
+function DoneScreen({ steps, statusOf, byes, onReview }) {
+  const gameSteps = steps.filter((s) => s.type === "game");
+  const tbSteps = steps.filter((s) => s.type === "tb");
+  const count = (arr, status) => arr.filter((s) => statusOf(s) === status).length;
+  const openGames = count(gameSteps, "open");
+  const openTbs = count(tbSteps, "open");
+
+  return (
+    <Card>
+      <h2 style={styles.h2}>🎉 You're all set</h2>
+      <p style={styles.mutedSmall}>Everything here is already saved — there's nothing else to submit.</p>
+      <ul style={{ paddingLeft: 20, lineHeight: 1.8, margin: "8px 0" }}>
+        <li>
+          {count(gameSteps, "answered")} of {gameSteps.length} games picked
+          {openGames > 0 ? ` (${openGames} still open)` : ""}
+        </li>
+        <li>
+          {count(tbSteps, "answered")} of {tbSteps.length} tiebreakers picked
+          {openTbs > 0 ? ` (${openTbs} still open)` : ""}
+        </li>
+      </ul>
+
+      {(openGames > 0 || openTbs > 0) && (
+        <button type="button" style={styles.btn} onClick={onReview}>
+          Go finish what's open
+        </button>
+      )}
+
+      {byes?.length > 0 && (
+        <div style={{ marginTop: 20 }}>
+          <h3 style={{ margin: "8px 0 12px", fontSize: 18 }}>Teams on Bye</h3>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 12 }}>
+            {byes.map((team) => (
+              <div key={team} style={{ width: 64, textAlign: "center" }} title={team}>
+                <img
+                  src={logoSrc(team)}
+                  alt={team}
+                  style={{ width: 48, height: 48, objectFit: "contain", display: "block", margin: "0 auto" }}
+                />
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </Card>
   );
 }
 
@@ -1030,7 +989,7 @@ function PickSummary({ awayLabel, homeLabel, awayCount, homeCount, awayLogo, hom
   const logoImg = { width: 20, height: 20, objectFit: "contain", display: "block" };
 
   return (
-    <div style={{ marginTop: 10 }}>
+    <div style={{ marginTop: 14 }}>
       <div style={{ ...row, fontWeight: 600, color: "#333" }}>
         <div></div>
         <div>Team</div>
@@ -1075,131 +1034,86 @@ function PickSummary({ awayLabel, homeLabel, awayCount, homeCount, awayLogo, hom
   );
 }
 
-/* ---------- Game row (summary + pick buttons) ---------- */
-function GameRow({ game, index, pick, onPick, spreadPick, onSpreadPick, gameStats, locked, kickoffIso, lockedReason, nowTs }) {
+/* ---------- One game, one screen ---------- */
+function GamePickScreen({
+  game,
+  index,
+  totalGames,
+  pick,
+  spreadPick,
+  savedPick,
+  savedSpreadPick,
+  onPick,
+  onSpreadPick,
+  gameStats,
+  kickoffIso,
+  locked,
+  nowTs,
+  saving,
+  saveOk,
+  saveErr,
+  onBack,
+  onSkip,
+  onSave,
+  onContinue,
+}) {
   const awayLogo = logoSrc(game.away);
   const homeLogo = logoSrc(game.home);
-
   const awayCount = gameStats?.away || 0;
   const homeCount = gameStats?.home || 0;
 
   let lockNote = "";
   if (locked) {
-    lockNote =
-      lockedReason === "deadline"
-        ? "🔒 Locked — deadline passed"
-        : "🔒 Locked — game started";
-  } else {
-    if (kickoffIso) {
-      const lockTime = new Date(new Date(kickoffIso).getTime() - 60 * 60 * 1000);
-      const countdown = formatCountdown(lockTime.getTime() - nowTs);
-      lockNote = `Locks 1 hr before kickoff: ${lockTime.toLocaleString()}${countdown ? ` (${countdown})` : ""}`;
-    }
+    lockNote = "🔒 Locked — game started";
+  } else if (kickoffIso) {
+    const lockTime = new Date(new Date(kickoffIso).getTime() - 60 * 60 * 1000);
+    const countdown = formatCountdown(lockTime.getTime() - nowTs);
+    lockNote = `Locks 1 hr before kickoff: ${lockTime.toLocaleString()}${countdown ? ` (${countdown})` : ""}`;
   }
 
-  // Blowup background: logo of the selected team
-  const selectedLogo = pick === "AWAY" ? awayLogo : pick === "HOME" ? homeLogo : null;
-  const selectedTeam = pick === "AWAY" ? game.away : pick === "HOME" ? game.home : null;
+  const hasSpread = !!(game.awaySpread && game.homeSpread);
+  const isDirty = (pick && pick !== savedPick) || (spreadPick && spreadPick !== savedSpreadPick);
+  const canSave = !locked && !!pick;
 
   return (
-    <div
-      style={{
-        ...styles.gameRow,
-        position: "relative",
-        // No overflow:hidden here — keeps the selected button's glow from clipping on the right
-        background: pick ? "rgba(10, 155, 45, 0.055)" : "transparent",
-        transition: "background 0.35s",
-        paddingRight: 10, // breathing room for button glow
-      }}
-    >
-      {/* ── Blowup logo background — overflow:hidden lives on this inner div, not the row ── */}
-      {selectedLogo && (
-        <div
-          style={{
-            position: "absolute",
-            top: 0, left: 0, right: 0, bottom: 0,
-            overflow: "hidden",
-            pointerEvents: "none",
-            zIndex: 0,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-          }}
-        >
-          <img
-            src={selectedLogo}
-            alt=""
-            aria-hidden="true"
-            style={{
-              height: 210,
-              width: "auto",
-              objectFit: "contain",
-              opacity: 0.11,
-              flexShrink: 0,
-              filter: "saturate(1.8)",
-              transition: "opacity 0.4s",
-            }}
-          />
-        </div>
-      )}
-
-      {/* ── Left: game info + stats ── */}
-      <div style={{ minWidth: 0, position: "relative", zIndex: 1 }}>
-        <div style={{ fontWeight: 700, fontSize: 16, color: "#000", display: "flex", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
-          Game {index + 1}: {game.away} @ {game.home}
-          {selectedTeam && (
-            <span style={{
-              fontSize: 12, fontWeight: 800, color: "#1a7a28",
-              background: "rgba(25, 185, 55, 0.12)",
-              border: "1px solid rgba(25, 185, 55, 0.3)",
-              padding: "2px 9px", borderRadius: 999,
-            }}>
-              ✓ {selectedTeam}
-            </span>
-          )}
-        </div>
-
-        {lockNote ? (
-          <div style={{ fontSize: 12, marginTop: 4, color: locked ? "#a00" : "rgba(0,0,0,0.65)" }}>{lockNote}</div>
-        ) : null}
-
-        <PickSummary
-          awayLabel={game.away}
-          homeLabel={game.home}
-          awayCount={awayCount}
-          homeCount={homeCount}
-          awayLogo={awayLogo}
-          homeLogo={homeLogo}
-          awayRecord={game.awayRecord}
-          homeRecord={game.homeRecord}
-        />
+    <Card>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", flexWrap: "wrap", gap: 8 }}>
+        <h2 style={styles.h2}>
+          Game {index + 1} of {totalGames}: {game.away} @ {game.home}
+        </h2>
+        {savedPick && !isDirty && <span style={{ fontSize: 12, fontWeight: 800, color: "#1a7a28" }}>✓ Saved</span>}
       </div>
 
-      {/* ── Right: pick buttons (AWAY + VS + HOME — no TIE) ── */}
-      <div style={{ ...styles.pickGroup, position: "relative", zIndex: 1 }}>
+      {lockNote && (
+        <div style={{ fontSize: 12, marginBottom: 10, color: locked ? "#a00" : "rgba(0,0,0,0.65)" }}>{lockNote}</div>
+      )}
+
+      {locked && !savedPick && <p style={{ color: "#a00", fontSize: 14 }}>No pick was saved before this game started.</p>}
+
+      <div style={styles.spreadLabel}>Straight Up — who wins?</div>
+      <div style={{ ...styles.pickGroup, marginBottom: hasSpread ? 4 : 0 }}>
         {[
           { v: "AWAY", label: game.away, logo: awayLogo, title: `${game.away} (Away)` },
           { v: "HOME", label: game.home, logo: homeLogo, title: `${game.home} (Home)` },
         ].reduce((acc, opt, i) => {
           if (i === 1) acc.push(<VsAnimation key="vs" />);
           const isSelected = pick === opt.v;
-          const disabled = locked;
           acc.push(
             <label
               key={opt.v}
               style={{
                 ...styles.logoButton,
                 ...(isSelected ? styles.logoButtonSelected : {}),
-                ...(disabled ? styles.logoButtonDisabled : {}),
+                ...(locked ? styles.logoButtonDisabled : {}),
               }}
-              title={disabled ? "Locked" : opt.title}
+              title={locked ? "Locked" : opt.title}
             >
               <input
                 type="radio"
                 name={`pick_${game.id}`}
                 checked={isSelected}
-                disabled={disabled}
-                onChange={() => !disabled && onPick(game.id, opt.v)}
+                disabled={locked}
+                onChange={() => !locked && onPick(game.id, opt.v)}
                 style={styles.radioActual}
                 aria-label={opt.label}
               />
@@ -1218,33 +1132,31 @@ function GameRow({ game, index, pick, onPick, spreadPick, onSpreadPick, gameStat
         }, [])}
       </div>
 
-      {/* ── Bonus: beat-the-spread pick (only if a spread was on file at import time) ── */}
-      {game.awaySpread && game.homeSpread && (
+      {hasSpread && (
         <div style={styles.spreadSection}>
-          <div style={styles.spreadLabel}>Bonus (+0.5 pt): who covers the spread?</div>
+          <div style={styles.spreadLabel}>Bonus (+0.5 pt) — who covers the spread?</div>
           <div style={styles.spreadPillGroup}>
             {[
               { v: "AWAY", label: game.away, spread: game.awaySpread },
               { v: "HOME", label: game.home, spread: game.homeSpread },
             ].map((opt) => {
               const isSelected = spreadPick === opt.v;
-              const disabled = locked;
               return (
                 <label
                   key={opt.v}
                   style={{
                     ...styles.spreadPill,
                     ...(isSelected ? styles.spreadPillSelected : {}),
-                    ...(disabled ? styles.spreadPillDisabled : {}),
+                    ...(locked ? styles.spreadPillDisabled : {}),
                   }}
-                  title={disabled ? "Locked" : `${opt.label} ${opt.spread}`}
+                  title={locked ? "Locked" : `${opt.label} ${opt.spread}`}
                 >
                   <input
                     type="radio"
                     name={`spread_${game.id}`}
                     checked={isSelected}
-                    disabled={disabled}
-                    onChange={() => !disabled && onSpreadPick(game.id, opt.v)}
+                    disabled={locked}
+                    onChange={() => !locked && onSpreadPick(game.id, opt.v)}
                     style={styles.radioActual}
                     aria-label={`${opt.label} ${opt.spread}`}
                   />
@@ -1255,7 +1167,97 @@ function GameRow({ game, index, pick, onPick, spreadPick, onSpreadPick, gameStat
           </div>
         </div>
       )}
-    </div>
+
+      <PickSummary
+        awayLabel={game.away}
+        homeLabel={game.home}
+        awayCount={awayCount}
+        homeCount={homeCount}
+        awayLogo={awayLogo}
+        homeLogo={homeLogo}
+        awayRecord={game.awayRecord}
+        homeRecord={game.homeRecord}
+      />
+
+      {saveErr && <ErrorText>{saveErr}</ErrorText>}
+      {saveOk && !saveErr && <p style={styles.saveOkNote}>✓ Saved!</p>}
+
+      <div style={styles.wizardFooter}>
+        <button type="button" style={styles.btnGhost} onClick={onBack}>
+          ← Back
+        </button>
+        <div style={{ display: "flex", gap: 8 }}>
+          {!locked && (
+            <button type="button" style={styles.btnOutlineWarn} onClick={onSkip}>
+              Skip
+            </button>
+          )}
+          {!locked && (
+            <button type="button" style={styles.btn} disabled={!canSave || saving} onClick={onSave}>
+              {saving ? "Saving…" : "Save Pick"}
+            </button>
+          )}
+          <button type="button" style={styles.btnPrimary} disabled={saving} onClick={onContinue}>
+            {saving ? "Saving…" : "Continue →"}
+          </button>
+        </div>
+      </div>
+    </Card>
+  );
+}
+
+/* ---------- One tiebreaker, one screen ---------- */
+function TiebreakerScreen({ tbIndex, game, total, onChangeTotal, locked, saving, saveOk, saveErr, onBack, onSkip, onSave, onContinue }) {
+  const filled = String(total || "").trim() !== "";
+  const canSave = !locked && filled;
+
+  return (
+    <Card>
+      <h2 style={styles.h2}>
+        Tiebreaker {tbIndex + 1} of 3{game ? `: ${game.away} @ ${game.home}` : ""}
+      </h2>
+      <p style={styles.mutedSmall}>Guess the total combined points scored by both teams.</p>
+
+      {locked && <p style={{ color: "#a00", fontSize: 13 }}>🔒 Locked — this game has started.</p>}
+
+      <input
+        style={{
+          ...styles.input,
+          maxWidth: 220,
+          transition: "box-shadow 0.3s",
+          boxShadow: filled ? "0 0 0 3px rgba(25, 185, 55, 0.45)" : "none",
+        }}
+        inputMode="numeric"
+        placeholder="Total points"
+        value={total}
+        disabled={locked}
+        onChange={(e) => onChangeTotal(e.target.value.replace(/[^0-9]/g, ""))}
+      />
+
+      {saveErr && <ErrorText>{saveErr}</ErrorText>}
+      {saveOk && !saveErr && <p style={styles.saveOkNote}>✓ Saved!</p>}
+
+      <div style={styles.wizardFooter}>
+        <button type="button" style={styles.btnGhost} onClick={onBack}>
+          ← Back
+        </button>
+        <div style={{ display: "flex", gap: 8 }}>
+          {!locked && (
+            <button type="button" style={styles.btnOutlineWarn} onClick={onSkip}>
+              Skip
+            </button>
+          )}
+          {!locked && (
+            <button type="button" style={styles.btn} disabled={!canSave || saving} onClick={onSave}>
+              {saving ? "Saving…" : "Save"}
+            </button>
+          )}
+          <button type="button" style={styles.btnPrimary} disabled={saving} onClick={onContinue}>
+            {saving ? "Saving…" : "Continue →"}
+          </button>
+        </div>
+      </div>
+    </Card>
   );
 }
 
@@ -1413,6 +1415,8 @@ function Shell({ children }) {
           @keyframes vsBoltFlash { 0%, 85%, 100% { opacity: 0; } 88%, 92% { opacity: 1; } }
           @keyframes vsEmberFloat { 0% { transform: translateY(0) translateX(0) scale(1); opacity: 1; } 100% { transform: translateY(-30px) translateX(var(--vs-dx)) scale(0); opacity: 0; } }
           @keyframes vsFlareBreath { 0%, 100% { transform: scale(1); opacity: 0.8; } 50% { transform: scale(1.5); opacity: 1; } }
+          @keyframes wizardFadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+          .app-card { animation: wizardFadeIn 0.22s ease; }
         `}
       </style>
 
@@ -1426,24 +1430,13 @@ function Shell({ children }) {
 function Card({ children }) {
   return <div className="app-card" style={styles.card}>{children}</div>;
 }
-function Field({ label, required, error, children }) {
-  return (
-    <label style={{ display: "grid", gap: 6, fontSize: 14 }}>
-      <span>
-        {label} {required && <span style={{ color: "#c00" }}>*</span>}
-      </span>
-      {children}
-      {error && <ErrorText>{error}</ErrorText>}
-    </label>
-  );
-}
 function ErrorText({ children }) {
   return <p style={{ color: "#c00", fontSize: 13, marginTop: 6 }}>{children}</p>;
 }
 function Footer() {
   return (
     <p style={{ textAlign: "center", fontSize: 12, color: "rgba(0,0,0,0.75)", marginTop: 16 }}>
-      © NFL Weekly Picks — Print to save a PDF copy.
+      © NFL Weekly Picks
     </p>
   );
 }

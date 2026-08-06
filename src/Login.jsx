@@ -63,6 +63,7 @@ export default function Login() {
   const [mode, setMode] = useState("login"); // "login" | "signup"
   const [username, setUsername] = useState("");
   const [fullName, setFullName] = useState("");
+  const [email, setEmail] = useState("");
   const [pin, setPin] = useState("");
   const [confirmPin, setConfirmPin] = useState("");
   const [err, setErr] = useState("");
@@ -82,6 +83,7 @@ export default function Login() {
 
     if (mode === "signup") {
       if (!fullName.trim()) return setErr("Full name is required so the admin knows who you are.");
+      if (!/^\S+@\S+\.\S+$/.test(email.trim())) return setErr("A valid email address is required.");
       if (pin !== confirmPin) return setErr("PINs don't match.");
     }
 
@@ -94,6 +96,7 @@ export default function Login() {
           action: mode,
           username: uname,
           fullName: fullName.trim(),
+          email: email.trim(),
           pin,
         }),
       });
@@ -163,6 +166,21 @@ export default function Login() {
                 value={fullName}
                 onChange={(e) => setFullName(e.target.value)}
                 placeholder="Your full name"
+              />
+            </label>
+          )}
+
+          {mode === "signup" && (
+            <label style={styles.field}>
+              <span>Email</span>
+              <input
+                style={styles.input}
+                type="email"
+                required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="you@email.com"
+                autoComplete="email"
               />
             </label>
           )}
