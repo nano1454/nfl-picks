@@ -79,26 +79,6 @@ const styles = {
   },
   btnPrimaryHover: { background: "#333" },
 
-  btnGhost: {
-    padding: "10px 14px",
-    border: "1px solid transparent",
-    borderRadius: 10,
-    background: "transparent",
-    color: "#333",
-    cursor: "pointer",
-    fontWeight: 600,
-  },
-  btnOutlineWarn: {
-    padding: "10px 16px",
-    border: "1px solid rgba(160,0,0,0.3)",
-    borderRadius: 10,
-    background: "rgba(200,0,0,0.05)",
-    color: "#7a0000",
-    cursor: "pointer",
-    fontWeight: 700,
-  },
-  saveOkNote: { color: "#1a7a28", fontSize: 13, fontWeight: 700, marginTop: 10 },
-
   // Header-ish nav buttons (smaller + pill-ish)
   navBtn: {
     padding: "8px 12px",
@@ -117,114 +97,7 @@ const styles = {
     transform: "translateY(-1px)",
   },
 
-  // Step progress strip
-  stepStrip: { display: "flex", flexWrap: "wrap", gap: 6, marginTop: 14 },
-  stepDot: {
-    width: 30,
-    height: 30,
-    borderRadius: 8,
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    fontSize: 11,
-    fontWeight: 800,
-    cursor: "pointer",
-    border: "1px solid rgba(0,0,0,0.15)",
-    background: "rgba(255,255,255,0.9)",
-    color: "#333",
-  },
-  stepDotAnswered: {
-    background: "rgba(25,185,55,0.15)",
-    border: "1px solid rgba(25,185,55,0.5)",
-    color: "#1a7a28",
-  },
-  stepDotLocked: {
-    background: "rgba(0,0,0,0.06)",
-    border: "1px solid rgba(0,0,0,0.15)",
-    color: "#999",
-  },
-  stepDotCurrent: {
-    boxShadow: "0 0 0 3px rgba(0,0,0,0.25)",
-    transform: "scale(1.08)",
-  },
-
-  screenWrap: { display: "grid", gap: 16, marginTop: 14 },
-  wizardFooter: {
-    display: "flex",
-    gap: 8,
-    flexWrap: "wrap",
-    marginTop: 16,
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-
-  pickGroup: { display: "flex", gap: 10, alignItems: "center", flexWrap: "nowrap" },
-
   radioActual: { position: "absolute", opacity: 0, pointerEvents: "none" },
-  logoOnly: { height: 28, width: 28, objectFit: "contain", display: "block" },
-  logoButton: {
-    display: "inline-flex",
-    alignItems: "center",
-    justifyContent: "center",
-    height: 52,
-    width: 52,
-    borderRadius: 14,
-    border: "1px solid #ddd",
-    background: "rgba(255,255,255,0.9)",
-    cursor: "pointer",
-    transition: "transform 0.1s, background 0.2s, border-color 0.2s",
-    backdropFilter: "saturate(120%) blur(2px)",
-    position: "relative",
-  },
-  logoButtonSelected: {
-    border: "2.5px solid rgba(25, 185, 55, 0.85)",
-    boxShadow: "0 0 0 3px rgba(25, 185, 55, 0.18)",
-    transform: "scale(1.08)",
-  },
-  logoButtonDisabled: {
-    opacity: 0.55,
-    cursor: "not-allowed",
-    filter: "grayscale(60%)",
-  },
-
-  spreadSection: {
-    width: "100%",
-    marginTop: 10,
-    paddingTop: 10,
-    position: "relative",
-    zIndex: 1,
-  },
-  spreadLabel: {
-    fontSize: 12,
-    fontWeight: 700,
-    color: "rgba(0,0,0,0.6)",
-    marginBottom: 6,
-  },
-  spreadPillGroup: { display: "flex", gap: 8, flexWrap: "wrap" },
-  spreadPill: {
-    display: "inline-flex",
-    alignItems: "center",
-    gap: 6,
-    padding: "6px 12px",
-    borderRadius: 999,
-    border: "1px solid rgba(0,0,0,0.15)",
-    background: "rgba(255,255,255,0.9)",
-    color: "#111",
-    cursor: "pointer",
-    fontSize: 13,
-    fontWeight: 700,
-    transition: "background 0.2s, border-color 0.2s, transform 0.1s",
-  },
-  spreadPillSelected: {
-    border: "2px solid rgba(37, 99, 235, 0.85)",
-    boxShadow: "0 0 0 3px rgba(37, 99, 235, 0.18)",
-    background: "rgba(37, 99, 235, 0.08)",
-    transform: "scale(1.03)",
-  },
-  spreadPillDisabled: {
-    opacity: 0.55,
-    cursor: "not-allowed",
-  },
   srOnly: {
     position: "absolute",
     width: 1,
@@ -235,6 +108,213 @@ const styles = {
     clip: "rect(0,0,0,0)",
     whiteSpace: "nowrap",
     border: 0,
+  },
+
+  /* ================= Dark "Make Your Pick" modal ================= */
+  modalOverlay: {
+    position: "fixed",
+    inset: 0,
+    background: "rgba(0,0,0,0.6)",
+    backdropFilter: "blur(6px)",
+    WebkitBackdropFilter: "blur(6px)",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 16,
+    zIndex: 100,
+  },
+  modalCard: {
+    width: "100%",
+    maxWidth: 460,
+    maxHeight: "90vh",
+    overflowY: "auto",
+    borderRadius: 22,
+    padding: "20px 20px 24px",
+    background: "linear-gradient(160deg, #0c0c0c 0%, #1c1c1c 60%, #0a0a0a 100%)",
+    border: "1px solid rgba(255,215,0,0.3)",
+    boxShadow: "0 20px 60px rgba(0,0,0,0.6), inset 0 0 0 1px rgba(255,215,0,0.08)",
+    color: "#fff",
+  },
+  modalHeaderRow: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 10,
+  },
+  modalHeaderLabel: {
+    fontSize: 12,
+    fontWeight: 800,
+    letterSpacing: 1.5,
+    textTransform: "uppercase",
+    color: "#ffd700",
+  },
+  modalCloseBtn: {
+    background: "transparent",
+    border: "none",
+    color: "rgba(255,255,255,0.6)",
+    fontSize: 20,
+    lineHeight: 1,
+    cursor: "pointer",
+    padding: 4,
+  },
+
+  // Step progress strip (dark)
+  stepStrip: { display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 16 },
+  stepDot: {
+    width: 28,
+    height: 28,
+    borderRadius: 8,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    fontSize: 11,
+    fontWeight: 800,
+    cursor: "pointer",
+    border: "1px solid rgba(255,255,255,0.15)",
+    background: "rgba(255,255,255,0.06)",
+    color: "rgba(255,255,255,0.65)",
+  },
+  stepDotAnswered: {
+    background: "rgba(46,204,113,0.18)",
+    border: "1px solid rgba(46,204,113,0.6)",
+    color: "#7CFB9B",
+  },
+  stepDotLocked: {
+    background: "rgba(255,255,255,0.03)",
+    border: "1px solid rgba(255,255,255,0.08)",
+    color: "rgba(255,255,255,0.3)",
+  },
+  stepDotCurrent: {
+    boxShadow: "0 0 0 3px rgba(255,215,0,0.4)",
+    transform: "scale(1.08)",
+  },
+
+  screenWrap: { display: "grid", gap: 4 },
+  wizardFooter: {
+    display: "flex",
+    gap: 8,
+    flexWrap: "wrap",
+    marginTop: 18,
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+
+  sectionDividerWrap: { display: "flex", alignItems: "center", gap: 8, margin: "16px 0 10px" },
+  sectionDividerLine: { flex: 1, height: 1, background: "rgba(255,215,0,0.25)" },
+  sectionDividerLabel: {
+    fontSize: 11,
+    fontWeight: 800,
+    letterSpacing: 1.5,
+    textTransform: "uppercase",
+    color: "rgba(255,215,0,0.85)",
+    whiteSpace: "nowrap",
+  },
+
+  teamPill: {
+    flex: 1,
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "center",
+    gap: 6,
+    padding: "14px 8px",
+    borderRadius: 14,
+    border: "1px solid rgba(255,215,0,0.35)",
+    background: "linear-gradient(160deg, #000, #1a1a1a)",
+    cursor: "pointer",
+    transition: "transform 0.1s, border-color 0.2s, box-shadow 0.2s",
+    position: "relative",
+  },
+  teamPillSelected: {
+    border: "2px solid #ffd700",
+    boxShadow: "0 0 0 3px rgba(255,215,0,0.2), 0 0 20px rgba(255,215,0,0.25)",
+    transform: "scale(1.03)",
+  },
+  teamPillDisabled: {
+    opacity: 0.4,
+    cursor: "not-allowed",
+  },
+  teamPillLabel: {
+    fontSize: 13,
+    fontWeight: 800,
+    color: "#ffd700",
+    letterSpacing: 0.3,
+    textAlign: "center",
+  },
+
+  spreadPillGroup: { display: "flex", gap: 8, flexWrap: "wrap" },
+  spreadPill: {
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 6,
+    padding: "8px 14px",
+    borderRadius: 999,
+    border: "1px solid rgba(255,215,0,0.35)",
+    background: "linear-gradient(160deg, #000, #1a1a1a)",
+    color: "#ffd700",
+    cursor: "pointer",
+    fontSize: 13,
+    fontWeight: 800,
+    transition: "background 0.2s, border-color 0.2s, transform 0.1s",
+  },
+  spreadPillSelected: {
+    border: "2px solid #ffd700",
+    boxShadow: "0 0 0 3px rgba(255,215,0,0.2), 0 0 20px rgba(255,215,0,0.25)",
+    transform: "scale(1.03)",
+  },
+  spreadPillDisabled: {
+    opacity: 0.4,
+    cursor: "not-allowed",
+  },
+
+  insetPanel: {
+    marginTop: 16,
+    background: "rgba(255,255,255,0.94)",
+    color: "#111",
+    borderRadius: 14,
+    padding: 12,
+  },
+
+  darkMuted: { color: "rgba(255,255,255,0.6)", fontSize: 12 },
+  darkLockNote: { fontSize: 12, marginBottom: 10, color: "rgba(255,255,255,0.65)" },
+  darkLockNoteWarn: { fontSize: 12, marginBottom: 10, color: "#ff8a8a" },
+  darkSaveOkNote: { color: "#7CFB9B", fontSize: 13, fontWeight: 700, marginTop: 12 },
+  darkErrorText: { color: "#ff8a8a", fontSize: 13, marginTop: 12 },
+
+  darkBtnGhost: {
+    padding: "10px 14px",
+    border: "1px solid transparent",
+    borderRadius: 10,
+    background: "transparent",
+    color: "rgba(255,255,255,0.7)",
+    cursor: "pointer",
+    fontWeight: 600,
+  },
+  darkBtnOutlineWarn: {
+    padding: "10px 16px",
+    border: "1px solid rgba(255,120,120,0.4)",
+    borderRadius: 10,
+    background: "rgba(255,80,80,0.08)",
+    color: "#ff8a8a",
+    cursor: "pointer",
+    fontWeight: 700,
+  },
+  darkBtnSecondary: {
+    padding: "10px 16px",
+    border: "1px solid rgba(255,215,0,0.4)",
+    borderRadius: 10,
+    background: "rgba(255,215,0,0.08)",
+    color: "#ffd700",
+    cursor: "pointer",
+    fontWeight: 700,
+  },
+  darkBtnPrimary: {
+    padding: "10px 20px",
+    border: "none",
+    borderRadius: 10,
+    background: "linear-gradient(160deg, #ffe98a, #ffd700, #b8860b)",
+    color: "#1a1200",
+    cursor: "pointer",
+    fontWeight: 800,
   },
 };
 
@@ -277,6 +357,12 @@ const teamLogoSlug = {
 function logoSrc(team) {
   const slug = teamLogoSlug[team];
   return slug ? `/logos/${slug}.png` : null;
+}
+
+/** e.g. "New England Patriots" -> "Patriots" (short label for the pick pills) */
+function shortTeamName(fullName) {
+  const parts = String(fullName || "").trim().split(/\s+/);
+  return parts[parts.length - 1] || fullName;
 }
 
 /** e.g. formatCountdown(90 * 60 * 1000) -> "1h 30m"; returns "" once the target has passed. */
@@ -740,8 +826,6 @@ export default function App() {
           </p>
         )}
 
-        <StepProgress steps={steps} activeStep={activeStep} statusOf={statusOf} onJump={goTo} />
-
         <div style={styles.screenWrap} key={step.key}>
           {step.type === "intro" && (
             <IntroScreen
@@ -754,52 +838,58 @@ export default function App() {
             />
           )}
 
-          {step.type === "game" && (
-            <GamePickScreen
-              game={step.game}
-              index={step.index}
-              totalGames={week.games.length}
-              pick={picks[step.game.id]}
-              spreadPick={spreadPicks[step.game.id]}
-              savedPick={savedPicks[step.game.id]}
-              savedSpreadPick={savedSpreadPicks[step.game.id]}
-              onPick={setPick}
-              onSpreadPick={setSpreadPick}
-              gameStats={stats[step.game.id]}
-              kickoffIso={kickoffById[step.game.id] || ""}
-              locked={isGameLocked(step.game.id)}
-              nowTs={nowTs}
-              saving={savingKey === step.game.id}
-              saveOk={saveOkKey === step.game.id}
-              saveErr={saveErr}
-              onBack={() => goTo(activeStep - 1)}
-              onSkip={() => skipGame(step.game.id)}
-              onSave={() => saveGamePick(step.game.id)}
-              onContinue={() => saveGamePick(step.game.id, { advance: true })}
-            />
-          )}
-
-          {step.type === "tb" && (
-            <TiebreakerScreen
-              tbIndex={step.tbIndex}
-              game={step.game}
-              total={tbs[step.tbIndex]?.total || ""}
-              onChangeTotal={(v) => setTBTotal(step.tbIndex, v)}
-              locked={step.gameId ? isGameLocked(step.gameId) : false}
-              saving={savingKey === step.key}
-              saveOk={saveOkKey === step.key}
-              saveErr={saveErr}
-              onBack={() => goTo(activeStep - 1)}
-              onSkip={() => skipTb(step.tbIndex)}
-              onSave={() => saveTiebreaker(step.tbIndex)}
-              onContinue={() => saveTiebreaker(step.tbIndex, { advance: true })}
-            />
-          )}
-
           {step.type === "done" && (
             <DoneScreen steps={steps} statusOf={statusOf} byes={week.byes} onReview={() => goTo(firstOpenIndex())} />
           )}
         </div>
+
+        {(step.type === "game" || step.type === "tb") && (
+          <WizardModal onClose={() => goTo(0)}>
+            <StepProgress steps={steps} activeStep={activeStep} statusOf={statusOf} onJump={goTo} />
+
+            {step.type === "game" && (
+              <GamePickScreen
+                game={step.game}
+                index={step.index}
+                totalGames={week.games.length}
+                pick={picks[step.game.id]}
+                spreadPick={spreadPicks[step.game.id]}
+                savedPick={savedPicks[step.game.id]}
+                savedSpreadPick={savedSpreadPicks[step.game.id]}
+                onPick={setPick}
+                onSpreadPick={setSpreadPick}
+                gameStats={stats[step.game.id]}
+                kickoffIso={kickoffById[step.game.id] || ""}
+                locked={isGameLocked(step.game.id)}
+                nowTs={nowTs}
+                saving={savingKey === step.game.id}
+                saveOk={saveOkKey === step.game.id}
+                saveErr={saveErr}
+                onBack={() => goTo(activeStep - 1)}
+                onSkip={() => skipGame(step.game.id)}
+                onSave={() => saveGamePick(step.game.id)}
+                onContinue={() => saveGamePick(step.game.id, { advance: true })}
+              />
+            )}
+
+            {step.type === "tb" && (
+              <TiebreakerScreen
+                tbIndex={step.tbIndex}
+                game={step.game}
+                total={tbs[step.tbIndex]?.total || ""}
+                onChangeTotal={(v) => setTBTotal(step.tbIndex, v)}
+                locked={step.gameId ? isGameLocked(step.gameId) : false}
+                saving={savingKey === step.key}
+                saveOk={saveOkKey === step.key}
+                saveErr={saveErr}
+                onBack={() => goTo(activeStep - 1)}
+                onSkip={() => skipTb(step.tbIndex)}
+                onSave={() => saveTiebreaker(step.tbIndex)}
+                onContinue={() => saveTiebreaker(step.tbIndex, { advance: true })}
+              />
+            )}
+          </WizardModal>
+        )}
 
         {/* Admin box */}
         {session?.isAdmin && (
@@ -1076,22 +1166,34 @@ function GamePickScreen({
   const canSave = !locked && !!pick;
 
   return (
-    <Card>
+    <div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", flexWrap: "wrap", gap: 8 }}>
-        <h2 style={styles.h2}>
-          Game {index + 1} of {totalGames}: {game.away} @ {game.home}
-        </h2>
-        {savedPick && !isDirty && <span style={{ fontSize: 12, fontWeight: 800, color: "#1a7a28" }}>✓ Saved</span>}
+        <div style={styles.darkMuted}>
+          Game {index + 1} of {totalGames}
+        </div>
+        {savedPick && !isDirty && (
+          <span style={{ fontSize: 12, fontWeight: 800, color: "#7CFB9B" }}>✓ Saved</span>
+        )}
       </div>
 
-      {lockNote && (
-        <div style={{ fontSize: 12, marginBottom: 10, color: locked ? "#a00" : "rgba(0,0,0,0.65)" }}>{lockNote}</div>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 10, margin: "6px 0 2px", flexWrap: "wrap" }}>
+        <span style={{ fontSize: 18, fontWeight: 900, color: "#fff" }}>{shortTeamName(game.away)}</span>
+        <span style={{ fontSize: 13, color: "rgba(255,255,255,0.5)" }}>@</span>
+        <span style={{ fontSize: 18, fontWeight: 900, color: "#fff" }}>{shortTeamName(game.home)}</span>
+      </div>
+
+      {lockNote && <div style={locked ? styles.darkLockNoteWarn : styles.darkLockNote}>{lockNote}</div>}
+      {locked && !savedPick && (
+        <p style={{ color: "#ff8a8a", fontSize: 13 }}>No pick was saved before this game started.</p>
       )}
 
-      {locked && !savedPick && <p style={{ color: "#a00", fontSize: 14 }}>No pick was saved before this game started.</p>}
+      <div style={styles.sectionDividerWrap}>
+        <div style={styles.sectionDividerLine} />
+        <span style={styles.sectionDividerLabel}>Straight Up</span>
+        <div style={styles.sectionDividerLine} />
+      </div>
 
-      <div style={styles.spreadLabel}>Straight Up — who wins?</div>
-      <div style={{ ...styles.pickGroup, marginBottom: hasSpread ? 4 : 0 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
         {[
           { v: "AWAY", label: game.away, logo: awayLogo, title: `${game.away} (Away)` },
           { v: "HOME", label: game.home, logo: homeLogo, title: `${game.home} (Home)` },
@@ -1102,9 +1204,9 @@ function GamePickScreen({
             <label
               key={opt.v}
               style={{
-                ...styles.logoButton,
-                ...(isSelected ? styles.logoButtonSelected : {}),
-                ...(locked ? styles.logoButtonDisabled : {}),
+                ...styles.teamPill,
+                ...(isSelected ? styles.teamPillSelected : {}),
+                ...(locked ? styles.teamPillDisabled : {}),
               }}
               title={locked ? "Locked" : opt.title}
             >
@@ -1121,11 +1223,11 @@ function GamePickScreen({
                 <img
                   src={opt.logo}
                   alt={opt.label}
-                  style={styles.logoOnly}
+                  style={{ height: 34, width: 34, objectFit: "contain", display: "block" }}
                   onError={(e) => (e.currentTarget.style.display = "none")}
                 />
               )}
-              <span style={styles.srOnly}>{opt.label}</span>
+              <span style={styles.teamPillLabel}>{shortTeamName(opt.label)}</span>
             </label>
           );
           return acc;
@@ -1133,8 +1235,12 @@ function GamePickScreen({
       </div>
 
       {hasSpread && (
-        <div style={styles.spreadSection}>
-          <div style={styles.spreadLabel}>Bonus (+0.5 pt) — who covers the spread?</div>
+        <>
+          <div style={styles.sectionDividerWrap}>
+            <div style={styles.sectionDividerLine} />
+            <span style={styles.sectionDividerLabel}>Bonus (+0.5 pt) — vs. the Spread</span>
+            <div style={styles.sectionDividerLine} />
+          </div>
           <div style={styles.spreadPillGroup}>
             {[
               { v: "AWAY", label: game.away, spread: game.awaySpread },
@@ -1160,49 +1266,61 @@ function GamePickScreen({
                     style={styles.radioActual}
                     aria-label={`${opt.label} ${opt.spread}`}
                   />
-                  {opt.label} {opt.spread}
+                  {shortTeamName(opt.label)} {opt.spread}
                 </label>
               );
             })}
           </div>
-        </div>
+        </>
       )}
 
-      <PickSummary
-        awayLabel={game.away}
-        homeLabel={game.home}
-        awayCount={awayCount}
-        homeCount={homeCount}
-        awayLogo={awayLogo}
-        homeLogo={homeLogo}
-        awayRecord={game.awayRecord}
-        homeRecord={game.homeRecord}
-      />
+      <div style={styles.insetPanel}>
+        <PickSummary
+          awayLabel={game.away}
+          homeLabel={game.home}
+          awayCount={awayCount}
+          homeCount={homeCount}
+          awayLogo={awayLogo}
+          homeLogo={homeLogo}
+          awayRecord={game.awayRecord}
+          homeRecord={game.homeRecord}
+        />
+      </div>
 
-      {saveErr && <ErrorText>{saveErr}</ErrorText>}
-      {saveOk && !saveErr && <p style={styles.saveOkNote}>✓ Saved!</p>}
+      {saveErr && <p style={styles.darkErrorText}>{saveErr}</p>}
+      {saveOk && !saveErr && <p style={styles.darkSaveOkNote}>✓ Saved!</p>}
 
       <div style={styles.wizardFooter}>
-        <button type="button" style={styles.btnGhost} onClick={onBack}>
+        <button type="button" style={styles.darkBtnGhost} onClick={onBack}>
           ← Back
         </button>
         <div style={{ display: "flex", gap: 8 }}>
           {!locked && (
-            <button type="button" style={styles.btnOutlineWarn} onClick={onSkip}>
+            <button type="button" style={styles.darkBtnOutlineWarn} onClick={onSkip}>
               Skip
             </button>
           )}
           {!locked && (
-            <button type="button" style={styles.btn} disabled={!canSave || saving} onClick={onSave}>
+            <button
+              type="button"
+              style={{ ...styles.darkBtnSecondary, ...((!canSave || saving) ? { opacity: 0.45, cursor: "not-allowed" } : {}) }}
+              disabled={!canSave || saving}
+              onClick={onSave}
+            >
               {saving ? "Saving…" : "Save Pick"}
             </button>
           )}
-          <button type="button" style={styles.btnPrimary} disabled={saving} onClick={onContinue}>
+          <button
+            type="button"
+            style={{ ...styles.darkBtnPrimary, ...(saving ? { opacity: 0.7, cursor: "not-allowed" } : {}) }}
+            disabled={saving}
+            onClick={onContinue}
+          >
             {saving ? "Saving…" : "Continue →"}
           </button>
         </div>
       </div>
-    </Card>
+    </div>
   );
 }
 
@@ -1212,20 +1330,45 @@ function TiebreakerScreen({ tbIndex, game, total, onChangeTotal, locked, saving,
   const canSave = !locked && filled;
 
   return (
-    <Card>
-      <h2 style={styles.h2}>
-        Tiebreaker {tbIndex + 1} of 3{game ? `: ${game.away} @ ${game.home}` : ""}
-      </h2>
-      <p style={styles.mutedSmall}>Guess the total combined points scored by both teams.</p>
+    <div>
+      <div style={styles.darkMuted}>Tiebreaker {tbIndex + 1} of 3</div>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 10, margin: "6px 0 2px", flexWrap: "wrap" }}>
+        {game ? (
+          <>
+            <span style={{ fontSize: 18, fontWeight: 900, color: "#fff" }}>{shortTeamName(game.away)}</span>
+            <span style={{ fontSize: 13, color: "rgba(255,255,255,0.5)" }}>@</span>
+            <span style={{ fontSize: 18, fontWeight: 900, color: "#fff" }}>{shortTeamName(game.home)}</span>
+          </>
+        ) : (
+          <span style={{ fontSize: 18, fontWeight: 900, color: "#fff" }}>Tiebreaker {tbIndex + 1}</span>
+        )}
+      </div>
+      <p style={{ ...styles.darkMuted, textAlign: "center", marginTop: 4 }}>
+        Guess the total combined points scored by both teams.
+      </p>
 
-      {locked && <p style={{ color: "#a00", fontSize: 13 }}>🔒 Locked — this game has started.</p>}
+      {locked && <p style={{ color: "#ff8a8a", fontSize: 13, textAlign: "center" }}>🔒 Locked — this game has started.</p>}
+
+      <div style={styles.sectionDividerWrap}>
+        <div style={styles.sectionDividerLine} />
+        <span style={styles.sectionDividerLabel}>Total Points</span>
+        <div style={styles.sectionDividerLine} />
+      </div>
 
       <input
         style={{
           ...styles.input,
           maxWidth: 220,
+          margin: "0 auto",
+          display: "block",
+          textAlign: "center",
+          fontSize: 18,
+          fontWeight: 800,
+          background: "rgba(255,255,255,0.08)",
+          border: "1px solid rgba(255,215,0,0.35)",
+          color: "#ffd700",
           transition: "box-shadow 0.3s",
-          boxShadow: filled ? "0 0 0 3px rgba(25, 185, 55, 0.45)" : "none",
+          boxShadow: filled ? "0 0 0 3px rgba(255,215,0,0.25)" : "none",
         }}
         inputMode="numeric"
         placeholder="Total points"
@@ -1234,30 +1377,70 @@ function TiebreakerScreen({ tbIndex, game, total, onChangeTotal, locked, saving,
         onChange={(e) => onChangeTotal(e.target.value.replace(/[^0-9]/g, ""))}
       />
 
-      {saveErr && <ErrorText>{saveErr}</ErrorText>}
-      {saveOk && !saveErr && <p style={styles.saveOkNote}>✓ Saved!</p>}
+      {saveErr && <p style={{ ...styles.darkErrorText, textAlign: "center" }}>{saveErr}</p>}
+      {saveOk && !saveErr && <p style={{ ...styles.darkSaveOkNote, textAlign: "center" }}>✓ Saved!</p>}
 
       <div style={styles.wizardFooter}>
-        <button type="button" style={styles.btnGhost} onClick={onBack}>
+        <button type="button" style={styles.darkBtnGhost} onClick={onBack}>
           ← Back
         </button>
         <div style={{ display: "flex", gap: 8 }}>
           {!locked && (
-            <button type="button" style={styles.btnOutlineWarn} onClick={onSkip}>
+            <button type="button" style={styles.darkBtnOutlineWarn} onClick={onSkip}>
               Skip
             </button>
           )}
           {!locked && (
-            <button type="button" style={styles.btn} disabled={!canSave || saving} onClick={onSave}>
+            <button
+              type="button"
+              style={{ ...styles.darkBtnSecondary, ...((!canSave || saving) ? { opacity: 0.45, cursor: "not-allowed" } : {}) }}
+              disabled={!canSave || saving}
+              onClick={onSave}
+            >
               {saving ? "Saving…" : "Save"}
             </button>
           )}
-          <button type="button" style={styles.btnPrimary} disabled={saving} onClick={onContinue}>
+          <button
+            type="button"
+            style={{ ...styles.darkBtnPrimary, ...(saving ? { opacity: 0.7, cursor: "not-allowed" } : {}) }}
+            disabled={saving}
+            onClick={onContinue}
+          >
             {saving ? "Saving…" : "Continue →"}
           </button>
         </div>
       </div>
-    </Card>
+    </div>
+  );
+}
+
+/* ---------- Full-screen "Make Your Pick" modal ---------- */
+function WizardModal({ onClose, children }) {
+  useEffect(() => {
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    function onKeyDown(e) {
+      if (e.key === "Escape") onClose();
+    }
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.body.style.overflow = prevOverflow;
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [onClose]);
+
+  return (
+    <div style={styles.modalOverlay} onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <div style={styles.modalCard} onMouseDown={(e) => e.stopPropagation()}>
+        <div style={styles.modalHeaderRow}>
+          <span style={styles.modalHeaderLabel}>🏈 Make Your Pick</span>
+          <button type="button" style={styles.modalCloseBtn} onClick={onClose} aria-label="Close">
+            ✕
+          </button>
+        </div>
+        {children}
+      </div>
+    </div>
   );
 }
 
@@ -1429,9 +1612,6 @@ function Shell({ children }) {
 
 function Card({ children }) {
   return <div className="app-card" style={styles.card}>{children}</div>;
-}
-function ErrorText({ children }) {
-  return <p style={{ color: "#c00", fontSize: 13, marginTop: 6 }}>{children}</p>;
 }
 function Footer() {
   return (
