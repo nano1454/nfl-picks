@@ -234,7 +234,7 @@ const styles = {
     background: "#fff",
     boxShadow: "0 4px 14px rgba(0,0,0,0.35)",
     transition: "transform 0.15s, box-shadow 0.2s",
-    overflow: "visible",
+    overflow: "hidden",
   },
   teamPillSelected: {
     boxShadow: "0 4px 14px rgba(0,0,0,0.35), 0 0 0 3px rgba(255,215,0,0.55), 0 0 22px rgba(255,215,0,0.35)",
@@ -246,15 +246,14 @@ const styles = {
   },
   teamPillLogo: {
     position: "absolute",
+    top: "50%",
     left: "50%",
-    bottom: 2,
-    transform: "translateX(-50%)",
-    width: 104,
-    height: 104,
+    transform: "translate(-50%, -50%)",
+    width: 100,
+    height: 100,
     objectFit: "contain",
     zIndex: 2,
     pointerEvents: "none",
-    filter: "drop-shadow(0 6px 10px rgba(0,0,0,0.5))",
   },
 
   spreadPillGroup: { display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "center" },
@@ -1211,7 +1210,7 @@ function GamePickScreen({
         <div style={styles.sectionDividerLine} />
       </div>
 
-      <div style={{ display: "flex", alignItems: "flex-start", gap: 10, marginTop: 34 }}>
+      <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
         {[
           { v: "AWAY", label: game.away, logo: awayLogo, title: `${game.away} (Away)` },
           { v: "HOME", label: game.home, logo: homeLogo, title: `${game.home} (Home)` },
