@@ -896,6 +896,8 @@ export default function App() {
                 total={tbs[step.tbIndex]?.total || ""}
                 onChangeTotal={(v) => setTBTotal(step.tbIndex, v)}
                 locked={step.gameId ? isGameLocked(step.gameId) : false}
+                kickoffIso={step.gameId ? kickoffById[step.gameId] || "" : ""}
+                nowTs={nowTs}
                 saving={savingKey === step.key}
                 saveOk={saveOkKey === step.key}
                 saveErr={saveErr}
@@ -1340,9 +1342,18 @@ function GamePickScreen({
 }
 
 /* ---------- One tiebreaker, one screen ---------- */
-function TiebreakerScreen({ tbIndex, game, total, onChangeTotal, locked, saving, saveOk, saveErr, onBack, onSkip, onSave, onContinue }) {
+function TiebreakerScreen({ tbIndex, game, total, onChangeTotal, locked, kickoffIso, nowTs, saving, saveOk, saveErr, onBack, onSkip, onSave, onContinue }) {
   const filled = String(total || "").trim() !== "";
   const canSave = !locked && filled;
+
+  let lockNote = "";
+  if (locked) {
+    lockNote = "🔒 Locked — game started";
+  } else if (kickoffIso) {
+    const lockTime = new Date(new Date(kickoffIso).getTime() - 60 * 60 * 1000);
+    const countdown = formatCountdown(lockTime.getTime() - nowTs);
+    lockNote = `Locks 1 hr before kickoff: ${lockTime.toLocaleString()}${countdown ? ` (${countdown})` : ""}`;
+  }
 
   return (
     <div>
@@ -1362,7 +1373,9 @@ function TiebreakerScreen({ tbIndex, game, total, onChangeTotal, locked, saving,
         Guess the total combined points scored by both teams.
       </p>
 
-      {locked && <p style={{ color: "#ff8a8a", fontSize: 13, textAlign: "center" }}>🔒 Locked — this game has started.</p>}
+      {lockNote && (
+        <div style={{ ...(locked ? styles.darkLockNoteWarn : styles.darkLockNote), textAlign: "center" }}>{lockNote}</div>
+      )}
 
       <div style={styles.sectionDividerWrap}>
         <div style={styles.sectionDividerLine} />
