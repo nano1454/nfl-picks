@@ -527,6 +527,25 @@ export default function App() {
     })();
   }, [week.week, session?.fullName]);
 
+  // Has this participant already paid this week's buy-in? (drives the Done-screen prompt)
+  const [hasPaid, setHasPaid] = useState(null); // null = unknown/loading
+
+  useEffect(() => {
+    if (!week.week || !session?.fullName) return;
+    (async () => {
+      try {
+        const res = await fetch(
+          `/.netlify/functions/getPaymentStatus?week=${Number(week.week)}&user_name=${encodeURIComponent(session.fullName)}`,
+          { cache: "no-store" }
+        );
+        const data = await res.json();
+        if (data?.ok) setHasPaid(!!data.paid);
+      } catch (e) {
+        console.error("getPaymentStatus failed:", e);
+      }
+    })();
+  }, [week.week, session?.fullName]);
+
   // update "now" every 30 seconds so lock state updates on screen
   useEffect(() => {
     const t = setInterval(() => setNowTs(Date.now()), 30_000);
@@ -856,7 +875,13 @@ export default function App() {
           )}
 
           {step.type === "done" && (
-            <DoneScreen steps={steps} statusOf={statusOf} byes={week.byes} onReview={() => goTo(firstOpenIndex())} />
+            <DoneScreen
+              steps={steps}
+              statusOf={statusOf}
+              byes={week.byes}
+              hasPaid={hasPaid}
+              onReview={() => goTo(firstOpenIndex())}
+            />
           )}
         </div>
 
@@ -1009,7 +1034,7 @@ function IntroScreen({ fullName, username, week, steps, statusOf, onStart }) {
 }
 
 /* ---------- Done / recap screen ---------- */
-function DoneScreen({ steps, statusOf, byes, onReview }) {
+function DoneScreen({ steps, statusOf, byes, hasPaid, onReview }) {
   const gameSteps = steps.filter((s) => s.type === "game");
   const tbSteps = steps.filter((s) => s.type === "tb");
   const count = (arr, status) => arr.filter((s) => statusOf(s) === status).length;
@@ -1037,6 +1062,13 @@ function DoneScreen({ steps, statusOf, byes, onReview }) {
         </button>
       )}
 
+      {hasPaid === true && (
+        <p style={{ marginTop: 16, color: "#1a7a28", fontWeight: 700, fontSize: 14 }}>
+          ✅ You're paid up for this week. Thanks!
+        </p>
+      )}
+      {hasPaid === false && <PaymentPrompt />}
+
       {byes?.length > 0 && (
         <div style={{ marginTop: 20 }}>
           <h3 style={{ margin: "8px 0 12px", fontSize: 18 }}>Teams on Bye</h3>
@@ -1054,6 +1086,58 @@ function DoneScreen({ steps, statusOf, byes, onReview }) {
         </div>
       )}
     </Card>
+  );
+}
+
+/* ---------- Payment prompt shown on the Done screen when unpaid ---------- */
+function PaymentPrompt() {
+  const [copied, setCopied] = useState(false);
+
+  function copyZelle() {
+    if (navigator.clipboard?.writeText) navigator.clipboard.writeText(ZELLE_CONTACT);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  }
+
+  const badgeStyle = (color) => ({
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: "10px 16px",
+    borderRadius: 10,
+    background: color,
+    color: "#fff",
+    fontWeight: 800,
+    fontSize: 13,
+    textDecoration: "none",
+    cursor: "pointer",
+    border: "none",
+    boxShadow: "0 2px 8px rgba(0,0,0,0.18)",
+  });
+
+  return (
+    <div
+      style={{
+        marginTop: 16,
+        padding: 14,
+        borderRadius: 14,
+        border: "1px solid rgba(0,0,0,0.08)",
+        background: "rgba(0,0,0,0.02)",
+      }}
+    >
+      <div style={{ fontWeight: 900, fontSize: 15 }}>💳 Don't forget your buy-in</div>
+      <p style={{ margin: "4px 0 10px", fontSize: 13, color: "#555" }}>Pay however's easiest for you:</p>
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+        {PAYMENT_LINKS.map((opt) => (
+          <a key={opt.name} href={opt.url} target="_blank" rel="noopener noreferrer" style={badgeStyle(opt.color)}>
+            {opt.name}
+          </a>
+        ))}
+        <button type="button" onClick={copyZelle} style={badgeStyle(ZELLE_COLOR)}>
+          {copied ? "✅ Copied!" : "Zelle"}
+        </button>
+      </div>
+    </div>
   );
 }
 
@@ -1652,10 +1736,11 @@ function Footer() {
 /* ---------- Payment Options dropdown ---------- */
 const ZELLE_CONTACT = "926.235.4891";
 const PAYMENT_LINKS = [
-  { name: "Venmo", url: "https://www.venmo.com/u/Adrian-Perez-21" },
-  { name: "Cash App", url: "https://cash.app/$nano1454" },
-  { name: "PayPal", url: "https://paypal.me/AdrianPerez184" },
+  { name: "Venmo", url: "https://www.venmo.com/u/Adrian-Perez-21", color: "#3D95CE" },
+  { name: "Cash App", url: "https://cash.app/$nano1454", color: "#00D632" },
+  { name: "PayPal", url: "https://paypal.me/AdrianPerez184", color: "#0070BA" },
 ];
+const ZELLE_COLOR = "#6D1ED4";
 
 function PaymentMenu() {
   const [open, setOpen] = useState(false);
