@@ -7,6 +7,7 @@ import Admin from "./Admin.jsx";
 import Leaderboard from "./Leaderboard";
 import Rules from "./Rules.jsx";
 import Reglas from "./Reglas.jsx";
+import History from "./History.jsx";
 import Login from "./Login.jsx";
 import RequireAuth from "./RequireAuth.jsx";
 
@@ -21,6 +22,7 @@ ReactDOM.createRoot(document.getElementById("root")).render(
         <Route path="/leaderboard" element={<RequireAuth><Leaderboard /></RequireAuth>} />
         <Route path="/rules" element={<RequireAuth><Rules /></RequireAuth>} />
         <Route path="/reglas" element={<RequireAuth><Reglas /></RequireAuth>} />
+        <Route path="/history" element={<RequireAuth><History /></RequireAuth>} />
       </Routes>
     </BrowserRouter>
   </React.StrictMode>

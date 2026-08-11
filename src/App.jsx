@@ -418,6 +418,7 @@ export default function App() {
   const [navLeaderboardStyle, setNavLeaderboardStyle] = useState(styles.navBtn);
   const [navRulesStyle, setNavRulesStyle] = useState(styles.navBtn);
   const [navReglasStyle, setNavReglasStyle] = useState(styles.navBtn);
+  const [navHistoryStyle, setNavHistoryStyle] = useState(styles.navBtn);
 
   const navigate = useNavigate();
   const session = getSession();
@@ -845,6 +846,17 @@ export default function App() {
                 onMouseLeave={() => setNavReglasStyle(styles.navBtn)}
               >
                 Reglas
+              </button>
+            </Link>
+
+            <Link to="/history">
+              <button
+                type="button"
+                style={navHistoryStyle}
+                onMouseEnter={() => setNavHistoryStyle({ ...styles.navBtn, ...styles.navBtnHover })}
+                onMouseLeave={() => setNavHistoryStyle(styles.navBtn)}
+              >
+                Season History
               </button>
             </Link>
 
