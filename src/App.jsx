@@ -892,7 +892,12 @@ export default function App() {
               statusOf={statusOf}
               byes={week.byes}
               hasPaid={hasPaid}
+              savedPicks={savedPicks}
+              savedSpreadPicks={savedSpreadPicks}
+              savedTbTotals={savedTbTotals}
+              isGameLocked={isGameLocked}
               onReview={() => goTo(firstOpenIndex())}
+              onEdit={(idx) => goTo(idx)}
             />
           )}
         </div>
@@ -1046,12 +1051,46 @@ function IntroScreen({ fullName, username, week, steps, statusOf, onStart }) {
 }
 
 /* ---------- Done / recap screen ---------- */
-function DoneScreen({ steps, statusOf, byes, hasPaid, onReview }) {
+function DoneScreen({
+  steps,
+  statusOf,
+  byes,
+  hasPaid,
+  savedPicks,
+  savedSpreadPicks,
+  savedTbTotals,
+  isGameLocked,
+  onReview,
+  onEdit,
+}) {
   const gameSteps = steps.filter((s) => s.type === "game");
   const tbSteps = steps.filter((s) => s.type === "tb");
   const count = (arr, status) => arr.filter((s) => statusOf(s) === status).length;
   const openGames = count(gameSteps, "open");
   const openTbs = count(tbSteps, "open");
+
+  const recapRow = {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    gap: 10,
+    padding: "8px 10px",
+    borderRadius: 10,
+    border: "1px solid rgba(0,0,0,0.08)",
+    background: "rgba(255,255,255,0.7)",
+  };
+  const recapLogo = { width: 18, height: 18, objectFit: "contain", verticalAlign: "middle", marginRight: 6 };
+  const editBtn = (locked) => ({
+    padding: "6px 12px",
+    fontSize: 12,
+    fontWeight: 700,
+    borderRadius: 8,
+    border: "1px solid rgba(0,0,0,0.15)",
+    background: locked ? "rgba(0,0,0,0.04)" : "#fff",
+    color: locked ? "#999" : "#111",
+    cursor: locked ? "not-allowed" : "pointer",
+    whiteSpace: "nowrap",
+  });
 
   return (
     <Card>
@@ -1073,6 +1112,84 @@ function DoneScreen({ steps, statusOf, byes, hasPaid, onReview }) {
           Go finish what's open
         </button>
       )}
+
+      <div style={{ marginTop: 20 }}>
+        <h3 style={{ margin: "8px 0 12px", fontSize: 18 }}>Your Picks</h3>
+        <div style={{ display: "grid", gap: 8 }}>
+          {gameSteps.map((s) => {
+            const g = s.game;
+            const pick = savedPicks?.[g.id];
+            const spread = savedSpreadPicks?.[g.id];
+            const pickedTeam = pick === "AWAY" ? g.away : pick === "HOME" ? g.home : null;
+            const spreadTeam = spread === "AWAY" ? g.away : spread === "HOME" ? g.home : null;
+            const locked = isGameLocked ? isGameLocked(g.id) : false;
+            const idx = steps.indexOf(s);
+            return (
+              <div key={s.key} style={recapRow}>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontSize: 12, color: "#666" }}>
+                    {shortTeamName(g.away)} @ {shortTeamName(g.home)}
+                  </div>
+                  <div style={{ fontSize: 14, fontWeight: 700 }}>
+                    {pickedTeam ? (
+                      <>
+                        {logoSrc(pickedTeam) && <img src={logoSrc(pickedTeam)} alt={pickedTeam} style={recapLogo} />}
+                        {shortTeamName(pickedTeam)}
+                        {spreadTeam && (
+                          <span style={{ fontWeight: 400, color: "#666" }}> + {shortTeamName(spreadTeam)} spread</span>
+                        )}
+                      </>
+                    ) : (
+                      <span style={{ color: "#999", fontWeight: 400 }}>No pick</span>
+                    )}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  style={editBtn(locked)}
+                  disabled={locked}
+                  title={locked ? "This game has started — locked" : "Change this pick"}
+                  onClick={() => onEdit(idx)}
+                >
+                  {locked ? "Locked" : "Edit"}
+                </button>
+              </div>
+            );
+          })}
+        </div>
+
+        <h3 style={{ margin: "16px 0 12px", fontSize: 18 }}>Your Tiebreakers</h3>
+        <div style={{ display: "grid", gap: 8 }}>
+          {tbSteps.map((s) => {
+            const total = savedTbTotals?.[s.tbIndex + 1];
+            const hasTotal = total !== undefined && String(total).trim() !== "";
+            const locked = s.gameId && isGameLocked ? isGameLocked(s.gameId) : false;
+            const idx = steps.indexOf(s);
+            return (
+              <div key={s.key} style={recapRow}>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontSize: 12, color: "#666" }}>
+                    Tiebreaker {s.tbIndex + 1}
+                    {s.game ? ` — ${shortTeamName(s.game.away)} @ ${shortTeamName(s.game.home)}` : ""}
+                  </div>
+                  <div style={{ fontSize: 14, fontWeight: 700 }}>
+                    {hasTotal ? `${total} total points` : <span style={{ color: "#999", fontWeight: 400 }}>No pick</span>}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  style={editBtn(locked)}
+                  disabled={locked}
+                  title={locked ? "This game has started — locked" : "Change this tiebreaker"}
+                  onClick={() => onEdit(idx)}
+                >
+                  {locked ? "Locked" : "Edit"}
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      </div>
 
       {hasPaid === true && (
         <p style={{ marginTop: 16, color: "#1a7a28", fontWeight: 700, fontSize: 14 }}>
