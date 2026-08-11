@@ -1,5 +1,5 @@
 import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { supabase } from "./supabaseClient";
 
 /* ---------- Logos map (same keys as your games.away/home full names) ---------- */
@@ -122,9 +122,13 @@ function PillButton({ children, onClick, primary }) {
 }
 
 export default function Leaderboard() {
+  const [searchParams] = useSearchParams();
+  const requestedSeason = searchParams.get("season");
+  const requestedWeek = searchParams.get("week");
+
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState("");
-  const [meta, setMeta] = useState({ season: null, week: null });
+  const [meta, setMeta] = useState({ season: null, week: null, isCurrent: true });
   const [rows, setRows] = useState([]);
 
   // Tiebreak watch state
@@ -134,8 +138,9 @@ export default function Leaderboard() {
     setLoading(true);
     setErr("");
     try {
-      // 1) Ask server what the CURRENT week is
-      const res = await fetch("/.netlify/functions/getweek", { cache: "no-store" });
+      // 1) Ask server for the requested week (defaults to whatever's current)
+      const qs = requestedSeason && requestedWeek ? `?season=${requestedSeason}&week=${requestedWeek}` : "";
+      const res = await fetch(`/.netlify/functions/getweek${qs}`, { cache: "no-store" });
 
       const text = await res.text();
       let data;
@@ -145,12 +150,12 @@ export default function Leaderboard() {
         throw new Error(`getweek returned non-JSON (HTTP ${res.status}): ${text.slice(0, 140)}`);
       }
 
-      if (!res.ok || !data.ok) throw new Error(data?.error || `Could not load current week (HTTP ${res.status})`);
+      if (!res.ok || !data.ok) throw new Error(data?.error || `Could not load week (HTTP ${res.status})`);
 
       const season = Number(data.season);
       const week = Number(data.week);
 
-      setMeta({ season, week });
+      setMeta({ season, week, isCurrent: data.isCurrent !== false });
 
       // 2) Load leaderboard rows for that season/week
       const { data: lb, error } = await supabase
@@ -417,7 +422,8 @@ export default function Leaderboard() {
   // initial load
   useEffect(() => {
     loadMetaAndLeaderboard();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [requestedSeason, requestedWeek]);
 
   // whenever meta/rows change, refresh tiebreak watch
   useEffect(() => {
@@ -427,8 +433,10 @@ export default function Leaderboard() {
   }, [meta.season, meta.week, rows]);
 
   // realtime refresh whenever leaderboard / game_results / tiebreakers changes
+  // (only meaningful for the live current week -- a historical week's rows
+  // never change, so skip opening channels for it)
   useEffect(() => {
-    if (!meta.season || !meta.week) return;
+    if (!meta.season || !meta.week || !meta.isCurrent) return;
 
     const lbChannel = supabase
       .channel("leaderboard_live")
@@ -478,7 +486,7 @@ export default function Leaderboard() {
       supabase.removeChannel(tbChannel);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [meta.season, meta.week]);
+  }, [meta.season, meta.week, meta.isCurrent]);
 
   const hasPoints = useMemo(() => (rows || []).some((r) => Number(r.points || 0) > 0), [rows]);
 
@@ -510,6 +518,29 @@ export default function Leaderboard() {
           </Link>
         </div>
       </div>
+
+      {!meta.isCurrent && (
+        <div
+          style={{
+            marginTop: 10,
+            border: "1px solid rgba(184,134,11,0.3)",
+            background: "rgba(255,215,0,0.05)",
+            borderRadius: 10,
+            padding: "8px 12px",
+            fontSize: 13,
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            flexWrap: "wrap",
+            gap: 8,
+          }}
+        >
+          <span>📅 Viewing a past week (Season {meta.season}, Week {meta.week}).</span>
+          <Link to="/leaderboard" style={{ textDecoration: "none" }}>
+            <PillButton>View current week</PillButton>
+          </Link>
+        </div>
+      )}
 
       {!hasPoints ? (
         <div

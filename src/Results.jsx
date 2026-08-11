@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { supabase } from "./supabaseClient";
 
 /* ---------- Logos map ---------- */
@@ -70,10 +70,14 @@ function isGameLockedNow(game, nowTs) {
 }
 
 export default function Results() {
+  const [searchParams] = useSearchParams();
+  const requestedSeason = searchParams.get("season");
+  const requestedWeek = searchParams.get("week");
+
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState("");
 
-  const [meta, setMeta] = useState({ season: null, week: null });
+  const [meta, setMeta] = useState({ season: null, week: null, isCurrent: true });
   const [games, setGames] = useState([]);
   const [deadline, setDeadline] = useState(null);
 
@@ -95,8 +99,9 @@ export default function Results() {
     setLoading(true);
     setErr("");
     try {
-      // 1) Get current week/season from server
-      const res = await fetch("/.netlify/functions/getweek", { cache: "no-store" });
+      // 1) Get the requested week/season from server (defaults to whatever's current)
+      const qs = requestedSeason && requestedWeek ? `?season=${requestedSeason}&week=${requestedWeek}` : "";
+      const res = await fetch(`/.netlify/functions/getweek${qs}`, { cache: "no-store" });
       const text = await res.text();
       let data;
       try {
@@ -104,11 +109,11 @@ export default function Results() {
       } catch {
         throw new Error(`getweek returned non-JSON (HTTP ${res.status}): ${text.slice(0, 140)}`);
       }
-      if (!res.ok || !data.ok) throw new Error(data?.error || `Could not load current week (HTTP ${res.status})`);
+      if (!res.ok || !data.ok) throw new Error(data?.error || `Could not load week (HTTP ${res.status})`);
 
       const season = Number(data.season);
       const week = Number(data.week);
-      setMeta({ season, week });
+      setMeta({ season, week, isCurrent: data.isCurrent !== false });
       setActiveParticipants(Array.isArray(data.activeParticipants) ? data.activeParticipants : []);
 
       // 2) Get games for this week (so table columns are correct)
@@ -187,11 +192,13 @@ export default function Results() {
 
   useEffect(() => {
     loadAll();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [requestedSeason, requestedWeek]);
 
-  // realtime refresh if picks change (optional but nice)
+  // realtime refresh if picks change (only meaningful for the live current week --
+  // a historical week's rows never change, so skip opening channels for it)
   useEffect(() => {
-    if (!meta.season || !meta.week) return;
+    if (!meta.season || !meta.week || !meta.isCurrent) return;
 
     const pCh = supabase
       .channel("results_picks_live")
@@ -226,7 +233,7 @@ export default function Results() {
       supabase.removeChannel(wmCh);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [meta.season, meta.week]);
+  }, [meta.season, meta.week, meta.isCurrent]);
 
   // True once the global weekly deadline has passed
   const deadlineLocked = useMemo(
@@ -389,6 +396,31 @@ export default function Results() {
           </Link>
         </div>
       </div>
+
+      {!meta.isCurrent && (
+        <div
+          style={{
+            marginTop: 12,
+            border: "1px solid rgba(0,0,0,0.15)",
+            background: "rgba(0,0,0,0.03)",
+            borderRadius: 10,
+            padding: "8px 12px",
+            fontSize: 13,
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            flexWrap: "wrap",
+            gap: 8,
+          }}
+        >
+          <span>
+            📅 Viewing a past week (Season {meta.season}, Week {meta.week}).
+          </span>
+          <Link to="/results">
+            <button style={{ padding: "6px 10px", cursor: "pointer" }}>View current week</button>
+          </Link>
+        </div>
+      )}
 
       {!isAnyLocked ? (
         <div style={{ marginTop: 18, border: "1px solid #ddd", borderRadius: 12, padding: 14, background: "#fff" }}>

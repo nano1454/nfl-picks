@@ -88,7 +88,7 @@ async function fetchTeamRecords(season, week) {
   return records;
 }
 
-exports.handler = async () => {
+exports.handler = async (event) => {
   try {
     const supabaseUrl = process.env.SUPABASE_URL;
     const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -98,21 +98,42 @@ exports.handler = async () => {
 
     const admin = createClient(supabaseUrl, serviceKey);
 
-    // 1) Find current week row
-    const { data: cur, error: curErr } = await admin
-      .from("weeks")
-      .select("season, week, deadline, byes, tiebreakers, is_current")
-      .eq("is_current", true)
-      .order("season", { ascending: false })
-      .order("week", { ascending: false })
-      .limit(1)
-      .maybeSingle();
+    // Optional explicit override (used to view a past week's Results/Leaderboard
+    // read-only) -- when both are omitted, behavior is unchanged: whatever week
+    // is flagged is_current.
+    const reqSeason = Number(event?.queryStringParameters?.season || "");
+    const reqWeek = Number(event?.queryStringParameters?.week || "");
+    const wantsSpecificWeek = Number.isFinite(reqSeason) && reqSeason > 0 && Number.isFinite(reqWeek) && reqWeek > 0;
 
-    if (curErr) throw curErr;
+    let cur;
+    if (wantsSpecificWeek) {
+      const { data: row, error: rowErr } = await admin
+        .from("weeks")
+        .select("season, week, deadline, byes, tiebreakers, is_current")
+        .eq("season", reqSeason)
+        .eq("week", reqWeek)
+        .maybeSingle();
+      if (rowErr) throw rowErr;
+      cur = row;
+    } else {
+      // 1) Find current week row
+      const { data: row, error: curErr } = await admin
+        .from("weeks")
+        .select("season, week, deadline, byes, tiebreakers, is_current")
+        .eq("is_current", true)
+        .order("season", { ascending: false })
+        .order("week", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (curErr) throw curErr;
+      cur = row;
+    }
+
     if (!cur) return j(200, { ok: true, season: null, week: null, games: [], tiebreakers: [], deadline: null });
 
     const season = Number(cur.season);
     const week = Number(cur.week);
+    const isCurrent = !!cur.is_current;
 
     // 2) Week meta (deadline/tiebreakers) as fallback / source of truth if you prefer
     const { data: meta, error: metaErr } = await admin
@@ -184,6 +205,7 @@ exports.handler = async () => {
       ok: true,
       season,
       week,
+      isCurrent,
       deadline, // ✅ now exposed
       byes,
       tiebreakers: (tiebreakers || []).slice(0, 3),
