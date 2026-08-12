@@ -19,6 +19,8 @@ export default function Admin() {
 
   const [participants, setParticipants] = useState([]); // [{user_name,buy_in,active}]
   const [payments, setPayments] = useState({}); // { [user_name]: boolean }
+  const [emailByUser, setEmailByUser] = useState({}); // { [user_name]: email }
+  const [showEmails, setShowEmails] = useState(false);
   const [picksByUser, setPicksByUser] = useState({}); // { [user_name]: { [game_id]: pick } }
   const [bonusPicksByUser, setBonusPicksByUser] = useState({}); // { [user_name]: { [game_id]: { passing_yards, rushing_yards } } }
   const [tbsByUser, setTbsByUser] = useState({}); // { [user_name]: {1:{total},2:{total},3:{total}} }
@@ -184,6 +186,10 @@ export default function Admin() {
       const payMap = {};
       for (const [name, paid] of Object.entries(adminData.payments || {})) payMap[normalizeName(name)] = !!paid;
       setPayments(payMap);
+
+      const emailMap = {};
+      for (const [name, email] of Object.entries(adminData.emails || {})) emailMap[normalizeName(name)] = email;
+      setEmailByUser(emailMap);
 
       // 4) Load picks for the week
       const { data: pickData, error: pickErr } = await supabase
@@ -673,11 +679,21 @@ export default function Admin() {
           </div>
         </div>
 
+        <Button
+          variant="secondary"
+          size="sm"
+          onClick={() => setShowEmails((v) => !v)}
+          style={{ marginBottom: 10 }}
+        >
+          {showEmails ? "▲ Hide emails" : "▼ Show emails"}
+        </Button>
+
         <div style={{ overflowX: "auto" }}>
           <table style={{ borderCollapse: "collapse", width: "100%" }}>
             <thead>
               <tr>
                 <th style={thLeft}>Participant</th>
+                {showEmails && <th style={thLeft}>Email</th>}
                 <th style={thCenter}>Picks</th>
                 <th style={thCenter}>Passing</th>
                 <th style={thCenter}>Rushing</th>
@@ -705,6 +721,9 @@ export default function Admin() {
                 return (
                   <tr key={r.user_name}>
                     <td style={tdLeft}>{r.user_name}</td>
+                    {showEmails && (
+                      <td style={tdLeft}>{emailByUser[normalizeName(r.user_name)] || "—"}</td>
+                    )}
                     <td style={tdCenter}>
                       {r.picksCount}/{gameCount}
                     </td>
@@ -811,7 +830,7 @@ export default function Admin() {
         </div>
 
         <p style={{ color: "#666", marginTop: 14, fontSize: 13 }}>
-          (No emails are shown here — only <code>user_name</code>.)
+          (Emails are hidden by default — use "Show emails" above to reveal them.)
         </p>
       </div>
 

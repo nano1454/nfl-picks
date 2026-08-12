@@ -33,7 +33,19 @@ exports.handler = async (event) => {
     const payments = {};
     for (const r of payRows || []) payments[String(r.user_name || "").trim()] = !!r.paid;
 
-    return j(200, { ok: true, participants: participants || [], payments });
+    // Emails, keyed by full_name (matches participants.user_name) -- app_users
+    // has no public RLS policy, so this is the only way the admin dashboard
+    // can show them.
+    const { data: userRows, error: userErr } = await admin.from("app_users").select("full_name, email");
+    if (userErr) return j(500, { ok: false, error: `app_users: ${userErr.message}` });
+
+    const emails = {};
+    for (const r of userRows || []) {
+      const name = String(r.full_name || "").trim();
+      if (name) emails[name] = r.email || "";
+    }
+
+    return j(200, { ok: true, participants: participants || [], payments, emails });
   } catch (e) {
     return j(500, { ok: false, error: e?.message || String(e) });
   }
