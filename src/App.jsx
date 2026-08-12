@@ -1202,7 +1202,7 @@ function PaymentPrompt() {
         background: "rgba(0,0,0,0.02)",
       }}
     >
-      <div style={{ fontWeight: 900, fontSize: 15 }}>💳 Don't forget your buy-in</div>
+      <div style={{ fontWeight: 900, fontSize: 15 }}>💳 Don't forget your buy-in — $20.00 USD</div>
       <p style={{ margin: "4px 0 10px", fontSize: 13, color: "#555" }}>Pay however's easiest for you:</p>
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
         {PAYMENT_LINKS.map((opt) => (
