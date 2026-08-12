@@ -1,6 +1,7 @@
 import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { supabase } from "./supabaseClient";
+import Button from "./Button";
 
 /* ---------- Logos map (same keys as your games.away/home full names) ---------- */
 const teamLogoSlug = {
@@ -87,37 +88,10 @@ function LeaderboardTitle() {
 }
 
 function PillButton({ children, onClick, primary }) {
-  const [hover, setHover] = useState(false);
-  const base = primary
-    ? {
-        background: hover ? "#1a1a1a" : "#000",
-        color: "#ffd700",
-        border: "1px solid #000",
-      }
-    : {
-        background: hover ? "#fffbea" : "#fff",
-        color: "#111",
-        border: "1px solid rgba(184,134,11,0.4)",
-      };
   return (
-    <button
-      onClick={onClick}
-      onMouseEnter={() => setHover(true)}
-      onMouseLeave={() => setHover(false)}
-      style={{
-        ...base,
-        padding: "9px 16px",
-        borderRadius: 999,
-        fontWeight: 700,
-        fontSize: 13,
-        cursor: "pointer",
-        boxShadow: hover ? "0 4px 14px rgba(184,134,11,0.25)" : "0 2px 8px rgba(0,0,0,0.08)",
-        transition: "background 0.2s, box-shadow 0.2s, transform 0.1s",
-        transform: hover ? "translateY(-1px)" : "none",
-      }}
-    >
+    <Button variant={primary ? "dark" : "secondary"} size="sm" pill onClick={onClick}>
       {children}
-    </button>
+    </Button>
   );
 }
 

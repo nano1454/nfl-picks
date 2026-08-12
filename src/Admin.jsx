@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { supabase } from "./supabaseClient";
 import { getSession } from "./auth";
+import Button from "./Button";
 
 function normalizeName(s) {
   return (s || "").trim();
@@ -504,7 +505,7 @@ export default function Admin() {
         </p>
 
         <Link to="/">
-          <button style={{ padding: "10px 14px", cursor: "pointer" }}>← Back</button>
+          <Button variant="dark">← Back</Button>
         </Link>
       </div>
     );
@@ -518,11 +519,11 @@ export default function Admin() {
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 12 }}>
         <h1 style={{ margin: 0 }}>Admin — Week {weekMeta.week}</h1>
         <div style={{ display: "flex", gap: 8 }}>
-          <button onClick={loadAll} style={{ padding: "8px 12px", cursor: "pointer" }}>
+          <Button variant="secondary" size="sm" onClick={loadAll}>
             Refresh
-          </button>
+          </Button>
           <Link to="/">
-            <button style={{ padding: "8px 12px", cursor: "pointer" }}>← Back</button>
+            <Button variant="dark" size="sm">← Back</Button>
           </Link>
         </div>
       </div>
@@ -550,13 +551,13 @@ export default function Admin() {
             style={{ padding: 10, width: 140 }}
           />
 
-          <button onClick={importScheduleNow} disabled={importingSchedule} style={{ padding: "10px 14px", cursor: "pointer" }}>
+          <Button variant="primary" onClick={importScheduleNow} disabled={importingSchedule}>
             {importingSchedule ? "Importing…" : "Import games"}
-          </button>
+          </Button>
 
-          <button onClick={setCurrentWeekNow} style={{ padding: "10px 14px", cursor: "pointer" }}>
+          <Button variant="secondary" onClick={setCurrentWeekNow}>
             Set as current week
-          </button>
+          </Button>
         </div>
 
         <p style={{ margin: "8px 0 0", color: "#666", fontSize: 13 }}>
@@ -583,13 +584,9 @@ export default function Admin() {
             style={{ padding: 10 }}
           />
 
-          <button
-            onClick={saveDeadlineNow}
-            disabled={savingDeadline}
-            style={{ padding: "10px 14px", cursor: "pointer" }}
-          >
+          <Button variant="primary" onClick={saveDeadlineNow} disabled={savingDeadline}>
             {savingDeadline ? "Saving…" : "Save deadline"}
-          </button>
+          </Button>
 
           <div style={{ fontSize: 12, color: "#666" }}>
             Locks the entire pick sheet at this time. Uses your local time, saved as UTC.
@@ -620,9 +617,9 @@ export default function Admin() {
             placeholder="Buy-in"
             style={{ padding: 10, width: 160 }}
           />
-          <button onClick={saveBuyIn} style={{ padding: "10px 14px", cursor: "pointer" }}>
+          <Button variant="primary" onClick={saveBuyIn}>
             Save
-          </button>
+          </Button>
         </div>
 
         {/* Active participants list */}
@@ -801,12 +798,9 @@ export default function Admin() {
                       {r.picksCount === 0 && r.passingCount === 0 && r.rushingCount === 0 && r.tbCount === 0 ? (
                         <span style={{ color: "#bbb", fontSize: 13 }}>—</span>
                       ) : (
-                        <button
-                          onClick={() => removePicksForUser(r.user_name)}
-                          style={{ padding: "4px 10px", cursor: "pointer", color: "#c00", borderColor: "#c00", background: "transparent", borderRadius: 4 }}
-                        >
+                        <Button variant="danger" size="sm" onClick={() => removePicksForUser(r.user_name)}>
                           Remove
-                        </button>
+                        </Button>
                       )}
                     </td>
                   </tr>
@@ -827,9 +821,9 @@ export default function Admin() {
         <p style={{ margin: "0 0 10px", color: "#666", fontSize: 13 }}>
           Run after games go final to score picks and update the leaderboard. Safe to run multiple times.
         </p>
-        <button onClick={runResultsNow} disabled={runningResults} style={{ padding: "10px 14px", cursor: "pointer" }}>
+        <Button variant="primary" onClick={runResultsNow} disabled={runningResults}>
           {runningResults ? "Running…" : "Run Results Processor"}
-        </button>
+        </Button>
       </div>
     </div>
   );

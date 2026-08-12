@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { setSession } from "./auth";
 import { pageBackgroundStyle } from "./backgroundStyle";
+import Button from "./Button";
 
 const styles = {
   card: {
@@ -40,17 +41,6 @@ const styles = {
     boxSizing: "border-box",
     fontSize: 15,
     letterSpacing: 1,
-  },
-  btnPrimary: {
-    padding: "10px 16px",
-    border: "none",
-    borderRadius: 10,
-    background: "#111",
-    color: "#fff",
-    cursor: "pointer",
-    fontWeight: 700,
-    width: "100%",
-    marginTop: 4,
   },
   error: { color: "#c00", fontSize: 13, marginTop: 10 },
 };
@@ -215,9 +205,9 @@ export default function Login() {
 
           {err && <p style={styles.error}>{err}</p>}
 
-          <button type="submit" style={styles.btnPrimary} disabled={busy}>
+          <Button type="submit" variant="primary" disabled={busy} style={{ width: "100%", marginTop: 4 }}>
             {busy ? "Please wait…" : mode === "login" ? "Log In" : "Create Account"}
-          </button>
+          </Button>
         </form>
       </div>
     </div>

@@ -1,5 +1,6 @@
 import React from "react";
 import { Link } from "react-router-dom";
+import Button from "./Button";
 
 export default function Reglas() {
   return (
@@ -34,9 +35,7 @@ export default function Reglas() {
             <p style={{ margin: "4px 0 0", color: "#555", fontSize: 14 }}>Reglas, Instrucciones y Cómo Jugar</p>
           </div>
           <Link to="/">
-            <button style={{ padding: "8px 14px", borderRadius: 999, border: "1px solid #ccc", background: "#fff", cursor: "pointer", fontSize: 13, fontWeight: 700 }}>
-              ← Regresar
-            </button>
+            <Button variant="dark" size="sm" pill>← Regresar</Button>
           </Link>
         </div>
 
@@ -197,12 +196,9 @@ export default function Reglas() {
 
         {/* Botón imprimir */}
         <div style={{ textAlign: "center", marginTop: 8 }}>
-          <button
-            onClick={() => window.print()}
-            style={{ padding: "10px 20px", borderRadius: 10, border: "1px solid #ccc", background: "#fff", cursor: "pointer", fontSize: 14, fontWeight: 700 }}
-          >
+          <Button variant="secondary" onClick={() => window.print()}>
             🖨️ Imprimir / Guardar como PDF
-          </button>
+          </Button>
         </div>
       </div>
 

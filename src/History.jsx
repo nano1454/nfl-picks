@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
+import Button from "./Button";
 
 /** NFL season helper (Jan–Jul should usually be previous season) */
 function getDefaultNflSeasonYear() {
@@ -63,11 +64,11 @@ export default function History() {
         </div>
 
         <div style={{ display: "flex", gap: 8 }}>
-          <button onClick={loadHistory} style={{ padding: "8px 12px", cursor: "pointer" }}>
+          <Button variant="secondary" size="sm" onClick={loadHistory}>
             Refresh
-          </button>
+          </Button>
           <Link to="/">
-            <button style={{ padding: "8px 12px", cursor: "pointer" }}>← Back</button>
+            <Button variant="dark" size="sm">← Back</Button>
           </Link>
         </div>
       </div>
@@ -133,10 +134,10 @@ export default function History() {
                   )}
                   <div style={{ display: "flex", gap: 8, marginTop: 8, justifyContent: "flex-end" }}>
                     <Link to={`/results?season=${season}&week=${w.week}`}>
-                      <button style={{ padding: "6px 10px", fontSize: 12, cursor: "pointer" }}>Picks Table</button>
+                      <Button variant="secondary" size="sm">Picks Table</Button>
                     </Link>
                     <Link to={`/leaderboard?season=${season}&week=${w.week}`}>
-                      <button style={{ padding: "6px 10px", fontSize: 12, cursor: "pointer" }}>Leaderboard</button>
+                      <Button variant="dark" size="sm">Leaderboard</Button>
                     </Link>
                   </div>
                 </div>

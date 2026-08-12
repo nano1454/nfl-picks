@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { supabase } from "./supabaseClient";
+import Button from "./Button";
 
 /* ---------- Logos map ---------- */
 const teamLogoSlug = {
@@ -406,11 +407,11 @@ export default function Results() {
         </div>
 
         <div style={{ display: "flex", gap: 8 }}>
-          <button onClick={loadAll} style={{ padding: "8px 12px", cursor: "pointer" }}>
+          <Button variant="secondary" size="sm" onClick={loadAll}>
             Refresh
-          </button>
+          </Button>
           <Link to="/">
-            <button style={{ padding: "8px 12px", cursor: "pointer" }}>← Back</button>
+            <Button variant="dark" size="sm">← Back</Button>
           </Link>
         </div>
       </div>
@@ -435,7 +436,7 @@ export default function Results() {
             📅 Viewing a past week (Season {meta.season}, Week {meta.week}).
           </span>
           <Link to="/results">
-            <button style={{ padding: "6px 10px", cursor: "pointer" }}>View current week</button>
+            <Button variant="secondary" size="sm">View current week</Button>
           </Link>
         </div>
       )}

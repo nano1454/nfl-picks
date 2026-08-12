@@ -3,6 +3,7 @@ import { supabase } from "./supabaseClient";
 import { Link, useNavigate } from "react-router-dom";
 import { getSession, clearSession } from "./auth";
 import { pageBackgroundStyle } from "./backgroundStyle";
+import Button from "./Button";
 
 /* ---------- Styles (MUST be above App so useState can reference it) ---------- */
 const styles = {
@@ -54,47 +55,6 @@ const styles = {
     color: "#fff",
     width: "100%",
     boxSizing: "border-box",
-  },
-
-  btn: {
-    padding: "10px 16px",
-    border: "1px solid rgba(0,0,0,0.15)",
-    borderRadius: 10,
-    background: "rgba(255,255,255,0.9)",
-    color: "#000",
-    cursor: "pointer",
-    transition: "background 0.2s, color 0.2s",
-    backdropFilter: "saturate(120%) blur(2px)",
-  },
-  btnHover: { background: "rgba(255,255,255,1)", color: "#000" },
-
-  btnPrimary: {
-    padding: "10px 16px",
-    border: "none",
-    borderRadius: 10,
-    background: "#111",
-    color: "#fff",
-    cursor: "pointer",
-    transition: "background 0.2s",
-  },
-  btnPrimaryHover: { background: "#333" },
-
-  // Header-ish nav buttons (smaller + pill-ish)
-  navBtn: {
-    padding: "8px 12px",
-    border: "1px solid rgba(0,0,0,0.15)",
-    borderRadius: 999,
-    background: "rgba(255,255,255,0.92)",
-    color: "#111",
-    cursor: "pointer",
-    transition: "background 0.2s, transform 0.1s",
-    boxShadow: "0 2px 8px rgba(0,0,0,0.06)",
-    fontSize: 13,
-    fontWeight: 700,
-  },
-  navBtnHover: {
-    background: "rgba(255,255,255,1)",
-    transform: "translateY(-1px)",
   },
 
   radioActual: { position: "absolute", opacity: 0, pointerEvents: "none" },
@@ -413,14 +373,6 @@ export default function App() {
   const [week, setWeek] = useState({ week: "", games: [], tiebreakers: [], byes: [] });
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState("");
-
-  // header-ish nav button hover styles
-  const [navResultsStyle, setNavResultsStyle] = useState(styles.navBtn);
-  const [navAdminStyle, setNavAdminStyle] = useState(styles.navBtn);
-  const [navLeaderboardStyle, setNavLeaderboardStyle] = useState(styles.navBtn);
-  const [navRulesStyle, setNavRulesStyle] = useState(styles.navBtn);
-  const [navReglasStyle, setNavReglasStyle] = useState(styles.navBtn);
-  const [navHistoryStyle, setNavHistoryStyle] = useState(styles.navBtn);
 
   const navigate = useNavigate();
   const session = getSession();
@@ -819,65 +771,30 @@ export default function App() {
 
           <div style={styles.headerRight}>
             <Link to="/results">
-              <button
-                type="button"
-                style={navResultsStyle}
-                onMouseEnter={() => setNavResultsStyle({ ...styles.navBtn, ...styles.navBtnHover })}
-                onMouseLeave={() => setNavResultsStyle(styles.navBtn)}
-              >
-                View Picks Table
-              </button>
+              <Button variant="secondary" size="sm" pill>View Picks Table</Button>
             </Link>
 
             <Link to="/leaderboard">
-              <button
-                type="button"
-                style={navLeaderboardStyle}
-                onMouseEnter={() => setNavLeaderboardStyle({ ...styles.navBtn, ...styles.navBtnHover })}
-                onMouseLeave={() => setNavLeaderboardStyle(styles.navBtn)}
-              >
-                Live Leaderboard
-              </button>
+              <Button variant="secondary" size="sm" pill>Live Leaderboard</Button>
             </Link>
 
             <Link to="/rules">
-              <button
-                type="button"
-                style={navRulesStyle}
-                onMouseEnter={() => setNavRulesStyle({ ...styles.navBtn, ...styles.navBtnHover })}
-                onMouseLeave={() => setNavRulesStyle(styles.navBtn)}
-              >
-                Rules
-              </button>
+              <Button variant="secondary" size="sm" pill>Rules</Button>
             </Link>
 
             <Link to="/reglas">
-              <button
-                type="button"
-                style={navReglasStyle}
-                onMouseEnter={() => setNavReglasStyle({ ...styles.navBtn, ...styles.navBtnHover })}
-                onMouseLeave={() => setNavReglasStyle(styles.navBtn)}
-              >
-                Reglas
-              </button>
+              <Button variant="secondary" size="sm" pill>Reglas</Button>
             </Link>
 
             <Link to="/history">
-              <button
-                type="button"
-                style={navHistoryStyle}
-                onMouseEnter={() => setNavHistoryStyle({ ...styles.navBtn, ...styles.navBtnHover })}
-                onMouseLeave={() => setNavHistoryStyle(styles.navBtn)}
-              >
-                Season History
-              </button>
+              <Button variant="secondary" size="sm" pill>Season History</Button>
             </Link>
 
             <PaymentMenu />
 
-            <button type="button" style={styles.navBtn} onClick={logout} title="Log out">
+            <Button variant="secondary" size="sm" pill onClick={logout} title="Log out">
               Log out
-            </button>
+            </Button>
           </div>
         </div>
 
@@ -973,14 +890,7 @@ export default function App() {
                 Only for Admins
               </div>
               <Link to="/admin">
-                <button
-                  type="button"
-                  style={navAdminStyle}
-                  onMouseEnter={() => setNavAdminStyle({ ...styles.navBtn, ...styles.navBtnHover })}
-                  onMouseLeave={() => setNavAdminStyle(styles.navBtn)}
-                >
-                  Admin Dashboard
-                </button>
+                <Button variant="dark" size="sm" pill>Admin Dashboard</Button>
               </Link>
             </div>
           </div>
@@ -1055,9 +965,9 @@ function IntroScreen({ fullName, username, week, steps, statusOf, onStart }) {
         </div>
       </div>
       <div style={{ marginTop: 16 }}>
-        <button type="button" style={styles.btnPrimary} onClick={onStart}>
+        <Button variant="primary" onClick={onStart}>
           {allDone ? "Review My Picks" : anyProgress ? "Resume Picks →" : "Start Picks →"}
-        </button>
+        </Button>
       </div>
     </Card>
   );
@@ -1095,17 +1005,6 @@ function DoneScreen({
     background: "rgba(255,255,255,0.7)",
   };
   const recapLogo = { width: 18, height: 18, objectFit: "contain", verticalAlign: "middle", marginRight: 6 };
-  const editBtn = (locked) => ({
-    padding: "6px 12px",
-    fontSize: 12,
-    fontWeight: 700,
-    borderRadius: 8,
-    border: "1px solid rgba(0,0,0,0.15)",
-    background: locked ? "rgba(0,0,0,0.04)" : "#fff",
-    color: locked ? "#999" : "#111",
-    cursor: locked ? "not-allowed" : "pointer",
-    whiteSpace: "nowrap",
-  });
 
   return (
     <Card>
@@ -1123,9 +1022,9 @@ function DoneScreen({
       </ul>
 
       {(openGames > 0 || openTbs > 0) && (
-        <button type="button" style={styles.btn} onClick={onReview}>
+        <Button variant="primary" onClick={onReview}>
           Go finish what's open
-        </button>
+        </Button>
       )}
 
       <div style={{ marginTop: 20 }}>
@@ -1192,15 +1091,15 @@ function DoneScreen({
                     </div>
                   )}
                 </div>
-                <button
-                  type="button"
-                  style={editBtn(locked)}
+                <Button
+                  variant="primary"
+                  size="sm"
                   disabled={locked}
                   title={locked ? "This game has started — locked" : "Change this pick"}
                   onClick={() => onEdit(idx)}
                 >
                   {locked ? "Locked" : "Edit"}
-                </button>
+                </Button>
               </div>
             );
           })}
@@ -1224,15 +1123,15 @@ function DoneScreen({
                     {hasTotal ? `${total} total points` : <span style={{ color: "#999", fontWeight: 400 }}>No pick</span>}
                   </div>
                 </div>
-                <button
-                  type="button"
-                  style={editBtn(locked)}
+                <Button
+                  variant="primary"
+                  size="sm"
                   disabled={locked}
                   title={locked ? "This game has started — locked" : "Change this tiebreaker"}
                   onClick={() => onEdit(idx)}
                 >
                   {locked ? "Locked" : "Edit"}
-                </button>
+                </Button>
               </div>
             );
           })}
@@ -1983,9 +1882,9 @@ function PaymentMenu() {
 
   return (
     <div ref={wrapRef} style={{ position: "relative" }}>
-      <button type="button" style={styles.navBtn} onClick={() => setOpen((o) => !o)}>
+      <Button variant="secondary" size="sm" pill onClick={() => setOpen((o) => !o)}>
         Payment Options
-      </button>
+      </Button>
 
       {open && (
         <div
