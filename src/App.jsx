@@ -1082,6 +1082,8 @@ function DoneScreen({
   const openGames = count(gameSteps, "open");
   const openTbs = count(tbSteps, "open");
 
+  const [showRecap, setShowRecap] = useState(false);
+
   const recapRow = {
     display: "flex",
     justifyContent: "space-between",
@@ -1127,6 +1129,33 @@ function DoneScreen({
       )}
 
       <div style={{ marginTop: 20 }}>
+        <button
+          type="button"
+          onClick={() => setShowRecap((v) => !v)}
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            width: "100%",
+            padding: "10px 12px",
+            margin: 0,
+            fontSize: 15,
+            fontWeight: 700,
+            color: "#111",
+            background: "rgba(0,0,0,0.03)",
+            border: "1px solid rgba(0,0,0,0.1)",
+            borderRadius: 10,
+            cursor: "pointer",
+            textAlign: "left",
+          }}
+        >
+          <span>Your Picks &amp; Tiebreakers</span>
+          <span style={{ fontSize: 12, color: "#666" }}>{showRecap ? "▲ Hide" : "▼ View"}</span>
+        </button>
+      </div>
+
+      {showRecap && (
+      <div style={{ marginTop: 12 }}>
         <h3 style={{ margin: "8px 0 12px", fontSize: 18 }}>Your Picks</h3>
         <div style={{ display: "grid", gap: 8 }}>
           {gameSteps.map((s) => {
@@ -1209,6 +1238,7 @@ function DoneScreen({
           })}
         </div>
       </div>
+      )}
 
       {hasPaid === true && (
         <p style={{ marginTop: 16, color: "#1a7a28", fontWeight: 700, fontSize: 14 }}>
