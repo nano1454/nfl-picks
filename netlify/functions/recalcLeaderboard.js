@@ -1,6 +1,115 @@
 import { createClient } from "@supabase/supabase-js";
 import crypto from "crypto";
 
+const BONUS_STATS_CSV_URL = (season) =>
+  `https://github.com/nflverse/nflverse-data/releases/download/stats_team/stats_team_week_${season}.csv`;
+
+function toNum(v) {
+  if (v === undefined || v === null || v === "") return null;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
+}
+
+// game_id format is "{season}_{week}_{awayAbbr}_{homeAbbr}" (nflverse convention,
+// same string this app already uses as games.id -- see importSchedule.cjs).
+function awayHomeAbbrFromGameId(gameId) {
+  const parts = String(gameId).split("_");
+  if (parts.length < 4) return null;
+  return { awayAbbr: parts[parts.length - 2], homeAbbr: parts[parts.length - 1] };
+}
+
+// Returns { [gameId]: { awayPassing, homePassing, awayRushing, homeRushing,
+// passingWinner, rushingWinner } } for whichever of `gameIds` already have
+// both teams' rows published in nflverse's weekly team-stats file. Entries
+// are simply absent for anything not yet available; caller retries next run.
+// Kept in sync with updateResults.js.
+async function fetchBonusStatsByGame(season, gameIds) {
+  const wanted = new Set(gameIds);
+  const res = await fetch(BONUS_STATS_CSV_URL(season), { headers: { "User-Agent": "netlify-function" } });
+  if (!res.ok) return {};
+  const text = await res.text();
+  const rows = parseCsv(text);
+
+  const byGame = {};
+  for (const r of rows) {
+    const gid = String(r.game_id || "").trim();
+    if (!wanted.has(gid)) continue;
+    const team = String(r.team || "").trim();
+    (byGame[gid] ||= {})[team] = r;
+  }
+
+  const out = {};
+  for (const gid of gameIds) {
+    const pair = awayHomeAbbrFromGameId(gid);
+    const rowsForGame = byGame[gid];
+    if (!pair || !rowsForGame) continue;
+    const awayRow = rowsForGame[pair.awayAbbr];
+    const homeRow = rowsForGame[pair.homeAbbr];
+    if (!awayRow || !homeRow) continue;
+
+    const awayPassing = toNum(awayRow.passing_yards);
+    const homePassing = toNum(homeRow.passing_yards);
+    const awayRushing = toNum(awayRow.rushing_yards);
+    const homeRushing = toNum(homeRow.rushing_yards);
+    if ([awayPassing, homePassing, awayRushing, homeRushing].some((v) => v === null)) continue;
+
+    out[gid] = {
+      awayPassing,
+      homePassing,
+      awayRushing,
+      homeRushing,
+      passingWinner: awayPassing === homePassing ? "PUSH" : awayPassing > homePassing ? "AWAY" : "HOME",
+      rushingWinner: awayRushing === homeRushing ? "PUSH" : awayRushing > homeRushing ? "AWAY" : "HOME",
+    };
+  }
+  return out;
+}
+
+// Simple CSV parser (same style already used by updateResults.js /
+// importSchedule.cjs -- this file had no CSV parser of its own before).
+function parseCsv(text) {
+  const lines = text.split(/\r?\n/).filter(Boolean);
+  if (!lines.length) return [];
+  const headers = splitCsvLine(lines[0]);
+
+  const out = [];
+  for (let i = 1; i < lines.length; i++) {
+    const cols = splitCsvLine(lines[i]);
+    if (cols.length !== headers.length) continue;
+    const row = {};
+    for (let j = 0; j < headers.length; j++) row[headers[j]] = cols[j];
+    out.push(row);
+  }
+  return out;
+}
+
+function splitCsvLine(line) {
+  const result = [];
+  let cur = "";
+  let inQuotes = false;
+
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (ch === '"' && line[i + 1] === '"') {
+      cur += '"';
+      i++;
+      continue;
+    }
+    if (ch === '"') {
+      inQuotes = !inQuotes;
+      continue;
+    }
+    if (ch === "," && !inQuotes) {
+      result.push(cur);
+      cur = "";
+      continue;
+    }
+    cur += ch;
+  }
+  result.push(cur);
+  return result;
+}
+
 /**
  * /.netlify/functions/recalcLeaderboard?season=2025&week=10&token=<adminToken>
  *
@@ -75,7 +184,7 @@ export default async (req) => {
     // 1) Get FINAL results for this week
     const { data: finals, error: finalsErr } = await admin
       .from("game_results")
-      .select("game_id, winner, status, home_score, away_score")
+      .select("game_id, winner, status, home_score, away_score, passing_winner, rushing_winner")
       .eq("season", season)
       .eq("week", week)
       .eq("status", "FINAL");
@@ -88,11 +197,10 @@ export default async (req) => {
 
     const finalGameIds = finals.map((f) => String(f.game_id)).filter(Boolean);
 
-    // 2) Load games (for legacy pick support if pick stored as team name, and
-    //    spread_line for scoring beat-the-spread bonus picks)
+    // 2) Load games (for legacy pick support if pick stored as team name)
     const { data: games, error: gamesErr } = await admin
       .from("games")
-      .select("id, away, home, spread_line")
+      .select("id, away, home")
       .eq("season", season)
       .eq("week", week)
       .in("id", finalGameIds);
@@ -122,29 +230,6 @@ export default async (req) => {
       const w = String(f.winner || "").trim().toUpperCase();
       if (!gid || !w) continue;
       winnerSideByGame[gid] = w; // AWAY/HOME/TIE
-    }
-
-    // 4b) Spread cover map -- who covered the frozen spread_line for each
-    // FINAL game. spread_line is the home team's number (negative = home
-    // favored); home covers if their margin beats -spread_line. An exact
-    // push (only possible on a non-.5 line) leaves the game unset, so
-    // nobody's bonus pick can be scored for it either way.
-    const coverSideByGame = {};
-    for (const f of finals) {
-      const gid = String(f.game_id || "").trim();
-      const g = gameById[gid];
-      if (!gid || !g || g.spread_line === null || g.spread_line === undefined) continue;
-
-      const homeScore = Number(f.home_score);
-      const awayScore = Number(f.away_score);
-      if (!Number.isFinite(homeScore) || !Number.isFinite(awayScore)) continue;
-
-      const margin = homeScore - awayScore;
-      const threshold = -Number(g.spread_line);
-
-      if (margin > threshold) coverSideByGame[gid] = "HOME";
-      else if (margin < threshold) coverSideByGame[gid] = "AWAY";
-      // else: push -- leave unset
     }
 
     // 5) Score picks (only FINAL games)
@@ -183,30 +268,75 @@ export default async (req) => {
       }
     }
 
-    // 5b) Load and score spread (bonus) picks: +0.5 for each correct cover
-    // pick on a FINAL game that didn't push.
-    const { data: spreadPicksRows, error: spreadPicksErr } = await admin
-      .from("spread_picks")
-      .select("user_name, game_id, pick")
-      .eq("week", week);
-    if (spreadPicksErr) throw spreadPicksErr;
+    // 5b) Fetch + merge passing/rushing bonus stats for any FINAL game that
+    // doesn't have them yet, then score bonus_picks (+0.5 per category per
+    // correct pick, push on an exact tie). Kept in sync with updateResults.js.
+    const needBonusGameIds = finals
+      .filter((f) => f.passing_winner == null || f.rushing_winner == null)
+      .map((f) => String(f.game_id || "").trim())
+      .filter(Boolean);
 
-    let spreadCorrect = 0;
-    for (const sp of spreadPicksRows || []) {
-      const name = String(sp.user_name || "").trim();
-      const gid = String(sp.game_id || "").trim();
+    const bonusStatsByGame = needBonusGameIds.length
+      ? await fetchBonusStatsByGame(season, needBonusGameIds)
+      : {};
+
+    const bonusUpsertRows = Object.entries(bonusStatsByGame).map(([gid, s]) => ({
+      season,
+      week,
+      game_id: gid,
+      away_passing_yards: s.awayPassing,
+      home_passing_yards: s.homePassing,
+      away_rushing_yards: s.awayRushing,
+      home_rushing_yards: s.homeRushing,
+      passing_winner: s.passingWinner,
+      rushing_winner: s.rushingWinner,
+      updated_at: new Date().toISOString(),
+    }));
+    if (bonusUpsertRows.length > 0) {
+      const { error: bonusUpErr } = await admin
+        .from("game_results")
+        .upsert(bonusUpsertRows, { onConflict: "season,week,game_id" });
+      if (bonusUpErr) throw bonusUpErr;
+    }
+
+    const passingWinnerByGame = {};
+    const rushingWinnerByGame = {};
+    for (const f of finals) {
+      const gid = String(f.game_id || "").trim();
+      const pw = String(f.passing_winner || "").toUpperCase();
+      const rw = String(f.rushing_winner || "").toUpperCase();
+      if (pw === "AWAY" || pw === "HOME") passingWinnerByGame[gid] = pw;
+      if (rw === "AWAY" || rw === "HOME") rushingWinnerByGame[gid] = rw;
+    }
+    for (const [gid, s] of Object.entries(bonusStatsByGame)) {
+      if (s.passingWinner === "AWAY" || s.passingWinner === "HOME") passingWinnerByGame[gid] = s.passingWinner;
+      if (s.rushingWinner === "AWAY" || s.rushingWinner === "HOME") rushingWinnerByGame[gid] = s.rushingWinner;
+    }
+
+    const { data: bonusPicksRows, error: bonusPicksErr } = await admin
+      .from("bonus_picks")
+      .select("user_name, game_id, category, pick")
+      .eq("week", week);
+    if (bonusPicksErr) throw bonusPicksErr;
+
+    let bonusCorrect = 0;
+    for (const bp of bonusPicksRows || []) {
+      const name = String(bp.user_name || "").trim();
+      const gid = String(bp.game_id || "").trim();
       if (!name || !gid) continue;
 
-      const coverSide = coverSideByGame[gid];
-      if (!coverSide) continue; // not FINAL yet, no spread on file, or a push
-
-      const pickUpper = String(sp.pick || "").trim().toUpperCase();
+      const pickUpper = String(bp.pick || "").trim().toUpperCase();
       if (pickUpper !== "AWAY" && pickUpper !== "HOME") continue;
 
+      const winnerSide =
+        bp.category === "passing_yards" ? passingWinnerByGame[gid] :
+        bp.category === "rushing_yards" ? rushingWinnerByGame[gid] : null;
+      if (!winnerSide) continue; // not FINAL/published yet, or a push
+
       if (!totals[name]) totals[name] = { points: 0, correct: 0 };
-      if (pickUpper === coverSide) {
+      if (pickUpper === winnerSide) {
         totals[name].points += 0.5;
-        spreadCorrect += 1;
+        bonusCorrect += 1;
       }
     }
 
@@ -242,8 +372,8 @@ export default async (req) => {
       week,
       finals: finalGameIds.length,
       picks_seen: picks.length,
-      spread_picks_seen: (spreadPicksRows || []).length,
-      spread_correct: spreadCorrect,
+      bonus_picks_seen: (bonusPicksRows || []).length,
+      bonus_correct: bonusCorrect,
       leaderboard_rows: lbRows.length,
       tiebreak, // <-- UI can display this
     });

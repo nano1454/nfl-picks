@@ -407,6 +407,8 @@ function isValidTBValue(v) {
   return typeof v === "string" && /^[0-9]+$/.test(v);
 }
 
+const BONUS_CATEGORIES = ["passing_yards", "rushing_yards"];
+
 export default function App() {
   const [week, setWeek] = useState({ week: "", games: [], tiebreakers: [], byes: [] });
   const [loading, setLoading] = useState(true);
@@ -424,12 +426,12 @@ export default function App() {
   const session = getSession();
 
   const [picks, setPicks] = useState({}); // { [gameId]: "AWAY" | "HOME" }
-  const [spreadPicks, setSpreadPicks] = useState({}); // { [gameId]: "AWAY" | "HOME" }
+  const [bonusPicks, setBonusPicks] = useState({ passing_yards: {}, rushing_yards: {} }); // { [category]: { [gameId]: "AWAY" | "HOME" } }
   const [tbs, setTbs] = useState([]); // [{ gameId, total }]
 
   // what's actually been saved to Supabase so far (used for progress + "unsaved change" detection)
   const [savedPicks, setSavedPicks] = useState({}); // { [gameId]: "AWAY" | "HOME" }
-  const [savedSpreadPicks, setSavedSpreadPicks] = useState({}); // { [gameId]: "AWAY" | "HOME" }
+  const [savedBonusPicks, setSavedBonusPicks] = useState({ passing_yards: {}, rushing_yards: {} });
   const [savedTbTotals, setSavedTbTotals] = useState({}); // { [tb_no]: "41" }
 
   // which step in the wizard is currently showing
@@ -501,9 +503,9 @@ export default function App() {
       const name = session.fullName;
       const weekNum = Number(week.week);
 
-      const [{ data: pRows }, { data: sRows }, { data: tRows }] = await Promise.all([
+      const [{ data: pRows }, { data: bRows }, { data: tRows }] = await Promise.all([
         supabase.from("picks").select("game_id, pick").eq("week", weekNum).eq("user_name", name),
-        supabase.from("spread_picks").select("game_id, pick").eq("week", weekNum).eq("user_name", name),
+        supabase.from("bonus_picks").select("game_id, category, pick").eq("week", weekNum).eq("user_name", name),
         supabase.from("tiebreakers").select("tb_no, total").eq("week", weekNum).eq("user_name", name),
       ]);
 
@@ -513,11 +515,14 @@ export default function App() {
         setPicks((prev) => ({ ...prev, ...map }));
         setSavedPicks(map);
       }
-      if (sRows?.length) {
-        const map = {};
-        for (const r of sRows) map[r.game_id] = r.pick;
-        setSpreadPicks((prev) => ({ ...prev, ...map }));
-        setSavedSpreadPicks(map);
+      if (bRows?.length) {
+        const map = { passing_yards: {}, rushing_yards: {} };
+        for (const r of bRows) if (map[r.category]) map[r.category][r.game_id] = r.pick;
+        setBonusPicks((prev) => ({
+          passing_yards: { ...prev.passing_yards, ...map.passing_yards },
+          rushing_yards: { ...prev.rushing_yards, ...map.rushing_yards },
+        }));
+        setSavedBonusPicks(map);
       }
       if (tRows?.length) {
         const map = {};
@@ -595,8 +600,8 @@ export default function App() {
     setPicks((p) => ({ ...p, [gameId]: value }));
   }
 
-  function setSpreadPick(gameId, value) {
-    setSpreadPicks((p) => ({ ...p, [gameId]: value }));
+  function setBonusPick(category, gameId, value) {
+    setBonusPicks((p) => ({ ...p, [category]: { ...p[category], [gameId]: value } }));
   }
 
   function setTBTotal(i, value) {
@@ -712,22 +717,27 @@ export default function App() {
     }
     setSavedPicks((m) => ({ ...m, [gameId]: value }));
 
-    const spreadValue = spreadPicks[gameId];
-    const game = week.games.find((g) => g.id === gameId);
-    if (spreadValue && game?.awaySpread && game?.homeSpread) {
-      const { error: sErr } = await supabase
-        .from("spread_picks")
-        .upsert([{ week: week.week, game_id: gameId, pick: spreadValue, user_name: session.fullName }], {
-          onConflict: "week,game_id,user_name",
-        });
+    const bonusRows = BONUS_CATEGORIES
+      .map((category) => ({ category, value: bonusPicks[category][gameId] }))
+      .filter((x) => x.value)
+      .map((x) => ({ week: week.week, game_id: gameId, category: x.category, pick: x.value, user_name: session.fullName }));
 
-      if (sErr) {
-        console.error("Supabase spread_picks error:", sErr);
-        setSaveErr("Your winner pick saved, but there was a problem saving your spread pick.");
+    if (bonusRows.length > 0) {
+      const { error: bErr } = await supabase
+        .from("bonus_picks")
+        .upsert(bonusRows, { onConflict: "week,game_id,user_name,category" });
+
+      if (bErr) {
+        console.error("Supabase bonus_picks error:", bErr);
+        setSaveErr("Your winner pick saved, but there was a problem saving your bonus picks.");
         setSavingKey(null);
         return;
       }
-      setSavedSpreadPicks((m) => ({ ...m, [gameId]: spreadValue }));
+      setSavedBonusPicks((m) => {
+        const next = { ...m };
+        for (const { category } of bonusRows) next[category] = { ...next[category], [gameId]: bonusPicks[category][gameId] };
+        return next;
+      });
     }
 
     setSavingKey(null);
@@ -775,7 +785,10 @@ export default function App() {
 
   function skipGame(gameId) {
     setPicks((p) => ({ ...p, [gameId]: savedPicks[gameId] }));
-    setSpreadPicks((p) => ({ ...p, [gameId]: savedSpreadPicks[gameId] }));
+    setBonusPicks((p) => ({
+      passing_yards: { ...p.passing_yards, [gameId]: savedBonusPicks.passing_yards[gameId] },
+      rushing_yards: { ...p.rushing_yards, [gameId]: savedBonusPicks.rushing_yards[gameId] },
+    }));
     goTo(activeStep + 1);
   }
 
@@ -893,7 +906,7 @@ export default function App() {
               byes={week.byes}
               hasPaid={hasPaid}
               savedPicks={savedPicks}
-              savedSpreadPicks={savedSpreadPicks}
+              savedBonusPicks={savedBonusPicks}
               savedTbTotals={savedTbTotals}
               isGameLocked={isGameLocked}
               onReview={() => goTo(firstOpenIndex())}
@@ -912,11 +925,11 @@ export default function App() {
                 index={step.index}
                 totalGames={week.games.length}
                 pick={picks[step.game.id]}
-                spreadPick={spreadPicks[step.game.id]}
+                bonusPicks={bonusPicks}
                 savedPick={savedPicks[step.game.id]}
-                savedSpreadPick={savedSpreadPicks[step.game.id]}
+                savedBonusPicks={savedBonusPicks}
                 onPick={setPick}
-                onSpreadPick={setSpreadPick}
+                onBonusPick={setBonusPick}
                 gameStats={stats[step.game.id]}
                 kickoffIso={kickoffById[step.game.id] || ""}
                 locked={isGameLocked(step.game.id)}
@@ -1057,7 +1070,7 @@ function DoneScreen({
   byes,
   hasPaid,
   savedPicks,
-  savedSpreadPicks,
+  savedBonusPicks,
   savedTbTotals,
   isGameLocked,
   onReview,
@@ -1119,9 +1132,11 @@ function DoneScreen({
           {gameSteps.map((s) => {
             const g = s.game;
             const pick = savedPicks?.[g.id];
-            const spread = savedSpreadPicks?.[g.id];
             const pickedTeam = pick === "AWAY" ? g.away : pick === "HOME" ? g.home : null;
-            const spreadTeam = spread === "AWAY" ? g.away : spread === "HOME" ? g.home : null;
+            const passingPick = savedBonusPicks?.passing_yards?.[g.id];
+            const rushingPick = savedBonusPicks?.rushing_yards?.[g.id];
+            const passingTeam = passingPick === "AWAY" ? g.away : passingPick === "HOME" ? g.home : null;
+            const rushingTeam = rushingPick === "AWAY" ? g.away : rushingPick === "HOME" ? g.home : null;
             const locked = isGameLocked ? isGameLocked(g.id) : false;
             const idx = steps.indexOf(s);
             return (
@@ -1135,14 +1150,18 @@ function DoneScreen({
                       <>
                         {logoSrc(pickedTeam) && <img src={logoSrc(pickedTeam)} alt={pickedTeam} style={recapLogo} />}
                         {shortTeamName(pickedTeam)}
-                        {spreadTeam && (
-                          <span style={{ fontWeight: 400, color: "#666" }}> + {shortTeamName(spreadTeam)} spread</span>
-                        )}
                       </>
                     ) : (
                       <span style={{ color: "#999", fontWeight: 400 }}>No pick</span>
                     )}
                   </div>
+                  {(passingTeam || rushingTeam) && (
+                    <div style={{ fontSize: 11, fontWeight: 400, color: "#888", marginTop: 2 }}>
+                      {passingTeam && <span>Passing: {shortTeamName(passingTeam)}</span>}
+                      {passingTeam && rushingTeam && <span> · </span>}
+                      {rushingTeam && <span>Rushing: {shortTeamName(rushingTeam)}</span>}
+                    </div>
+                  )}
                 </div>
                 <button
                   type="button"
@@ -1362,11 +1381,11 @@ function GamePickScreen({
   index,
   totalGames,
   pick,
-  spreadPick,
+  bonusPicks,
   savedPick,
-  savedSpreadPick,
+  savedBonusPicks,
   onPick,
-  onSpreadPick,
+  onBonusPick,
   gameStats,
   kickoffIso,
   locked,
@@ -1393,8 +1412,12 @@ function GamePickScreen({
     lockNote = `Locks 1 hr before kickoff: ${lockTime.toLocaleString()}${countdown ? ` (${countdown})` : ""}`;
   }
 
-  const hasSpread = !!(game.awaySpread && game.homeSpread);
-  const isDirty = (pick && pick !== savedPick) || (spreadPick && spreadPick !== savedSpreadPick);
+  const passingPick = bonusPicks?.passing_yards?.[game.id];
+  const rushingPick = bonusPicks?.rushing_yards?.[game.id];
+  const isDirty =
+    (pick && pick !== savedPick) ||
+    (passingPick && passingPick !== savedBonusPicks?.passing_yards?.[game.id]) ||
+    (rushingPick && rushingPick !== savedBonusPicks?.rushing_yards?.[game.id]);
   const canSave = !locked && !!pick;
 
   return (
@@ -1464,45 +1487,22 @@ function GamePickScreen({
         }, [])}
       </div>
 
-      {hasSpread && (
-        <>
-          <div style={styles.sectionDividerWrap}>
-            <div style={styles.sectionDividerLine} />
-            <span style={styles.sectionDividerLabel}>Bonus (+0.5 pt) — vs. the Spread</span>
-            <div style={styles.sectionDividerLine} />
-          </div>
-          <div style={styles.spreadPillGroup}>
-            {[
-              { v: "AWAY", label: game.away, spread: game.awaySpread },
-              { v: "HOME", label: game.home, spread: game.homeSpread },
-            ].map((opt) => {
-              const isSelected = spreadPick === opt.v;
-              return (
-                <label
-                  key={opt.v}
-                  style={{
-                    ...styles.spreadPill,
-                    ...(isSelected ? styles.spreadPillSelected : {}),
-                    ...(locked ? styles.spreadPillDisabled : {}),
-                  }}
-                  title={locked ? "Locked" : `${opt.label} ${opt.spread}`}
-                >
-                  <input
-                    type="radio"
-                    name={`spread_${game.id}`}
-                    checked={isSelected}
-                    disabled={locked}
-                    onChange={() => !locked && onSpreadPick(game.id, opt.v)}
-                    style={styles.radioActual}
-                    aria-label={`${opt.label} ${opt.spread}`}
-                  />
-                  {shortTeamName(opt.label)} {opt.spread}
-                </label>
-              );
-            })}
-          </div>
-        </>
-      )}
+      <BonusPickRow
+        category="passing_yards"
+        label="Bonus (+0.5 pt) — More Passing Yards"
+        game={game}
+        value={passingPick}
+        locked={locked}
+        onPick={onBonusPick}
+      />
+      <BonusPickRow
+        category="rushing_yards"
+        label="Bonus (+0.5 pt) — More Rushing Yards"
+        game={game}
+        value={rushingPick}
+        locked={locked}
+        onPick={onBonusPick}
+      />
 
       <div style={styles.insetPanel}>
         <PickSummary
@@ -1551,6 +1551,49 @@ function GamePickScreen({
         </div>
       </div>
     </div>
+  );
+}
+
+/* ---------- One bonus-yardage pick row (rendered twice: passing, rushing) ---------- */
+function BonusPickRow({ category, label, game, value, locked, onPick }) {
+  return (
+    <>
+      <div style={styles.sectionDividerWrap}>
+        <div style={styles.sectionDividerLine} />
+        <span style={styles.sectionDividerLabel}>{label}</span>
+        <div style={styles.sectionDividerLine} />
+      </div>
+      <div style={styles.spreadPillGroup}>
+        {[
+          { v: "AWAY", label: game.away },
+          { v: "HOME", label: game.home },
+        ].map((opt) => {
+          const isSelected = value === opt.v;
+          return (
+            <label
+              key={opt.v}
+              style={{
+                ...styles.spreadPill,
+                ...(isSelected ? styles.spreadPillSelected : {}),
+                ...(locked ? styles.spreadPillDisabled : {}),
+              }}
+              title={locked ? "Locked" : opt.label}
+            >
+              <input
+                type="radio"
+                name={`${category}_${game.id}`}
+                checked={isSelected}
+                disabled={locked}
+                onChange={() => !locked && onPick(category, game.id, opt.v)}
+                style={styles.radioActual}
+                aria-label={opt.label}
+              />
+              {shortTeamName(opt.label)}
+            </label>
+          );
+        })}
+      </div>
+    </>
   );
 }
 

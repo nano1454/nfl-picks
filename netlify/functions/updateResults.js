@@ -1,6 +1,69 @@
 import { createClient } from "@supabase/supabase-js";
 
 const CSV_URL = "https://raw.githubusercontent.com/nflverse/nfldata/master/data/games.csv";
+const BONUS_STATS_CSV_URL = (season) =>
+  `https://github.com/nflverse/nflverse-data/releases/download/stats_team/stats_team_week_${season}.csv`;
+
+function toNum(v) {
+  if (v === undefined || v === null || v === "") return null;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
+}
+
+// game_id format is "{season}_{week}_{awayAbbr}_{homeAbbr}" (nflverse convention,
+// same string this app already uses as games.id -- see importSchedule.cjs).
+function awayHomeAbbrFromGameId(gameId) {
+  const parts = String(gameId).split("_");
+  if (parts.length < 4) return null;
+  return { awayAbbr: parts[parts.length - 2], homeAbbr: parts[parts.length - 1] };
+}
+
+// Returns { [gameId]: { awayPassing, homePassing, awayRushing, homeRushing,
+// passingWinner, rushingWinner } } for whichever of `gameIds` already have
+// both teams' rows published in nflverse's weekly team-stats file. This file
+// is derived from play-by-play and typically isn't published until a few
+// hours after a game goes FINAL in the score feed -- entries are simply
+// absent for anything not yet available, and the caller retries next run.
+async function fetchBonusStatsByGame(season, gameIds) {
+  const wanted = new Set(gameIds);
+  const res = await fetch(BONUS_STATS_CSV_URL(season), { headers: { "User-Agent": "netlify-function" } });
+  if (!res.ok) return {};
+  const rows = parseCsv(await res.text());
+
+  const byGame = {};
+  for (const r of rows) {
+    const gid = String(r.game_id || "").trim();
+    if (!wanted.has(gid)) continue;
+    const team = String(r.team || "").trim();
+    (byGame[gid] ||= {})[team] = r;
+  }
+
+  const out = {};
+  for (const gid of gameIds) {
+    const pair = awayHomeAbbrFromGameId(gid);
+    const rowsForGame = byGame[gid];
+    if (!pair || !rowsForGame) continue;
+    const awayRow = rowsForGame[pair.awayAbbr];
+    const homeRow = rowsForGame[pair.homeAbbr];
+    if (!awayRow || !homeRow) continue; // not published yet, or abbr mismatch -- retry next run
+
+    const awayPassing = toNum(awayRow.passing_yards);
+    const homePassing = toNum(homeRow.passing_yards);
+    const awayRushing = toNum(awayRow.rushing_yards);
+    const homeRushing = toNum(homeRow.rushing_yards);
+    if ([awayPassing, homePassing, awayRushing, homeRushing].some((v) => v === null)) continue;
+
+    out[gid] = {
+      awayPassing,
+      homePassing,
+      awayRushing,
+      homeRushing,
+      passingWinner: awayPassing === homePassing ? "PUSH" : awayPassing > homePassing ? "AWAY" : "HOME",
+      rushingWinner: awayRushing === homeRushing ? "PUSH" : awayRushing > homeRushing ? "AWAY" : "HOME",
+    };
+  }
+  return out;
+}
 
 // No auth check here on purpose: this function is invoked automatically every
 // 2 minutes by the schedule in netlify.toml, and Netlify's scheduler has no
@@ -45,7 +108,7 @@ export default async (req) => {
     // 2) Pull FINALs from *your* game_results first (simulation writes here)
     const { data: finals, error: finalsErr } = await admin
       .from("game_results")
-      .select("game_id, status, home_score, away_score")
+      .select("game_id, status, home_score, away_score, passing_winner, rushing_winner")
       .eq("season", season)
       .eq("week", week)
       .eq("status", "FINAL");
@@ -114,7 +177,7 @@ export default async (req) => {
     // picks are storing actual team names (e.g. "Carolina Panthers"), not "HOME/AWAY"
     const { data: games, error: gamesErr } = await admin
       .from("games")
-      .select("id, away, home, spread_line")
+      .select("id, away, home")
       .eq("season", season)
       .eq("week", week)
       .in("id", finalRows.map((x) => x.game_id));
@@ -126,7 +189,6 @@ export default async (req) => {
 
     const winnerByGame = {}; // team NAME (legacy picks compare against this)
     const winnerSideByGame = {}; // AWAY/HOME/TIE (current picks compare against this)
-    const coverSideByGame = {};
     const finalGameIds = [];
 
     for (const f of finalRows) {
@@ -148,15 +210,6 @@ export default async (req) => {
       winnerByGame[gid] = winnerName;
       winnerSideByGame[gid] = winnerSide;
       finalGameIds.push(gid);
-
-      // Beat-the-spread cover side (see recalcLeaderboard.js for the same logic)
-      if (g.spread_line !== null && g.spread_line !== undefined) {
-        const margin = homeScore - awayScore;
-        const threshold = -Number(g.spread_line);
-        if (margin > threshold) coverSideByGame[gid] = "HOME";
-        else if (margin < threshold) coverSideByGame[gid] = "AWAY";
-        // else: push -- leave unset
-      }
     }
 
     if (finalGameIds.length === 0) {
@@ -204,28 +257,71 @@ export default async (req) => {
       }
     }
 
-    // 5b) Score spread (bonus) picks: +0.5 for each correct cover pick on a
-    // FINAL game that didn't push. Kept in sync with recalcLeaderboard.js.
-    const { data: spreadPicksRows, error: spreadPicksErr } = await admin
-      .from("spread_picks")
-      .select("user_name, game_id, pick")
+    // 5b) Fetch + merge passing/rushing bonus stats for any FINAL game that
+    // doesn't have them yet, then score bonus_picks (+0.5 per category per
+    // correct pick, push on an exact tie). Kept in sync with recalcLeaderboard.js.
+    const needBonusGameIds = finalRows
+      .filter((f) => f.passing_winner == null || f.rushing_winner == null)
+      .map((f) => f.game_id);
+
+    const bonusStatsByGame = needBonusGameIds.length
+      ? await fetchBonusStatsByGame(season, needBonusGameIds)
+      : {};
+
+    const bonusUpsertRows = Object.entries(bonusStatsByGame).map(([gid, s]) => ({
+      season,
+      week,
+      game_id: gid,
+      away_passing_yards: s.awayPassing,
+      home_passing_yards: s.homePassing,
+      away_rushing_yards: s.awayRushing,
+      home_rushing_yards: s.homeRushing,
+      passing_winner: s.passingWinner,
+      rushing_winner: s.rushingWinner,
+      updated_at: new Date().toISOString(),
+    }));
+    if (bonusUpsertRows.length > 0) {
+      const { error: bonusUpErr } = await admin
+        .from("game_results")
+        .upsert(bonusUpsertRows, { onConflict: "season,week,game_id" });
+      if (bonusUpErr) throw bonusUpErr;
+    }
+
+    const passingWinnerByGame = {};
+    const rushingWinnerByGame = {};
+    for (const f of finalRows) {
+      const pw = String(f.passing_winner || "").toUpperCase();
+      const rw = String(f.rushing_winner || "").toUpperCase();
+      if (pw === "AWAY" || pw === "HOME") passingWinnerByGame[f.game_id] = pw;
+      if (rw === "AWAY" || rw === "HOME") rushingWinnerByGame[f.game_id] = rw;
+    }
+    for (const [gid, s] of Object.entries(bonusStatsByGame)) {
+      if (s.passingWinner === "AWAY" || s.passingWinner === "HOME") passingWinnerByGame[gid] = s.passingWinner;
+      if (s.rushingWinner === "AWAY" || s.rushingWinner === "HOME") rushingWinnerByGame[gid] = s.rushingWinner;
+    }
+
+    const { data: bonusPicksRows, error: bonusPicksErr } = await admin
+      .from("bonus_picks")
+      .select("user_name, game_id, category, pick")
       .eq("week", week)
       .in("game_id", finalGameIds);
-    if (spreadPicksErr) throw spreadPicksErr;
+    if (bonusPicksErr) throw bonusPicksErr;
 
-    for (const sp of spreadPicksRows || []) {
-      const name = String(sp.user_name || "").trim();
-      const gid = sp.game_id;
+    for (const bp of bonusPicksRows || []) {
+      const name = String(bp.user_name || "").trim();
+      const gid = bp.game_id;
       if (!name || !gid) continue;
 
-      const coverSide = coverSideByGame[gid];
-      if (!coverSide) continue;
-
-      const pickUpper = String(sp.pick || "").trim().toUpperCase();
+      const pickUpper = String(bp.pick || "").trim().toUpperCase();
       if (pickUpper !== "AWAY" && pickUpper !== "HOME") continue;
 
+      const winnerSide =
+        bp.category === "passing_yards" ? passingWinnerByGame[gid] :
+        bp.category === "rushing_yards" ? rushingWinnerByGame[gid] : null;
+      if (!winnerSide) continue; // not FINAL/published yet, or a push
+
       if (!totals[name]) totals[name] = { points: 0, correct: 0 };
-      if (pickUpper === coverSide) totals[name].points += 0.5;
+      if (pickUpper === winnerSide) totals[name].points += 0.5;
     }
 
     const lbRows = Object.entries(totals).map(([user_name, t]) => ({

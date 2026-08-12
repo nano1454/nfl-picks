@@ -19,7 +19,7 @@ export default function Admin() {
   const [participants, setParticipants] = useState([]); // [{user_name,buy_in,active}]
   const [payments, setPayments] = useState({}); // { [user_name]: boolean }
   const [picksByUser, setPicksByUser] = useState({}); // { [user_name]: { [game_id]: pick } }
-  const [spreadPicksByUser, setSpreadPicksByUser] = useState({}); // { [user_name]: { [game_id]: pick } }
+  const [bonusPicksByUser, setBonusPicksByUser] = useState({}); // { [user_name]: { [game_id]: { passing_yards, rushing_yards } } }
   const [tbsByUser, setTbsByUser] = useState({}); // { [user_name]: {1:{total},2:{total},3:{total}} }
 
   // Schedule import UI
@@ -200,21 +200,20 @@ export default function Admin() {
       }
       setPicksByUser(pb);
 
-      // 4b) Load spread (bonus) picks for the week
-      const { data: spreadData, error: spreadErr } = await supabase
-        .from("spread_picks")
-        .select("user_name, game_id, pick")
+      // 4b) Load bonus (passing/rushing yardage) picks for the week
+      const { data: bonusData, error: bonusErr } = await supabase
+        .from("bonus_picks")
+        .select("user_name, game_id, category, pick")
         .eq("week", wkNum);
 
-      if (spreadErr) throw spreadErr;
+      if (bonusErr) throw bonusErr;
 
-      const spb = {};
-      for (const r of spreadData || []) {
+      const bpb = {};
+      for (const r of bonusData || []) {
         const name = normalizeName(r.user_name) || "Unknown";
-        if (!spb[name]) spb[name] = {};
-        spb[name][r.game_id] = r.pick;
+        ((bpb[name] ||= {})[r.game_id] ||= {})[r.category] = r.pick;
       }
-      setSpreadPicksByUser(spb);
+      setBonusPicksByUser(bpb);
 
       // 5) Load tiebreakers for the week
       const { data: tbData, error: tbErr } = await supabase
@@ -247,19 +246,16 @@ export default function Admin() {
 
   const gameCount = weekMeta.games.length;
 
-  const gamesNeedingSpread = useMemo(
-    () => (weekMeta.games || []).filter((g) => g.spread_line !== null && g.spread_line !== undefined),
-    [weekMeta.games]
-  );
-
   const summary = useMemo(() => {
     const rows = (participants || []).map((p) => {
       const name = normalizeName(p.user_name);
       const picks = picksByUser[name] || {};
-      const spreadPicks = spreadPicksByUser[name] || {};
+      const bonus = bonusPicksByUser[name] || {};
       const tbs = tbsByUser[name] || {};
+      const bonusGames = weekMeta.games || [];
       const picksCount = Object.keys(picks).length;
-      const spreadPicksCount = gamesNeedingSpread.filter((g) => spreadPicks[g.id]).length;
+      const passingCount = bonusGames.filter((g) => bonus[g.id]?.passing_yards).length;
+      const rushingCount = bonusGames.filter((g) => bonus[g.id]?.rushing_yards).length;
 
       const hasTB1 = tbs[1]?.total !== undefined && tbs[1]?.total !== null && String(tbs[1]?.total).trim() !== "";
       const hasTB2 = tbs[2]?.total !== undefined && tbs[2]?.total !== null && String(tbs[2]?.total).trim() !== "";
@@ -267,7 +263,10 @@ export default function Admin() {
 
       const tbCount = [hasTB1, hasTB2, hasTB3].filter(Boolean).length;
       const submitted =
-        picksCount === gameCount && spreadPicksCount === gamesNeedingSpread.length && tbCount === 3;
+        picksCount === gameCount &&
+        passingCount === bonusGames.length &&
+        rushingCount === bonusGames.length &&
+        tbCount === 3;
 
       const missingGameIds = (weekMeta.games || [])
         .map((g) => g.id)
@@ -279,8 +278,12 @@ export default function Admin() {
         return `${g.away} @ ${g.home}`;
       });
 
-      const missingSpreadMatchups = gamesNeedingSpread
-        .filter((g) => !spreadPicks[g.id])
+      const missingPassingMatchups = bonusGames
+        .filter((g) => !bonus[g.id]?.passing_yards)
+        .map((g) => `${g.away} @ ${g.home}`);
+
+      const missingRushingMatchups = bonusGames
+        .filter((g) => !bonus[g.id]?.rushing_yards)
         .map((g) => `${g.away} @ ${g.home}`);
 
       const missingTBs = [];
@@ -293,11 +296,13 @@ export default function Admin() {
         buy_in: Number(p.buy_in || 0),
         paid: !!payments[name],
         picksCount,
-        spreadPicksCount,
+        passingCount,
+        rushingCount,
         tbCount,
         submitted,
         missingMatchups,
-        missingSpreadMatchups,
+        missingPassingMatchups,
+        missingRushingMatchups,
         missingTBs,
       };
     });
@@ -306,7 +311,7 @@ export default function Admin() {
     const missing = rows.filter((r) => !r.submitted);
 
     return { rows, submitted, missing };
-  }, [participants, payments, picksByUser, spreadPicksByUser, tbsByUser, gameCount, gamesNeedingSpread, weekMeta.games]);
+  }, [participants, payments, picksByUser, bonusPicksByUser, tbsByUser, gameCount, weekMeta.games]);
 
   async function togglePaid(user_name, nextPaid) {
     const wk = Number(weekMeta.week);
@@ -677,7 +682,8 @@ export default function Admin() {
               <tr>
                 <th style={thLeft}>Participant</th>
                 <th style={thCenter}>Picks</th>
-                <th style={thCenter}>Spread</th>
+                <th style={thCenter}>Passing</th>
+                <th style={thCenter}>Rushing</th>
                 <th style={thCenter}>TBs</th>
                 <th style={thCenter}>Submitted</th>
                 <th style={thCenter}>Buy-in</th>
@@ -690,8 +696,12 @@ export default function Admin() {
               {summary.rows.map((r) => {
                 const showAll = !!expandedMissing[r.user_name];
                 const { text, moreCount } = formatMissingMatchups(r.missingMatchups, showAll);
-                const { text: spreadText, moreCount: spreadMoreCount } = formatMissingMatchups(
-                  r.missingSpreadMatchups,
+                const { text: passingText, moreCount: passingMoreCount } = formatMissingMatchups(
+                  r.missingPassingMatchups,
+                  showAll
+                );
+                const { text: rushingText, moreCount: rushingMoreCount } = formatMissingMatchups(
+                  r.missingRushingMatchups,
                   showAll
                 );
 
@@ -702,7 +712,10 @@ export default function Admin() {
                       {r.picksCount}/{gameCount}
                     </td>
                     <td style={tdCenter}>
-                      {r.spreadPicksCount}/{gamesNeedingSpread.length}
+                      {r.passingCount}/{gameCount}
+                    </td>
+                    <td style={tdCenter}>
+                      {r.rushingCount}/{gameCount}
                     </td>
                     <td style={tdCenter}>{r.tbCount}/3</td>
                     <td style={tdCenter}>{r.submitted ? "✅" : "—"}</td>
@@ -746,13 +759,28 @@ export default function Admin() {
                             </div>
                           )}
 
-                          {r.missingSpreadMatchups?.length > 0 && (
+                          {r.missingPassingMatchups?.length > 0 && (
                             <div>
-                              <b>Missing spread picks:</b> {spreadText}
-                              {spreadMoreCount > 0 && (
+                              <b>Missing passing picks:</b> {passingText}
+                              {passingMoreCount > 0 && (
                                 <>
                                   {" "}
-                                  <span style={{ color: "#555" }}>+{spreadMoreCount} more…</span>{" "}
+                                  <span style={{ color: "#555" }}>+{passingMoreCount} more…</span>{" "}
+                                  <button type="button" onClick={() => toggleExpanded(r.user_name)} style={linkBtnStyle}>
+                                    Show all
+                                  </button>
+                                </>
+                              )}
+                            </div>
+                          )}
+
+                          {r.missingRushingMatchups?.length > 0 && (
+                            <div>
+                              <b>Missing rushing picks:</b> {rushingText}
+                              {rushingMoreCount > 0 && (
+                                <>
+                                  {" "}
+                                  <span style={{ color: "#555" }}>+{rushingMoreCount} more…</span>{" "}
                                   <button type="button" onClick={() => toggleExpanded(r.user_name)} style={linkBtnStyle}>
                                     Show all
                                   </button>
@@ -770,7 +798,7 @@ export default function Admin() {
                       )}
                     </td>
                     <td style={tdCenter}>
-                      {r.picksCount === 0 && r.spreadPicksCount === 0 && r.tbCount === 0 ? (
+                      {r.picksCount === 0 && r.passingCount === 0 && r.rushingCount === 0 && r.tbCount === 0 ? (
                         <span style={{ color: "#bbb", fontSize: 13 }}>—</span>
                       ) : (
                         <button

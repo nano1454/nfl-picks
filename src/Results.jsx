@@ -43,12 +43,6 @@ function logoSrc(team) {
   return slug ? `/logos/${slug}.png` : null;
 }
 
-function formatSpread(n) {
-  if (n === null || n === undefined || Number.isNaN(n)) return null;
-  if (n === 0) return "PK";
-  return n > 0 ? `+${n}` : `${n}`;
-}
-
 function fmtMatchup(g) {
   const away = String(g?.away || "").trim();
   const home = String(g?.home || "").trim();
@@ -83,7 +77,7 @@ export default function Results() {
 
   const [activeParticipants, setActiveParticipants] = useState([]); // [user_name]
   const [picksRows, setPicksRows] = useState([]); // { user_name, game_id, pick }
-  const [spreadPicksRows, setSpreadPicksRows] = useState([]); // { user_name, game_id, pick }
+  const [bonusPicksRows, setBonusPicksRows] = useState([]); // { user_name, game_id, category, pick }
   const [tbGameIds, setTbGameIds] = useState([]); // 3 ids
   const [tbRows, setTbRows] = useState([]); // { user_name, tb_no, game_id, total }
 
@@ -119,7 +113,7 @@ export default function Results() {
       // 2) Get games for this week (so table columns are correct)
       const { data: g, error: gErr } = await supabase
         .from("games")
-        .select("id, season, week, away, home, kickoff, spread_line")
+        .select("id, season, week, away, home, kickoff")
         .eq("season", season)
         .eq("week", week)
         .order("kickoff", { ascending: true });
@@ -156,17 +150,17 @@ export default function Results() {
       }
       setPicksRows(picks);
 
-      // 4b) spread (bonus) picks for this week
-      const { data: sp, error: spErr } = await supabase
-        .from("spread_picks")
-        .select("user_name, game_id, pick")
+      // 4b) bonus (passing/rushing yardage) picks for this week
+      const { data: bp, error: bpErr } = await supabase
+        .from("bonus_picks")
+        .select("user_name, game_id, category, pick")
         .eq("week", week);
 
-      if (spErr) {
-        console.warn("spread_picks load warning:", spErr);
-        setSpreadPicksRows([]);
+      if (bpErr) {
+        console.warn("bonus_picks load warning:", bpErr);
+        setBonusPicksRows([]);
       } else {
-        setSpreadPicksRows(sp || []);
+        setBonusPicksRows(bp || []);
       }
 
       // 5) tiebreakers guesses (optional—only if you want the TB columns like your screenshot)
@@ -209,11 +203,11 @@ export default function Results() {
       )
       .subscribe();
 
-    const spCh = supabase
-      .channel("results_spread_picks_live")
+    const bpCh = supabase
+      .channel("results_bonus_picks_live")
       .on(
         "postgres_changes",
-        { event: "*", schema: "public", table: "spread_picks", filter: `week=eq.${meta.week}` },
+        { event: "*", schema: "public", table: "bonus_picks", filter: `week=eq.${meta.week}` },
         () => loadAll()
       )
       .subscribe();
@@ -229,7 +223,7 @@ export default function Results() {
 
     return () => {
       supabase.removeChannel(pCh);
-      supabase.removeChannel(spCh);
+      supabase.removeChannel(bpCh);
       supabase.removeChannel(wmCh);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -289,18 +283,16 @@ export default function Results() {
     return m;
   }, [picksRows]);
 
-  const spreadPickByUserGame = useMemo(() => {
-    const m = {}; // m[user][gameId] = "AWAY" | "HOME"
-    for (const r of spreadPicksRows || []) {
+  const bonusPickByUserGame = useMemo(() => {
+    const m = {}; // m[user][gameId] = { passing_yards, rushing_yards }
+    for (const r of bonusPicksRows || []) {
       const u = String(r.user_name || "").trim();
       const gid = String(r.game_id || "").trim();
-      const pick = String(r.pick || "").trim();
       if (!u || !gid) continue;
-      if (!m[u]) m[u] = {};
-      m[u][gid] = pick;
+      ((m[u] ||= {})[gid] ||= {})[r.category] = String(r.pick || "").trim();
     }
     return m;
-  }, [spreadPicksRows]);
+  }, [bonusPicksRows]);
 
   const tbByUserNo = useMemo(() => {
     const m = {}; // m[user][tbNo] = total
@@ -314,21 +306,47 @@ export default function Results() {
     return m;
   }, [tbRows]);
 
-  // helper: render the small "who covers" badge below a pick cell
-  function renderSpreadBadge(userName, gid) {
-    const raw = spreadPickByUserGame?.[userName]?.[gid];
-    const pick = String(raw || "").toUpperCase();
+  // helper: render the small passing/rushing bonus-pick badges below a pick cell
+  function renderBonusBadges(userName, gid) {
+    const picks = bonusPickByUserGame?.[userName]?.[gid];
     const g = gameById[gid];
-    if (!pick || !g || g.spread_line === null || g.spread_line === undefined) return null;
+    if (!picks || !g) return null;
 
-    const line = Number(g.spread_line);
-    const team = pick === "AWAY" ? g.away : pick === "HOME" ? g.home : null;
-    const spread = pick === "AWAY" ? formatSpread(-line) : pick === "HOME" ? formatSpread(line) : null;
-    if (!team || spread === null) return null;
+    const badge = (raw, color, label) => {
+      const pick = String(raw || "").toUpperCase();
+      const team = pick === "AWAY" ? g.away : pick === "HOME" ? g.home : null;
+      if (!team) return null;
+      const src = logoSrc(team);
+      return (
+        <span
+          key={label}
+          title={`${label}: ${team}`}
+          style={{
+            display: "inline-block",
+            width: 13,
+            height: 13,
+            margin: "2px 1px 0",
+            border: `1.5px solid ${color}`,
+            borderRadius: 3,
+            overflow: "hidden",
+          }}
+        >
+          {src && (
+            <img
+              src={src}
+              alt={team}
+              style={{ width: "100%", height: "100%", objectFit: "contain" }}
+              onError={(e) => (e.currentTarget.style.display = "none")}
+            />
+          )}
+        </span>
+      );
+    };
 
     return (
-      <div style={{ fontSize: 10, color: "#2563eb", marginTop: 2, fontWeight: 700 }} title={`${team} ${spread}`}>
-        {spread}
+      <div>
+        {badge(picks.passing_yards, "#7c3aed", "Passing")}
+        {badge(picks.rushing_yards, "#ea580c", "Rushing")}
       </div>
     );
   }
@@ -501,7 +519,7 @@ export default function Results() {
                               ? (
                                 <>
                                   {renderPickCell(u, String(g.id))}
-                                  {renderSpreadBadge(u, String(g.id))}
+                                  {renderBonusBadges(u, String(g.id))}
                                 </>
                               )
                               : <span title="Picks hidden until game locks" style={{ color: "#ccc", fontSize: 16 }}>🔒</span>
@@ -532,7 +550,7 @@ export default function Results() {
           </div>
 
           <div style={{ marginTop: 10, fontSize: 12, color: "#777", textAlign: "center" }}>
-            🔒 = picks still hidden (game hasn’t locked yet) &nbsp;·&nbsp; small blue number = spread (bonus) pick &nbsp;·&nbsp; This table updates automatically as games lock.
+            🔒 = picks still hidden (game hasn’t locked yet) &nbsp;·&nbsp; purple-bordered logo = passing-yards bonus pick, orange-bordered logo = rushing-yards bonus pick &nbsp;·&nbsp; This table updates automatically as games lock.
           </div>
         </div>
       )}

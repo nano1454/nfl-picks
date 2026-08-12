@@ -45,10 +45,11 @@ export default function Rules() {
         {/* Overview */}
         <Section title="📋 Overview">
           <p>
-            Each week, participants predict the winner of every scheduled NFL game, plus a bonus
-            half-point pick for which team beats the point spread on each game. The participant
-            with the most total points at the end of the week wins the weekly pot. In the event of
-            a tie, tiebreaker scores determine the winner.
+            Each week, participants predict the winner of every scheduled NFL game, plus two bonus
+            half-point picks per game: which team will have <b>more passing yards</b>, and which
+            team will have <b>more rushing yards</b>. The participant with the most total points
+            at the end of the week wins the weekly pot. In the event of a tie, tiebreaker scores
+            determine the winner.
           </p>
         </Section>
 
@@ -61,8 +62,9 @@ export default function Rules() {
             </li>
             <li>Enter your <b>email address</b> (used to send you a copy of your picks).</li>
             <li>
-              For every game, select your predicted <b>winner</b> — and which team you think will
-              <b> beat the point spread</b> (shown next to each team's name) for a bonus 0.5 points.
+              For every game, select your predicted <b>winner</b> — plus two bonus half-point picks:
+              which team will have <b>more passing yards</b>, and which team will have <b>more
+              rushing yards</b>.
             </li>
             <li>Enter your <b>total points prediction</b> for all three tiebreaker games.</li>
             <li>Click <b>"Submit Picks"</b> before the deadline. You're done!</li>
@@ -83,7 +85,7 @@ export default function Rules() {
               new submissions are accepted.
             </li>
             <li>
-              <b>Individual game locks</b> — Each game (and its spread pick) automatically locks
+              <b>Individual game locks</b> — Each game (and its two bonus picks) automatically locks
               <b> 1 hour before kickoff</b>. If a specific game is already locked when you submit,
               you must still pick all remaining unlocked games — you cannot submit with a missing
               pick for a started game.
@@ -103,19 +105,21 @@ export default function Rules() {
         <Section title="🏆 Scoring">
           <ul style={{ paddingLeft: 20, lineHeight: 2 }}>
             <li><b>1 point</b> for each correctly predicted game winner.</li>
-            <li><b>+0.5 bonus point</b> for each correct "beat the spread" pick.</li>
+            <li><b>+0.5 bonus point</b> for each correct "more passing yards" pick.</li>
+            <li><b>+0.5 bonus point</b> for each correct "more rushing yards" pick.</li>
             <li><b>0 points</b> for an incorrect pick or a missed game.</li>
             <li>The participant with the <b>most points</b> at the end of the week wins.</li>
           </ul>
           <p style={{ marginTop: 10, fontSize: 13, color: "#666" }}>
-            The spread is a number that levels the matchup — a team favored by "-3.5" needs to win
-            by more than 3.5 points to "cover"; the underdog at "+3.5" covers by losing by less than
-            that, or by winning outright. It's frozen as soon as the week's schedule is posted, so
-            everyone picks against the same number no matter when they submit.
+            Passing and rushing yards for each game are tallied from the official box score after
+            the game ends — this usually takes a few hours to post, so those two bonus picks may
+            still show as pending even after a game's final score is in. If either stat ties
+            exactly between the two teams, that bonus pick is a push and nobody scores it.
           </p>
           <p style={{ marginTop: 12 }}>
-            Example: If there are 16 games and you pick 11 winners correctly plus 6 spread picks
-            correctly, your score is 11 + (6 × 0.5) = <b>14</b>.
+            Example: If there are 16 games and you pick 11 winners correctly, plus 5 correct
+            passing-yards picks and 6 correct rushing-yards picks, your score is
+            11 + (5 × 0.5) + (6 × 0.5) = <b>16.5</b>.
           </p>
         </Section>
 
@@ -177,7 +181,7 @@ export default function Rules() {
             <li>Submit early — don't risk missing the deadline or a game locking.</li>
             <li>For tiebreakers, go slightly under your gut feeling — going over voids your entry.</li>
             <li>Your full name is tied to your account, so it's always consistent — no more worrying about typing it differently.</li>
-            <li>Check each team's win-loss record and point spread, shown right on the picks page, before making your picks.</li>
+            <li>Check each team's win-loss record, shown right on the picks page, before making your picks.</li>
             <li>Check the <b>Live Leaderboard</b> during the week to see how you're doing as games go final.</li>
           </ul>
         </Section>
