@@ -67,29 +67,29 @@ exports.handler = async (event) => {
 
       const { error: insErr } = await admin
         .from("app_users")
-        .insert([{ username, full_name: fullName, pin_hash: pinHash, pin_salt: salt, email: email || null }]);
+        .insert([{ username, full_name: fullName, pin_hash: pinHash, pin_salt: salt, email: email || null, approved: false }]);
       if (insErr) {
         if (insErr.code === "23505") return j(409, { ok: false, error: "That username is already taken." });
         throw insErr;
       }
 
-      // Also register them as a participant so the admin dashboard knows who they are.
-      await admin
-        .from("participants")
-        .upsert([{ user_name: fullName, buy_in: 0, active: true }], { onConflict: "user_name" });
-
-      return j(200, { ok: true, user: { username, fullName } });
+      // participants row is created once an admin approves this signup, not here.
+      return j(200, { ok: true, pending: true });
     }
 
     if (action === "login") {
       const { data: found, error: findErr } = await admin
         .from("app_users")
-        .select("username, full_name, pin_hash, pin_salt, is_admin")
+        .select("username, full_name, pin_hash, pin_salt, is_admin, approved")
         .ilike("username", username)
         .maybeSingle();
       if (findErr) throw findErr;
       if (!found || !pinsMatch(pin, found.pin_salt, found.pin_hash)) {
         return j(401, { ok: false, error: "Incorrect username or PIN." });
+      }
+
+      if (!found.approved) {
+        return j(403, { ok: false, pending: true, error: "Your account is waiting on admin approval. Check back soon!" });
       }
 
       const isAdmin = !!found.is_admin;

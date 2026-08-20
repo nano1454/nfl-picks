@@ -58,6 +58,7 @@ export default function Login() {
   const [confirmPin, setConfirmPin] = useState("");
   const [err, setErr] = useState("");
   const [busy, setBusy] = useState(false);
+  const [signupPending, setSignupPending] = useState(false);
 
   function onDigitsOnly(setter) {
     return (e) => setter(e.target.value.replace(/[^0-9]/g, "").slice(0, 4));
@@ -96,6 +97,11 @@ export default function Login() {
         throw new Error(data?.error || "Something went wrong.");
       }
 
+      if (mode === "signup" && data.pending) {
+        setSignupPending(true);
+        return;
+      }
+
       setSession(data.user);
       navigate(from, { replace: true });
     } catch (e) {
@@ -119,102 +125,127 @@ export default function Login() {
             {mode === "login" ? "Log in to make your picks." : "Create an account to make your picks."}
           </p>
 
-          <div style={styles.tabs}>
-            <button
-              type="button"
-              style={{ ...styles.tab, ...(mode === "login" ? styles.tabActive : {}) }}
-              onClick={() => {
-                setMode("login");
-                setErr("");
-              }}
-            >
-              Log In
-            </button>
-            <button
-              type="button"
-              style={{ ...styles.tab, ...(mode === "signup" ? styles.tabActive : {}) }}
-              onClick={() => {
-                setMode("signup");
-                setErr("");
-              }}
-            >
-              Create Account
-            </button>
-          </div>
+          {signupPending ? (
+            <div>
+              <p style={{ fontSize: 15, lineHeight: 1.5 }}>
+                🎉 Thanks for signing up! Your account is waiting on admin approval — check back soon.
+              </p>
+              <Button
+                variant="secondary"
+                style={{ width: "100%" }}
+                onClick={() => {
+                  setSignupPending(false);
+                  setMode("login");
+                  setUsername("");
+                  setFullName("");
+                  setEmail("");
+                  setPin("");
+                  setConfirmPin("");
+                }}
+              >
+                Back to Log In
+              </Button>
+            </div>
+          ) : (
+            <>
+              <div style={styles.tabs}>
+                <button
+                  type="button"
+                  style={{ ...styles.tab, ...(mode === "login" ? styles.tabActive : {}) }}
+                  onClick={() => {
+                    setMode("login");
+                    setErr("");
+                  }}
+                >
+                  Log In
+                </button>
+                <button
+                  type="button"
+                  style={{ ...styles.tab, ...(mode === "signup" ? styles.tabActive : {}) }}
+                  onClick={() => {
+                    setMode("signup");
+                    setErr("");
+                  }}
+                >
+                  Create Account
+                </button>
+              </div>
 
-          <form onSubmit={submit}>
-            <label style={styles.field}>
-              <span>Username</span>
-              <input
-                style={styles.input}
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                placeholder="e.g. jsmith"
-                autoComplete="username"
-              />
-            </label>
+              <form onSubmit={submit}>
+                <label style={styles.field}>
+                  <span>Username</span>
+                  <input
+                    style={styles.input}
+                    value={username}
+                    onChange={(e) => setUsername(e.target.value)}
+                    placeholder="e.g. jsmith"
+                    autoComplete="username"
+                  />
+                </label>
 
-            {mode === "signup" && (
-              <label style={styles.field}>
-                <span>Full name (shown to admin)</span>
-                <input
-                  style={styles.input}
-                  value={fullName}
-                  onChange={(e) => setFullName(e.target.value)}
-                  placeholder="Your full name"
-                />
-              </label>
-            )}
+                {mode === "signup" && (
+                  <label style={styles.field}>
+                    <span>Full name (shown to admin)</span>
+                    <input
+                      style={styles.input}
+                      value={fullName}
+                      onChange={(e) => setFullName(e.target.value)}
+                      placeholder="Your full name"
+                    />
+                  </label>
+                )}
 
-            {mode === "signup" && (
-              <label style={styles.field}>
-                <span>Email</span>
-                <input
-                  style={styles.input}
-                  type="email"
-                  required
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="you@email.com"
-                  autoComplete="email"
-                />
-              </label>
-            )}
+                {mode === "signup" && (
+                  <label style={styles.field}>
+                    <span>Email</span>
+                    <input
+                      style={styles.input}
+                      type="email"
+                      required
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      placeholder="you@email.com"
+                      autoComplete="email"
+                    />
+                  </label>
+                )}
 
-            <label style={styles.field}>
-              <span>4-digit PIN</span>
-              <input
-                style={styles.input}
-                type="password"
-                inputMode="numeric"
-                value={pin}
-                onChange={onDigitsOnly(setPin)}
-                placeholder="••••"
-                autoComplete={mode === "signup" ? "new-password" : "current-password"}
-              />
-            </label>
+                <label style={styles.field}>
+                  <span>4-digit PIN</span>
+                  <input
+                    style={styles.input}
+                    type="password"
+                    inputMode="numeric"
+                    value={pin}
+                    onChange={onDigitsOnly(setPin)}
+                    placeholder="••••"
+                    autoComplete={mode === "signup" ? "new-password" : "current-password"}
+                  />
+                </label>
 
-            {mode === "signup" && (
-              <label style={styles.field}>
-                <span>Confirm PIN</span>
-                <input
-                  style={styles.input}
-                  type="password"
-                  inputMode="numeric"
-                  value={confirmPin}
-                  onChange={onDigitsOnly(setConfirmPin)}
-                  placeholder="••••"
-                  autoComplete="new-password"
-                />
-              </label>
-            )}
+                {mode === "signup" && (
+                  <label style={styles.field}>
+                    <span>Confirm PIN</span>
+                    <input
+                      style={styles.input}
+                      type="password"
+                      inputMode="numeric"
+                      value={confirmPin}
+                      onChange={onDigitsOnly(setConfirmPin)}
+                      placeholder="••••"
+                      autoComplete="new-password"
+                    />
+                  </label>
+                )}
 
-            {err && <p style={styles.error}>{err}</p>}
+                {err && <p style={styles.error}>{err}</p>}
 
-            <Button type="submit" variant="primary" disabled={busy} style={{ width: "100%", marginTop: 4 }}>
-              {busy ? "Please wait…" : mode === "login" ? "Log In" : "Create Account"}
-            </Button>
-          </form>
+                <Button type="submit" variant="primary" disabled={busy} style={{ width: "100%", marginTop: 4 }}>
+                  {busy ? "Please wait…" : mode === "login" ? "Log In" : "Create Account"}
+                </Button>
+              </form>
+            </>
+          )}
         </div>
       </div>
     </div>

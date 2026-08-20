@@ -33,19 +33,37 @@ exports.handler = async (event) => {
     const payments = {};
     for (const r of payRows || []) payments[String(r.user_name || "").trim()] = !!r.paid;
 
-    // Emails, keyed by full_name (matches participants.user_name) -- app_users
-    // has no public RLS policy, so this is the only way the admin dashboard
-    // can show them.
-    const { data: userRows, error: userErr } = await admin.from("app_users").select("full_name, email");
+    // Emails + login usernames, keyed by full_name (matches participants.user_name)
+    // -- app_users has no public RLS policy, so this is the only way the admin
+    // dashboard can show them (and the only way to know which login account
+    // to delete for a given participant row).
+    const { data: userRows, error: userErr } = await admin.from("app_users").select("username, full_name, email");
     if (userErr) return j(500, { ok: false, error: `app_users: ${userErr.message}` });
 
     const emails = {};
+    const usernames = {};
     for (const r of userRows || []) {
       const name = String(r.full_name || "").trim();
-      if (name) emails[name] = r.email || "";
+      if (!name) continue;
+      emails[name] = r.email || "";
+      usernames[name] = r.username || "";
     }
 
-    return j(200, { ok: true, participants: participants || [], payments, emails });
+    const { data: pendingRows, error: pendingErr } = await admin
+      .from("app_users")
+      .select("username, full_name, email, created_at")
+      .eq("approved", false)
+      .order("created_at", { ascending: true });
+    if (pendingErr) return j(500, { ok: false, error: `pending: ${pendingErr.message}` });
+
+    return j(200, {
+      ok: true,
+      participants: participants || [],
+      payments,
+      emails,
+      usernames,
+      pending: pendingRows || [],
+    });
   } catch (e) {
     return j(500, { ok: false, error: e?.message || String(e) });
   }

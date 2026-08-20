@@ -20,7 +20,9 @@ export default function Admin() {
   const [participants, setParticipants] = useState([]); // [{user_name,buy_in,active}]
   const [payments, setPayments] = useState({}); // { [user_name]: boolean }
   const [emailByUser, setEmailByUser] = useState({}); // { [user_name]: email }
+  const [usernameByUser, setUsernameByUser] = useState({}); // { [user_name]: login username }
   const [showEmails, setShowEmails] = useState(false);
+  const [pendingUsers, setPendingUsers] = useState([]); // [{username, full_name, email, created_at}]
   const [picksByUser, setPicksByUser] = useState({}); // { [user_name]: { [game_id]: pick } }
   const [bonusPicksByUser, setBonusPicksByUser] = useState({}); // { [user_name]: { [game_id]: { passing_yards, rushing_yards } } }
   const [tbsByUser, setTbsByUser] = useState({}); // { [user_name]: {1:{total},2:{total},3:{total}} }
@@ -191,6 +193,12 @@ export default function Admin() {
       for (const [name, email] of Object.entries(adminData.emails || {})) emailMap[normalizeName(name)] = email;
       setEmailByUser(emailMap);
 
+      const unameMap = {};
+      for (const [name, uname] of Object.entries(adminData.usernames || {})) unameMap[normalizeName(name)] = uname;
+      setUsernameByUser(unameMap);
+
+      setPendingUsers(adminData.pending || []);
+
       // 4) Load picks for the week
       const { data: pickData, error: pickErr } = await supabase
         .from("picks")
@@ -354,6 +362,54 @@ export default function Admin() {
       await loadAll();
     } catch (e) {
       alert(`Could not remove participant: ${String(e?.message || e)}`);
+    }
+  }
+
+  async function approveSignup(username) {
+    if (!adminToken) return alert("Not signed in as an admin.");
+    try {
+      const url = `/.netlify/functions/approveParticipant?username=${encodeURIComponent(username)}&token=${encodeURIComponent(adminToken)}`;
+      const res = await fetch(url, { cache: "no-store" });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.ok) throw new Error(data?.error || `Failed (HTTP ${res.status})`);
+      await loadAll();
+    } catch (e) {
+      alert(`Could not approve: ${String(e?.message || e)}`);
+    }
+  }
+
+  async function rejectSignup(username, fullName) {
+    if (!window.confirm(`Reject the signup for "${fullName}" (@${username})?\n\nThis deletes their login. They can sign up again later if needed.`)) return;
+    if (!adminToken) return alert("Not signed in as an admin.");
+    try {
+      const url = `/.netlify/functions/deleteAccount?username=${encodeURIComponent(username)}&token=${encodeURIComponent(adminToken)}`;
+      const res = await fetch(url, { cache: "no-store" });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.ok) throw new Error(data?.error || `Failed (HTTP ${res.status})`);
+      await loadAll();
+    } catch (e) {
+      alert(`Could not reject: ${String(e?.message || e)}`);
+    }
+  }
+
+  async function deleteAccountForUser(user_name) {
+    const username = usernameByUser[normalizeName(user_name)];
+    if (!username) return alert("No login account found for this participant.");
+    if (
+      !window.confirm(
+        `Delete the login for "${user_name}" (@${username})?\n\nThis revokes their ability to log in only — their picks, bonus picks, tiebreakers, and leaderboard history are NOT touched.`
+      )
+    )
+      return;
+    if (!adminToken) return alert("Not signed in as an admin.");
+    try {
+      const url = `/.netlify/functions/deleteAccount?username=${encodeURIComponent(username)}&token=${encodeURIComponent(adminToken)}`;
+      const res = await fetch(url, { cache: "no-store" });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.ok) throw new Error(data?.error || `Failed (HTTP ${res.status})`);
+      await loadAll();
+    } catch (e) {
+      alert(`Could not delete account: ${String(e?.message || e)}`);
     }
   }
 
@@ -571,9 +627,54 @@ export default function Admin() {
         </p>
       </div>
 
-      {/* Step 2 — Set Weekly Deadline */}
+      {/* Step 2 — Approve New Signups */}
       <div style={{ border: "1px solid #ddd", borderRadius: 10, padding: 12, marginTop: 12 }}>
-        <h3 style={{ marginTop: 0 }}>Step 2 — Set Weekly Deadline</h3>
+        <h3 style={{ marginTop: 0 }}>
+          Step 2 — Approve New Signups{pendingUsers.length > 0 ? ` (${pendingUsers.length} pending)` : ""}
+        </h3>
+
+        {pendingUsers.length === 0 ? (
+          <p style={{ color: "#666", fontSize: 13, margin: 0 }}>No signups waiting on approval.</p>
+        ) : (
+          <div style={{ overflowX: "auto" }}>
+            <table style={{ borderCollapse: "collapse", width: "100%" }}>
+              <thead>
+                <tr>
+                  <th style={thLeft}>Full name</th>
+                  <th style={thLeft}>Username</th>
+                  <th style={thLeft}>Email</th>
+                  <th style={thLeft}>Signed up</th>
+                  <th style={thCenter}>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {pendingUsers.map((u) => (
+                  <tr key={u.username}>
+                    <td style={tdLeft}>{u.full_name}</td>
+                    <td style={tdLeft}>@{u.username}</td>
+                    <td style={tdLeft}>{u.email || "—"}</td>
+                    <td style={tdLeft}>{u.created_at ? new Date(u.created_at).toLocaleString() : "—"}</td>
+                    <td style={tdCenter}>
+                      <div style={{ display: "flex", gap: 6, justifyContent: "center" }}>
+                        <Button variant="primary" size="sm" onClick={() => approveSignup(u.username)}>
+                          Approve
+                        </Button>
+                        <Button variant="danger" size="sm" onClick={() => rejectSignup(u.username, u.full_name)}>
+                          Reject
+                        </Button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {/* Step 3 — Set Weekly Deadline */}
+      <div style={{ border: "1px solid #ddd", borderRadius: 10, padding: 12, marginTop: 12 }}>
+        <h3 style={{ marginTop: 0 }}>Step 3 — Set Weekly Deadline</h3>
 
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
           <div style={{ fontSize: 13, color: "#666" }}>
@@ -600,9 +701,9 @@ export default function Admin() {
         </div>
       </div>
 
-      {/* Step 3 — Adjust Buy-In */}
+      {/* Step 4 — Adjust Buy-In */}
       <div style={{ border: "1px solid #ddd", borderRadius: 10, padding: 12, marginTop: 12 }}>
-        <h3 style={{ marginTop: 0 }}>Step 3 — Adjust Buy-In</h3>
+        <h3 style={{ marginTop: 0 }}>Step 4 — Adjust Buy-In</h3>
         <p style={{ margin: "0 0 10px", fontSize: 13, color: "#555" }}>
           New participants are added automatically when they create an account. Use this to set or update someone's buy-in amount.
         </p>
@@ -664,9 +765,9 @@ export default function Admin() {
         )}
       </div>
 
-      {/* Step 4 — Monitor Submissions */}
+      {/* Step 5 — Monitor Submissions */}
       <div style={{ border: "1px solid #ddd", borderRadius: 10, padding: 12, marginTop: 12 }}>
-        <h3 style={{ marginTop: 0 }}>Step 4 — Monitor Submissions</h3>
+        <h3 style={{ marginTop: 0 }}>Step 5 — Monitor Submissions</h3>
 
         <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 16 }}>
           <div style={{ border: "1px solid #ddd", borderRadius: 10, padding: 12 }}>
@@ -814,13 +915,22 @@ export default function Admin() {
                       )}
                     </td>
                     <td style={tdCenter}>
-                      {r.picksCount === 0 && r.passingCount === 0 && r.rushingCount === 0 && r.tbCount === 0 ? (
-                        <span style={{ color: "#bbb", fontSize: 13 }}>—</span>
-                      ) : (
-                        <Button variant="danger" size="sm" onClick={() => removePicksForUser(r.user_name)}>
-                          Remove
-                        </Button>
-                      )}
+                      <div style={{ display: "flex", gap: 6, justifyContent: "center", flexWrap: "wrap" }}>
+                        {!(r.picksCount === 0 && r.passingCount === 0 && r.rushingCount === 0 && r.tbCount === 0) && (
+                          <Button variant="danger" size="sm" onClick={() => removePicksForUser(r.user_name)}>
+                            Remove
+                          </Button>
+                        )}
+                        {usernameByUser[normalizeName(r.user_name)] ? (
+                          <Button variant="danger" size="sm" onClick={() => deleteAccountForUser(r.user_name)}>
+                            Delete Account
+                          </Button>
+                        ) : (
+                          <span style={{ color: "#bbb", fontSize: 12 }} title="No login account for this name">
+                            —
+                          </span>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 );
@@ -834,9 +944,9 @@ export default function Admin() {
         </p>
       </div>
 
-      {/* Step 5 — Process Results */}
+      {/* Step 6 — Process Results */}
       <div style={{ border: "1px solid #ddd", borderRadius: 10, padding: 12, marginTop: 12 }}>
-        <h3 style={{ marginTop: 0 }}>Step 5 — Process Results</h3>
+        <h3 style={{ marginTop: 0 }}>Step 6 — Process Results</h3>
         <p style={{ margin: "0 0 10px", color: "#666", fontSize: 13 }}>
           Run after games go final to score picks and update the leaderboard. Safe to run multiple times.
         </p>
