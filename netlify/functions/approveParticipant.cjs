@@ -1,7 +1,6 @@
 const { createClient } = require("@supabase/supabase-js");
 const { requireAdmin } = require("./_adminAuth.cjs");
-
-const SITE_URL = process.env.URL || "https://nflpicks.netlify.app";
+const { sendEmail, SITE_URL } = require("./_resend.cjs");
 
 exports.handler = async (event) => {
   try {
@@ -37,43 +36,20 @@ exports.handler = async (event) => {
 
     // Best-effort: a failed/skipped email should never fail the approval
     // itself, which already fully succeeded above.
-    await sendApprovalEmail(found).catch((e) => console.error("approval email failed:", e));
+    await sendEmail({
+      to: found.email,
+      subject: "You're approved for NFL Weekly Picks!",
+      text:
+        `Hi ${found.full_name},\n\n` +
+        `Your NFL Weekly Picks account has been approved. You can log in now with your username @${found.username} at ${SITE_URL}.\n\n` +
+        `Good luck!`,
+    });
 
     return j(200, { ok: true, username: found.username, full_name: found.full_name });
   } catch (e) {
     return j(500, { ok: false, error: e?.message || String(e) });
   }
 };
-
-async function sendApprovalEmail(user) {
-  const apiKey = process.env.RESEND_API_KEY;
-  if (!apiKey || !user.email) {
-    console.log("Skipping approval email (no RESEND_API_KEY or no email on file).");
-    return;
-  }
-
-  const res = await fetch("https://api.resend.com/emails", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      from: "NFL Weekly Picks <onboarding@resend.dev>",
-      to: [user.email],
-      subject: "You're approved for NFL Weekly Picks!",
-      text:
-        `Hi ${user.full_name},\n\n` +
-        `Your NFL Weekly Picks account has been approved. You can log in now with your username @${user.username} at ${SITE_URL}.\n\n` +
-        `Good luck!`,
-    }),
-  });
-
-  if (!res.ok) {
-    const body = await res.text().catch(() => "");
-    console.error(`Resend send failed (${res.status}): ${body}`);
-  }
-}
 
 function j(statusCode, body) {
   return {

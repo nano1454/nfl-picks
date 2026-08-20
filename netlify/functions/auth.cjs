@@ -2,6 +2,7 @@
 const { createClient } = require("@supabase/supabase-js");
 const crypto = require("crypto");
 const { issueAdminToken } = require("./_adminAuth.cjs");
+const { sendEmail, SITE_URL } = require("./_resend.cjs");
 
 function hashPin(pin, salt) {
   return crypto.scryptSync(String(pin), salt, 64).toString("hex");
@@ -74,6 +75,21 @@ exports.handler = async (event) => {
       }
 
       // participants row is created once an admin approves this signup, not here.
+
+      // Best-effort: let admins know someone's waiting, without blocking the
+      // signup itself. Resend's shared sandbox sender can only deliver to the
+      // Resend account's own verified address, which is exactly what admin
+      // accounts' emails are here -- no custom domain needed for this one.
+      const { data: admins } = await admin.from("app_users").select("email").eq("is_admin", true);
+      const adminEmails = (admins || []).map((a) => a.email).filter(Boolean);
+      await sendEmail({
+        to: adminEmails,
+        subject: "New signup pending approval — NFL Weekly Picks",
+        text:
+          `${fullName} (@${username}, ${email}) just signed up for NFL Weekly Picks and is waiting on your approval.\n\n` +
+          `Approve or reject at ${SITE_URL}/admin`,
+      });
+
       return j(200, { ok: true, pending: true });
     }
 
