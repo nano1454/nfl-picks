@@ -106,109 +106,116 @@ export default function Login() {
   }
 
   return (
-    <div style={pageBackgroundStyle}>
-      <div style={styles.card}>
-        <h1 style={styles.h1}>NFL Weekly Picks</h1>
-        <p style={styles.muted}>
-          {mode === "login" ? "Log in to make your picks." : "Create an account to make your picks."}
-        </p>
+    <div style={{ minHeight: "100vh", width: "100%" }}>
+      <img
+        src="/login-banner.png"
+        alt="NFL Picks App — Winner takes all each week"
+        style={{ width: "100%", display: "block", objectFit: "cover" }}
+      />
+      <div style={pageBackgroundStyle}>
+        <div style={styles.card}>
+          <h1 style={styles.h1}>NFL Weekly Picks</h1>
+          <p style={styles.muted}>
+            {mode === "login" ? "Log in to make your picks." : "Create an account to make your picks."}
+          </p>
 
-        <div style={styles.tabs}>
-          <button
-            type="button"
-            style={{ ...styles.tab, ...(mode === "login" ? styles.tabActive : {}) }}
-            onClick={() => {
-              setMode("login");
-              setErr("");
-            }}
-          >
-            Log In
-          </button>
-          <button
-            type="button"
-            style={{ ...styles.tab, ...(mode === "signup" ? styles.tabActive : {}) }}
-            onClick={() => {
-              setMode("signup");
-              setErr("");
-            }}
-          >
-            Create Account
-          </button>
-        </div>
+          <div style={styles.tabs}>
+            <button
+              type="button"
+              style={{ ...styles.tab, ...(mode === "login" ? styles.tabActive : {}) }}
+              onClick={() => {
+                setMode("login");
+                setErr("");
+              }}
+            >
+              Log In
+            </button>
+            <button
+              type="button"
+              style={{ ...styles.tab, ...(mode === "signup" ? styles.tabActive : {}) }}
+              onClick={() => {
+                setMode("signup");
+                setErr("");
+              }}
+            >
+              Create Account
+            </button>
+          </div>
 
-        <form onSubmit={submit}>
-          <label style={styles.field}>
-            <span>Username</span>
-            <input
-              style={styles.input}
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              placeholder="e.g. jsmith"
-              autoComplete="username"
-            />
-          </label>
-
-          {mode === "signup" && (
+          <form onSubmit={submit}>
             <label style={styles.field}>
-              <span>Full name (shown to admin)</span>
+              <span>Username</span>
               <input
                 style={styles.input}
-                value={fullName}
-                onChange={(e) => setFullName(e.target.value)}
-                placeholder="Your full name"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                placeholder="e.g. jsmith"
+                autoComplete="username"
               />
             </label>
-          )}
 
-          {mode === "signup" && (
+            {mode === "signup" && (
+              <label style={styles.field}>
+                <span>Full name (shown to admin)</span>
+                <input
+                  style={styles.input}
+                  value={fullName}
+                  onChange={(e) => setFullName(e.target.value)}
+                  placeholder="Your full name"
+                />
+              </label>
+            )}
+
+            {mode === "signup" && (
+              <label style={styles.field}>
+                <span>Email</span>
+                <input
+                  style={styles.input}
+                  type="email"
+                  required
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="you@email.com"
+                  autoComplete="email"
+                />
+              </label>
+            )}
+
             <label style={styles.field}>
-              <span>Email</span>
-              <input
-                style={styles.input}
-                type="email"
-                required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="you@email.com"
-                autoComplete="email"
-              />
-            </label>
-          )}
-
-          <label style={styles.field}>
-            <span>4-digit PIN</span>
-            <input
-              style={styles.input}
-              type="password"
-              inputMode="numeric"
-              value={pin}
-              onChange={onDigitsOnly(setPin)}
-              placeholder="••••"
-              autoComplete={mode === "signup" ? "new-password" : "current-password"}
-            />
-          </label>
-
-          {mode === "signup" && (
-            <label style={styles.field}>
-              <span>Confirm PIN</span>
+              <span>4-digit PIN</span>
               <input
                 style={styles.input}
                 type="password"
                 inputMode="numeric"
-                value={confirmPin}
-                onChange={onDigitsOnly(setConfirmPin)}
+                value={pin}
+                onChange={onDigitsOnly(setPin)}
                 placeholder="••••"
-                autoComplete="new-password"
+                autoComplete={mode === "signup" ? "new-password" : "current-password"}
               />
             </label>
-          )}
 
-          {err && <p style={styles.error}>{err}</p>}
+            {mode === "signup" && (
+              <label style={styles.field}>
+                <span>Confirm PIN</span>
+                <input
+                  style={styles.input}
+                  type="password"
+                  inputMode="numeric"
+                  value={confirmPin}
+                  onChange={onDigitsOnly(setConfirmPin)}
+                  placeholder="••••"
+                  autoComplete="new-password"
+                />
+              </label>
+            )}
 
-          <Button type="submit" variant="primary" disabled={busy} style={{ width: "100%", marginTop: 4 }}>
-            {busy ? "Please wait…" : mode === "login" ? "Log In" : "Create Account"}
-          </Button>
-        </form>
+            {err && <p style={styles.error}>{err}</p>}
+
+            <Button type="submit" variant="primary" disabled={busy} style={{ width: "100%", marginTop: 4 }}>
+              {busy ? "Please wait…" : mode === "login" ? "Log In" : "Create Account"}
+            </Button>
+          </form>
+        </div>
       </div>
     </div>
   );
