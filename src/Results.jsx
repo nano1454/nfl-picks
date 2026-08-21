@@ -313,43 +313,47 @@ export default function Results() {
     const g = gameById[gid];
     if (!picks || !g) return null;
 
-    const badge = (raw, color, label) => {
+    const badge = (raw, color, label, letter) => {
       const pick = String(raw || "").toUpperCase();
       const team = pick === "AWAY" ? g.away : pick === "HOME" ? g.home : null;
       if (!team) return null;
       const src = logoSrc(team);
       return (
-        <span
+        <div
           key={label}
-          title={`${label}: ${team}`}
-          style={{
-            display: "inline-flex",
-            alignItems: "center",
-            justifyContent: "center",
-            width: 13,
-            height: 13,
-            margin: "2px 1px 0",
-            border: `1.5px solid ${color}`,
-            borderRadius: 3,
-            overflow: "hidden",
-          }}
+          style={{ display: "inline-flex", flexDirection: "column", alignItems: "center", margin: "0 2px" }}
         >
-          {src && (
-            <img
-              src={src}
-              alt={team}
-              style={{ display: "block", width: "100%", height: "100%", objectFit: "contain" }}
-              onError={(e) => (e.currentTarget.style.display = "none")}
-            />
-          )}
-        </span>
+          <span
+            title={`${label}: ${team}`}
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "center",
+              width: 20,
+              height: 20,
+              border: `2px solid ${color}`,
+              borderRadius: 4,
+              overflow: "hidden",
+            }}
+          >
+            {src && (
+              <img
+                src={src}
+                alt={team}
+                style={{ display: "block", width: "100%", height: "100%", objectFit: "contain" }}
+                onError={(e) => (e.currentTarget.style.display = "none")}
+              />
+            )}
+          </span>
+          <span style={{ fontSize: 9, fontWeight: 800, color, letterSpacing: 0.5, marginTop: 1 }}>{letter}</span>
+        </div>
       );
     };
 
     return (
-      <div>
-        {badge(picks.passing_yards, "#7c3aed", "Passing")}
-        {badge(picks.rushing_yards, "#ea580c", "Rushing")}
+      <div style={{ marginTop: 3 }}>
+        {badge(picks.passing_yards, "#7c3aed", "Passing", "P")}
+        {badge(picks.rushing_yards, "#ea580c", "Rushing", "R")}
       </div>
     );
   }
@@ -360,33 +364,55 @@ export default function Results() {
     const pick = String(raw || "").toUpperCase();
     const g = gameById[gid];
 
+    const winnerLabel = (
+      <div style={{ fontSize: 9, fontWeight: 800, color: "#999", letterSpacing: 0.5, marginBottom: 2 }}>W</div>
+    );
+
     if (!pick || !g) {
       return (
-        <img
-          src="/logos/nfl.png"
-          alt="No pick"
-          title="No pick submitted"
-          style={{ width: 28, height: 28, objectFit: "contain", display: "block", margin: "0 auto", opacity: 0.55 }}
-        />
+        <div>
+          {winnerLabel}
+          <img
+            src="/logos/nfl.png"
+            alt="No pick"
+            title="No pick submitted"
+            style={{ width: 42, height: 42, objectFit: "contain", display: "block", margin: "0 auto", opacity: 0.55 }}
+          />
+        </div>
       );
     }
 
-    if (pick === "TIE") return <span style={styles.tiePill}>TIE</span>;
+    if (pick === "TIE")
+      return (
+        <div>
+          {winnerLabel}
+          <span style={styles.tiePill}>TIE</span>
+        </div>
+      );
 
     // pick is AWAY/HOME
     const team = pick === "AWAY" ? g.away : pick === "HOME" ? g.home : null;
     const src = team ? logoSrc(team) : null;
 
-    if (!team || !src) return <span style={{ fontSize: 12 }}>{team || pick}</span>;
+    if (!team || !src)
+      return (
+        <div>
+          {winnerLabel}
+          <span style={{ fontSize: 12 }}>{team || pick}</span>
+        </div>
+      );
 
     return (
-      <img
-        src={src}
-        alt={team}
-        title={team}
-        style={{ width: 28, height: 28, objectFit: "contain", display: "block", margin: "0 auto" }}
-        onError={(e) => (e.currentTarget.style.display = "none")}
-      />
+      <div>
+        {winnerLabel}
+        <img
+          src={src}
+          alt={team}
+          title={team}
+          style={{ width: 42, height: 42, objectFit: "contain", display: "block", margin: "0 auto" }}
+          onError={(e) => (e.currentTarget.style.display = "none")}
+        />
+      </div>
     );
   }
 
