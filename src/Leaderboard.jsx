@@ -464,10 +464,11 @@ export default function Leaderboard() {
 
   const hasPoints = useMemo(() => (rows || []).some((r) => Number(r.points || 0) > 0), [rows]);
 
-  // Horse race scaling: leader is 100%, everyone else proportional
-  const leaderPoints = useMemo(() => {
-    const max = Math.max(...(rows || []).map((r) => Number(r.points || 0)));
-    return Number.isFinite(max) && max > 0 ? max : 0;
+  // Total points available for the week: 1 pt per FINAL game (winner) + 0.5
+  // each for the passing/rushing bonus picks on that game.
+  const totalAvailablePoints = useMemo(() => {
+    const gamesFinal = Math.max(0, ...(rows || []).map((r) => Number(r.games_final_count || 0)));
+    return gamesFinal * 2;
   }, [rows]);
 
   if (loading) return <div style={{ maxWidth: 980, margin: "24px auto", padding: 16 }}>Loading leaderboard…</div>;
@@ -549,7 +550,7 @@ export default function Leaderboard() {
             </div>
           </div>
 
-          <RaceList rows={rows} leaderPoints={leaderPoints} />
+          <RaceList rows={rows} totalAvailable={totalAvailablePoints} />
 
           {/* Tiebreak Watch BELOW the bars */}
           {tbWatch?.applicable ? <TiebreakWatchPanel tbWatch={tbWatch} /> : null}
@@ -560,7 +561,7 @@ export default function Leaderboard() {
 }
 
 /* ---------------- Horse race list (animated reorder via FLIP) ---------------- */
-function RaceList({ rows, leaderPoints }) {
+function RaceList({ rows, totalAvailable }) {
   const itemRefs = useRef(new Map()); // key -> element
   const lastRectsRef = useRef(new Map()); // key -> DOMRect
 
@@ -600,7 +601,7 @@ function RaceList({ rows, leaderPoints }) {
     }
   }, [rows]);
 
-  const max = leaderPoints || 0;
+  const max = totalAvailable || 0;
 
   const medalStyle = [
     { background: "linear-gradient(160deg, #fff7d6, #ffd700, #b8860b)", color: "#3a2a00" }, // gold
@@ -678,7 +679,7 @@ function RaceList({ rows, leaderPoints }) {
               </div>
 
               <div style={{ marginTop: 6, fontSize: 12, color: "#666" }}>
-                {max > 0 ? `${Math.round(pct)}% of leader` : ""}
+                {max > 0 ? `${Math.round(pct)}% of points available` : ""}
               </div>
             </div>
 
