@@ -3,6 +3,8 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { setSession } from "./auth";
 import { pageBackgroundStyle } from "./backgroundStyle";
 import Button from "./Button";
+import Avatar from "./Avatar";
+import AvatarPicker from "./AvatarPicker";
 
 const styles = {
   card: {
@@ -56,6 +58,8 @@ export default function Login() {
   const [email, setEmail] = useState("");
   const [pin, setPin] = useState("");
   const [confirmPin, setConfirmPin] = useState("");
+  const [avatar, setAvatar] = useState(null);
+  const [showPicker, setShowPicker] = useState(false);
   const [err, setErr] = useState("");
   const [busy, setBusy] = useState(false);
   const [signupPending, setSignupPending] = useState(false);
@@ -89,6 +93,7 @@ export default function Login() {
           fullName: fullName.trim(),
           email: email.trim(),
           pin,
+          avatar: mode === "signup" ? avatar : undefined,
         }),
       });
       const data = await res.json().catch(() => ({}));
@@ -141,6 +146,7 @@ export default function Login() {
                   setEmail("");
                   setPin("");
                   setConfirmPin("");
+                  setAvatar(null);
                 }}
               >
                 Back to Log In
@@ -182,6 +188,25 @@ export default function Login() {
                     autoComplete="username"
                   />
                 </label>
+
+                {mode === "signup" && (
+                  <div style={styles.field}>
+                    <span>Avatar (optional)</span>
+                    <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                      <Avatar username={username || "?"} avatar={avatar} size={56} />
+                      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                        <Button type="button" variant="secondary" size="sm" onClick={() => setShowPicker(true)}>
+                          Choose Avatar
+                        </Button>
+                        {avatar && (
+                          <Button type="button" variant="ghost" size="sm" onClick={() => setAvatar(null)}>
+                            Remove
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 {mode === "signup" && (
                   <label style={styles.field}>
@@ -248,6 +273,10 @@ export default function Login() {
           )}
         </div>
       </div>
+
+      {showPicker && (
+        <AvatarPicker current={avatar} onSelect={setAvatar} onClose={() => setShowPicker(false)} />
+      )}
     </div>
   );
 }

@@ -3,6 +3,8 @@ import { Link } from "react-router-dom";
 import { getSession, setSession } from "./auth";
 import { pageBackgroundStyle } from "./backgroundStyle";
 import Button from "./Button";
+import Avatar from "./Avatar";
+import AvatarPicker from "./AvatarPicker";
 
 const styles = {
   card: {
@@ -40,10 +42,12 @@ export default function Profile() {
   const [username, setUsername] = useState(session?.username || "");
   const [fullName, setFullName] = useState(session?.fullName || "");
   const [email, setEmail] = useState(session?.email || "");
+  const [avatar, setAvatar] = useState(session?.avatar || null);
   const [newPin, setNewPin] = useState("");
   const [confirmNewPin, setConfirmNewPin] = useState("");
   const [currentPin, setCurrentPin] = useState("");
 
+  const [showPicker, setShowPicker] = useState(false);
   const [err, setErr] = useState("");
   const [success, setSuccess] = useState("");
   const [busy, setBusy] = useState(false);
@@ -73,6 +77,7 @@ export default function Profile() {
           newFullName: fullName.trim(),
           newEmail: email.trim(),
           newPin: newPin || undefined,
+          avatar,
         }),
       });
       const data = await res.json().catch(() => ({}));
@@ -83,6 +88,7 @@ export default function Profile() {
       setUsername(data.user.username);
       setFullName(data.user.fullName);
       setEmail(data.user.email || "");
+      setAvatar(data.user.avatar || null);
       setCurrentPin("");
       setNewPin("");
       setConfirmNewPin("");
@@ -104,6 +110,23 @@ export default function Profile() {
           <p style={styles.muted}>Update your account details below.</p>
 
           <form onSubmit={submit}>
+            <div style={styles.field}>
+              <span>Avatar</span>
+              <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+                <Avatar username={username} avatar={avatar} size={72} />
+                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                  <Button type="button" variant="secondary" size="sm" onClick={() => setShowPicker(true)}>
+                    Change Avatar
+                  </Button>
+                  {avatar && (
+                    <Button type="button" variant="ghost" size="sm" onClick={() => setAvatar(null)}>
+                      Remove Avatar
+                    </Button>
+                  )}
+                </div>
+              </div>
+            </div>
+
             <label style={styles.field}>
               <span>Username</span>
               <input style={styles.input} value={username} onChange={(e) => setUsername(e.target.value)} autoComplete="username" />
@@ -181,6 +204,10 @@ export default function Profile() {
           </div>
         </div>
       </div>
+
+      {showPicker && (
+        <AvatarPicker current={avatar} onSelect={setAvatar} onClose={() => setShowPicker(false)} />
+      )}
     </div>
   );
 }

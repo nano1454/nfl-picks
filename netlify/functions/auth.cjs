@@ -52,12 +52,17 @@ exports.handler = async (event) => {
       if (findErr) throw findErr;
       if (existing) return j(409, { ok: false, error: "That username is already taken." });
 
+      const rawAvatar = String(body.avatar || "").trim();
+      if (rawAvatar && !/^[a-z0-9]+_r\d+c\d+\.png$/.test(rawAvatar)) {
+        return j(400, { ok: false, error: "Invalid avatar selection." });
+      }
+
       const salt = newSalt();
       const pinHash = hashPin(pin, salt);
 
       const { error: insErr } = await admin
         .from("app_users")
-        .insert([{ username, full_name: fullName, pin_hash: pinHash, pin_salt: salt, email: email || null, approved: false }]);
+        .insert([{ username, full_name: fullName, pin_hash: pinHash, pin_salt: salt, email: email || null, avatar: rawAvatar || null, approved: false }]);
       if (insErr) {
         if (insErr.code === "23505") return j(409, { ok: false, error: "That username is already taken." });
         throw insErr;
@@ -85,7 +90,7 @@ exports.handler = async (event) => {
     if (action === "login") {
       const { data: found, error: findErr } = await admin
         .from("app_users")
-        .select("username, full_name, email, pin_hash, pin_salt, is_admin, approved")
+        .select("username, full_name, email, avatar, pin_hash, pin_salt, is_admin, approved")
         .ilike("username", username)
         .maybeSingle();
       if (findErr) throw findErr;
@@ -98,7 +103,7 @@ exports.handler = async (event) => {
       }
 
       const isAdmin = !!found.is_admin;
-      const user = { username: found.username, fullName: found.full_name, email: found.email || "", isAdmin };
+      const user = { username: found.username, fullName: found.full_name, email: found.email || "", avatar: found.avatar || null, isAdmin };
       if (isAdmin) user.adminToken = issueAdminToken(found.username);
 
       return j(200, { ok: true, user });

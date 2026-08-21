@@ -4,6 +4,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { getSession, clearSession } from "./auth";
 import { pageBackgroundStyle } from "./backgroundStyle";
 import Button from "./Button";
+import Avatar from "./Avatar";
 
 /* ---------- Styles (MUST be above App so useState can reference it) ---------- */
 const styles = {
@@ -762,6 +763,16 @@ export default function App() {
   return (
     <Shell>
       <div className="page-overlay" style={styles.pageOverlay}>
+        {/* Corner badge: avatar + username, links to Profile Settings */}
+        {session?.username && (
+          <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 10 }}>
+            <Link to="/profile" style={{ textDecoration: "none", textAlign: "center" }}>
+              <Avatar username={session.username} avatar={session.avatar} size={48} />
+              <div style={{ marginTop: 4, fontSize: 12, fontWeight: 800, color: "#111" }}>{session.username}</div>
+            </Link>
+          </div>
+        )}
+
         {/* Header row: title left, nav buttons right */}
         <div style={styles.headerRow}>
           <div style={styles.headerLeft}>
@@ -792,21 +803,11 @@ export default function App() {
 
             <PaymentMenu />
 
-            <Link to="/profile">
-              <Button variant="secondary" size="sm" pill>Profile Settings</Button>
-            </Link>
-
             <Button variant="secondary" size="sm" pill onClick={logout} title="Log out">
               Log out
             </Button>
           </div>
         </div>
-
-        {session?.fullName && (
-          <p style={{ ...styles.mutedSmall, marginTop: 10 }}>
-            Signed in as <b>{session.fullName}</b> (@{session.username})
-          </p>
-        )}
 
         <div style={styles.screenWrap} key={step.key}>
           {step.type === "intro" && (

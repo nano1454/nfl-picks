@@ -27,3 +27,7 @@ dist-ssr
 .netlify
 .env
 .env.local
+
+# Raw avatar master sheets -- only needed locally to cut out public/avatars/cut/,
+# never loaded by the app itself. Keep them off the repo/deploy (~94MB).
+public/avatars/nfl_picks_avatars_*.png

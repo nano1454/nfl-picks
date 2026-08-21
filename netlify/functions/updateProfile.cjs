@@ -82,6 +82,16 @@ exports.handler = async (event) => {
       }
     }
 
+    // Avatar -- a single field represents the final desired state (a
+    // filename, or null/empty to clear back to the initials fallback).
+    if (Object.prototype.hasOwnProperty.call(body, "avatar")) {
+      const avatar = body.avatar ? String(body.avatar).trim() : "";
+      if (avatar && !/^[a-z0-9]+_r\d+c\d+\.png$/.test(avatar)) {
+        return j(400, { ok: false, error: "Invalid avatar selection." });
+      }
+      updates.avatar = avatar || null;
+    }
+
     if (Object.keys(updates).length > 0) {
       const { error: updErr } = await admin.from("app_users").update(updates).eq("id", found.id);
       if (updErr) {
@@ -125,13 +135,13 @@ exports.handler = async (event) => {
 
     const { data: updated, error: reselectErr } = await admin
       .from("app_users")
-      .select("username, full_name, email, is_admin")
+      .select("username, full_name, email, avatar, is_admin")
       .eq("id", found.id)
       .maybeSingle();
     if (reselectErr) throw reselectErr;
 
     const isAdmin = !!updated.is_admin;
-    const user = { username: updated.username, fullName: updated.full_name, email: updated.email || "", isAdmin };
+    const user = { username: updated.username, fullName: updated.full_name, email: updated.email || "", avatar: updated.avatar || null, isAdmin };
     // Re-issue unconditionally when admin -- cheap, and avoids a stale token
     // if the username changed (the old token is signed over the old name).
     if (isAdmin) user.adminToken = issueAdminToken(updated.username);
