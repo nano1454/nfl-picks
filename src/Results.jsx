@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { supabase } from "./supabaseClient";
 import Button from "./Button";
+import Avatar from "./Avatar";
 
 /* ---------- Logos map ---------- */
 const teamLogoSlug = {
@@ -78,6 +79,7 @@ export default function Results() {
 
   const [activeParticipants, setActiveParticipants] = useState([]); // [user_name]
   const [usernameByFullName, setUsernameByFullName] = useState({});
+  const [avatarByFullName, setAvatarByFullName] = useState({});
   const [picksRows, setPicksRows] = useState([]); // { user_name, game_id, pick }
   const [bonusPicksRows, setBonusPicksRows] = useState([]); // { user_name, game_id, category, pick }
   const [tbGameIds, setTbGameIds] = useState([]); // 3 ids
@@ -112,12 +114,15 @@ export default function Results() {
       setMeta({ season, week, isCurrent: data.isCurrent !== false });
       setActiveParticipants(Array.isArray(data.activeParticipants) ? data.activeParticipants : []);
 
-      // 1b) Usernames for display (falls back to full name if this fails --
-      // never block the table on it)
+      // 1b) Usernames/avatars for display (falls back to full name / initials
+      // if this fails -- never block the table on it)
       fetch("/.netlify/functions/getUsernames", { cache: "no-store" })
         .then((r) => r.json())
         .then((d) => {
-          if (d?.ok) setUsernameByFullName(d.usernames || {});
+          if (d?.ok) {
+            setUsernameByFullName(d.usernames || {});
+            setAvatarByFullName(d.avatars || {});
+          }
         })
         .catch(() => {});
 
@@ -553,7 +558,12 @@ export default function Results() {
                   users.map((u, i) => (
                     <tr key={u} style={{ borderTop: "1px solid #eee" }}>
                       <td style={tdNum}>{i + 1}</td>
-                      <td style={tdName}>{dispName(u)}</td>
+                      <td style={tdName}>
+                        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 3 }}>
+                          <Avatar username={dispName(u)} avatar={avatarByFullName[u]} size={32} />
+                          <span>{dispName(u)}</span>
+                        </div>
+                      </td>
 
                       {(games || []).map((g) => {
                         const gameLocked = lockedGameIds.has(String(g.id));
@@ -629,8 +639,8 @@ const thStickyName = {
   left: 42,
   background: "#fff",
   zIndex: 3,
-  textAlign: "left",
-  minWidth: 180,
+  textAlign: "center",
+  minWidth: 120,
 };
 
 const tdCenter = {
@@ -656,7 +666,7 @@ const tdName = {
   left: 42,
   background: "#fff",
   zIndex: 2,
-  textAlign: "left",
+  textAlign: "center",
   fontWeight: 800,
 };
 

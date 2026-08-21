@@ -2,6 +2,7 @@ import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from "re
 import { Link, useSearchParams } from "react-router-dom";
 import { supabase } from "./supabaseClient";
 import Button from "./Button";
+import Avatar from "./Avatar";
 
 /* ---------- Logos map (same keys as your games.away/home full names) ---------- */
 const teamLogoSlug = {
@@ -105,6 +106,7 @@ export default function Leaderboard() {
   const [meta, setMeta] = useState({ season: null, week: null, isCurrent: true });
   const [rows, setRows] = useState([]);
   const [usernameByFullName, setUsernameByFullName] = useState({});
+  const [avatarByFullName, setAvatarByFullName] = useState({});
 
   // Tiebreak watch state
   const [tbWatch, setTbWatch] = useState(null);
@@ -132,12 +134,15 @@ export default function Leaderboard() {
 
       setMeta({ season, week, isCurrent: data.isCurrent !== false });
 
-      // 1b) Usernames for display (falls back to full name if this fails --
-      // never block the leaderboard on it)
+      // 1b) Usernames/avatars for display (falls back to full name / initials
+      // if this fails -- never block the leaderboard on it)
       fetch("/.netlify/functions/getUsernames", { cache: "no-store" })
         .then((r) => r.json())
         .then((d) => {
-          if (d?.ok) setUsernameByFullName(d.usernames || {});
+          if (d?.ok) {
+            setUsernameByFullName(d.usernames || {});
+            setAvatarByFullName(d.avatars || {});
+          }
         })
         .catch(() => {});
 
@@ -564,7 +569,7 @@ export default function Leaderboard() {
             </div>
           </div>
 
-          <RaceList rows={rows} totalAvailable={totalAvailablePoints} dispName={dispName} />
+          <RaceList rows={rows} totalAvailable={totalAvailablePoints} dispName={dispName} avatarByFullName={avatarByFullName} />
 
           {/* Tiebreak Watch BELOW the bars */}
           {tbWatch?.applicable ? <TiebreakWatchPanel tbWatch={tbWatch} dispName={dispName} /> : null}
@@ -575,7 +580,7 @@ export default function Leaderboard() {
 }
 
 /* ---------------- Horse race list (animated reorder via FLIP) ---------------- */
-function RaceList({ rows, totalAvailable, dispName }) {
+function RaceList({ rows, totalAvailable, dispName, avatarByFullName }) {
   const itemRefs = useRef(new Map()); // key -> element
   const lastRectsRef = useRef(new Map()); // key -> DOMRect
 
@@ -667,7 +672,10 @@ function RaceList({ rows, totalAvailable, dispName }) {
               {idx + 1}
             </div>
 
-            <div style={{ width: 220, fontWeight: 800, color: "#111" }}>{dispName(r.user_name)}</div>
+            <div style={{ width: 220, display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
+              <Avatar username={dispName(r.user_name)} avatar={avatarByFullName?.[r.user_name]} size={40} />
+              <div style={{ fontWeight: 800, color: "#111" }}>{dispName(r.user_name)}</div>
+            </div>
 
             <div style={{ flex: 1 }}>
               <div style={{ height: 16, background: "#eee", borderRadius: 999, overflow: "hidden" }}>
