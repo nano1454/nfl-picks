@@ -767,7 +767,7 @@ export default function App() {
         {session?.username && (
           <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 10 }}>
             <Link to="/profile" style={{ textDecoration: "none", textAlign: "center" }}>
-              <Avatar username={session.username} avatar={session.avatar} size={48} />
+              <Avatar username={session.username} avatar={session.avatar} size={96} />
               <div style={{ marginTop: 4, fontSize: 12, fontWeight: 800, color: "#111" }}>{session.username}</div>
             </Link>
           </div>

@@ -113,7 +113,7 @@ export default function Profile() {
             <div style={styles.field}>
               <span>Avatar</span>
               <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-                <Avatar username={username} avatar={avatar} size={72} />
+                <Avatar username={username} avatar={avatar} size={144} />
                 <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                   <Button type="button" variant="secondary" size="sm" onClick={() => setShowPicker(true)}>
                     Change Avatar

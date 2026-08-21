@@ -193,7 +193,7 @@ export default function Login() {
                   <div style={styles.field}>
                     <span>Avatar (optional)</span>
                     <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                      <Avatar username={username || "?"} avatar={avatar} size={56} />
+                      <Avatar username={username || "?"} avatar={avatar} size={112} />
                       <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                         <Button type="button" variant="secondary" size="sm" onClick={() => setShowPicker(true)}>
                           Choose Avatar

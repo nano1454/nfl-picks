@@ -18,7 +18,7 @@ const styles = {
     borderRadius: 16,
     padding: 20,
     width: "100%",
-    maxWidth: 560,
+    maxWidth: 760,
     maxHeight: "80vh",
     display: "flex",
     flexDirection: "column",
@@ -35,14 +35,14 @@ const styles = {
     fontSize: 14, marginBottom: 12, width: "100%", boxSizing: "border-box",
   },
   grid: {
-    display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(64px, 1fr))",
-    gap: 8, overflowY: "auto", paddingRight: 4,
+    display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(128px, 1fr))",
+    gap: 10, overflowY: "auto", paddingRight: 4,
   },
   thumbWrap: {
     display: "flex", alignItems: "center", justifyContent: "center",
-    borderRadius: "50%", cursor: "pointer", padding: 2,
+    borderRadius: "50%", cursor: "pointer", padding: 3,
   },
-  thumb: { width: 64, height: 64, borderRadius: "50%", objectFit: "cover", display: "block" },
+  thumb: { width: 128, height: 128, borderRadius: "50%", objectFit: "cover", display: "block" },
 };
 
 export default function AvatarPicker({ current, onSelect, onClose }) {
