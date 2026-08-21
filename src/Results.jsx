@@ -77,6 +77,7 @@ export default function Results() {
   const [deadline, setDeadline] = useState(null);
 
   const [activeParticipants, setActiveParticipants] = useState([]); // [user_name]
+  const [usernameByFullName, setUsernameByFullName] = useState({});
   const [picksRows, setPicksRows] = useState([]); // { user_name, game_id, pick }
   const [bonusPicksRows, setBonusPicksRows] = useState([]); // { user_name, game_id, category, pick }
   const [tbGameIds, setTbGameIds] = useState([]); // 3 ids
@@ -110,6 +111,15 @@ export default function Results() {
       const week = Number(data.week);
       setMeta({ season, week, isCurrent: data.isCurrent !== false });
       setActiveParticipants(Array.isArray(data.activeParticipants) ? data.activeParticipants : []);
+
+      // 1b) Usernames for display (falls back to full name if this fails --
+      // never block the table on it)
+      fetch("/.netlify/functions/getUsernames", { cache: "no-store" })
+        .then((r) => r.json())
+        .then((d) => {
+          if (d?.ok) setUsernameByFullName(d.usernames || {});
+        })
+        .catch(() => {});
 
       // 2) Get games for this week (so table columns are correct)
       const { data: g, error: gErr } = await supabase
@@ -255,6 +265,10 @@ export default function Results() {
     return m;
   }, [games]);
 
+  // Display label for a user -- their login username when known, else their
+  // full name (join key stays full_name everywhere else, this is display-only)
+  const dispName = (fullName) => usernameByFullName[fullName] || fullName;
+
   const users = useMemo(() => {
     const set = new Set();
     // Every active participant gets a row, even with zero picks -- otherwise
@@ -268,8 +282,9 @@ export default function Results() {
       const u = String(r.user_name || "").trim();
       if (u) set.add(u);
     }
-    return Array.from(set).sort((a, b) => a.localeCompare(b));
-  }, [activeParticipants, picksRows]);
+    return Array.from(set).sort((a, b) => dispName(a).localeCompare(dispName(b)));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeParticipants, picksRows, usernameByFullName]);
 
   const pickByUserGame = useMemo(() => {
     const m = {}; // m[user][gameId] = pick
@@ -538,7 +553,7 @@ export default function Results() {
                   users.map((u, i) => (
                     <tr key={u} style={{ borderTop: "1px solid #eee" }}>
                       <td style={tdNum}>{i + 1}</td>
-                      <td style={tdName}>{u}</td>
+                      <td style={tdName}>{dispName(u)}</td>
 
                       {(games || []).map((g) => {
                         const gameLocked = lockedGameIds.has(String(g.id));

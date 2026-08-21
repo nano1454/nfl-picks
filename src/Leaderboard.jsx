@@ -104,6 +104,7 @@ export default function Leaderboard() {
   const [err, setErr] = useState("");
   const [meta, setMeta] = useState({ season: null, week: null, isCurrent: true });
   const [rows, setRows] = useState([]);
+  const [usernameByFullName, setUsernameByFullName] = useState({});
 
   // Tiebreak watch state
   const [tbWatch, setTbWatch] = useState(null);
@@ -130,6 +131,15 @@ export default function Leaderboard() {
       const week = Number(data.week);
 
       setMeta({ season, week, isCurrent: data.isCurrent !== false });
+
+      // 1b) Usernames for display (falls back to full name if this fails --
+      // never block the leaderboard on it)
+      fetch("/.netlify/functions/getUsernames", { cache: "no-store" })
+        .then((r) => r.json())
+        .then((d) => {
+          if (d?.ok) setUsernameByFullName(d.usernames || {});
+        })
+        .catch(() => {});
 
       // 2) Load leaderboard rows for that season/week
       const { data: lb, error } = await supabase
@@ -462,6 +472,10 @@ export default function Leaderboard() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [meta.season, meta.week, meta.isCurrent]);
 
+  // Display label for a user -- their login username when known, else their
+  // full name (join key stays full_name everywhere else, this is display-only)
+  const dispName = (fullName) => usernameByFullName[fullName] || fullName;
+
   const hasPoints = useMemo(() => (rows || []).some((r) => Number(r.points || 0) > 0), [rows]);
 
   // Total points available for the week: 1 pt per FINAL game (winner) + 0.5
@@ -550,10 +564,10 @@ export default function Leaderboard() {
             </div>
           </div>
 
-          <RaceList rows={rows} totalAvailable={totalAvailablePoints} />
+          <RaceList rows={rows} totalAvailable={totalAvailablePoints} dispName={dispName} />
 
           {/* Tiebreak Watch BELOW the bars */}
-          {tbWatch?.applicable ? <TiebreakWatchPanel tbWatch={tbWatch} /> : null}
+          {tbWatch?.applicable ? <TiebreakWatchPanel tbWatch={tbWatch} dispName={dispName} /> : null}
         </div>
       )}
     </div>
@@ -561,7 +575,7 @@ export default function Leaderboard() {
 }
 
 /* ---------------- Horse race list (animated reorder via FLIP) ---------------- */
-function RaceList({ rows, totalAvailable }) {
+function RaceList({ rows, totalAvailable, dispName }) {
   const itemRefs = useRef(new Map()); // key -> element
   const lastRectsRef = useRef(new Map()); // key -> DOMRect
 
@@ -653,7 +667,7 @@ function RaceList({ rows, totalAvailable }) {
               {idx + 1}
             </div>
 
-            <div style={{ width: 220, fontWeight: 800, color: "#111" }}>{r.user_name}</div>
+            <div style={{ width: 220, fontWeight: 800, color: "#111" }}>{dispName(r.user_name)}</div>
 
             <div style={{ flex: 1 }}>
               <div style={{ height: 16, background: "#eee", borderRadius: 999, overflow: "hidden" }}>
@@ -694,7 +708,7 @@ function RaceList({ rows, totalAvailable }) {
 }
 
 /* ---------------- Tiebreak watch panel ---------------- */
-function TiebreakWatchPanel({ tbWatch }) {
+function TiebreakWatchPanel({ tbWatch, dispName }) {
   const card = {
     marginTop: 16,
     border: "1px solid rgba(184,134,11,0.3)",
@@ -732,7 +746,7 @@ function TiebreakWatchPanel({ tbWatch }) {
         <div>
           <div style={{ fontWeight: 900, fontSize: 16, color: "#111" }}>⚖️ Tiebreak Watch</div>
           <div style={{ color: "#555", marginTop: 2 }}>
-            Tie for 1st at <b>{tbWatch.maxPoints}</b> points: <b>{tbWatch.tiedUsers.join(", ")}</b>
+            Tie for 1st at <b>{tbWatch.maxPoints}</b> points: <b>{tbWatch.tiedUsers.map(dispName).join(", ")}</b>
           </div>
           <div style={{ marginTop: 6, fontSize: 13, color: "#333" }}>
             Status: <b>{decidedLabel}</b>
@@ -740,7 +754,7 @@ function TiebreakWatchPanel({ tbWatch }) {
         </div>
 
         <div style={{ alignSelf: "flex-end", fontSize: 13 }}>
-          Current winner{(tbWatch.winners || []).length > 1 ? "s" : ""}: <b>{(tbWatch.winners || []).join(", ")}</b>
+          Current winner{(tbWatch.winners || []).length > 1 ? "s" : ""}: <b>{(tbWatch.winners || []).map(dispName).join(", ")}</b>
         </div>
       </div>
 
@@ -804,7 +818,7 @@ function TiebreakWatchPanel({ tbWatch }) {
                       return (
                         <tr key={r.user_name} style={{ borderTop: "1px solid #eee" }}>
                           <td style={td}>
-                            <b>{r.user_name}</b>
+                            <b>{dispName(r.user_name)}</b>
                           </td>
                           <td style={td}>{r.guess ?? "—"}</td>
                           <td style={td}>
@@ -837,8 +851,8 @@ function TiebreakWatchPanel({ tbWatch }) {
               <div style={{ marginTop: 8, fontSize: 12, color: "#555" }}>
                 {tb.status === "PENDING_FINAL" && "This tiebreak game isn’t FINAL yet — standings will update automatically."}
                 {tb.status === "NO_ELIGIBLE_ALL_BUSTED" && "Everyone busted on this tiebreak → moving to the next one."}
-                {tb.status === "TIED_CONTINUE" && `Still tied → advancing: ${(tb.bestUsers || []).join(", ")}`}
-                {tb.status === "DECIDED" && `Winner decided here: ${(tb.bestUsers || []).join(", ")}`}
+                {tb.status === "TIED_CONTINUE" && `Still tied → advancing: ${(tb.bestUsers || []).map(dispName).join(", ")}`}
+                {tb.status === "DECIDED" && `Winner decided here: ${(tb.bestUsers || []).map(dispName).join(", ")}`}
               </div>
             </div>
           );
@@ -850,7 +864,7 @@ function TiebreakWatchPanel({ tbWatch }) {
           <div style={{ fontWeight: 800, marginBottom: 6 }}>Season points (fallback)</div>
           {Object.entries(tbWatch.seasonTotals).map(([u, pts]) => (
             <div key={u}>
-              {u}: <b>{pts}</b>
+              {dispName(u)}: <b>{pts}</b>
             </div>
           ))}
         </div>
