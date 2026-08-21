@@ -9,6 +9,7 @@ import Rules from "./Rules.jsx";
 import Reglas from "./Reglas.jsx";
 import History from "./History.jsx";
 import Login from "./Login.jsx";
+import Profile from "./Profile.jsx";
 import RequireAuth from "./RequireAuth.jsx";
 
 ReactDOM.createRoot(document.getElementById("root")).render(
@@ -23,6 +24,7 @@ ReactDOM.createRoot(document.getElementById("root")).render(
         <Route path="/rules" element={<RequireAuth><Rules /></RequireAuth>} />
         <Route path="/reglas" element={<RequireAuth><Reglas /></RequireAuth>} />
         <Route path="/history" element={<RequireAuth><History /></RequireAuth>} />
+        <Route path="/profile" element={<RequireAuth><Profile /></RequireAuth>} />
       </Routes>
     </BrowserRouter>
   </React.StrictMode>

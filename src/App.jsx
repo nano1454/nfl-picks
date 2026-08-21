@@ -792,6 +792,10 @@ export default function App() {
 
             <PaymentMenu />
 
+            <Link to="/profile">
+              <Button variant="secondary" size="sm" pill>Profile Settings</Button>
+            </Link>
+
             <Button variant="secondary" size="sm" pill onClick={logout} title="Log out">
               Log out
             </Button>

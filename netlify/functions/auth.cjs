@@ -1,19 +1,8 @@
 // netlify/functions/auth.js
 const { createClient } = require("@supabase/supabase-js");
-const crypto = require("crypto");
 const { issueAdminToken } = require("./_adminAuth.cjs");
 const { sendEmail, SITE_URL } = require("./_resend.cjs");
-
-function hashPin(pin, salt) {
-  return crypto.scryptSync(String(pin), salt, 64).toString("hex");
-}
-
-function pinsMatch(pin, salt, hash) {
-  const test = Buffer.from(hashPin(pin, salt), "hex");
-  const actual = Buffer.from(hash, "hex");
-  if (test.length !== actual.length) return false;
-  return crypto.timingSafeEqual(test, actual);
-}
+const { hashPin, pinsMatch, newSalt } = require("./_pin.cjs");
 
 exports.handler = async (event) => {
   try {
@@ -63,7 +52,7 @@ exports.handler = async (event) => {
       if (findErr) throw findErr;
       if (existing) return j(409, { ok: false, error: "That username is already taken." });
 
-      const salt = crypto.randomBytes(16).toString("hex");
+      const salt = newSalt();
       const pinHash = hashPin(pin, salt);
 
       const { error: insErr } = await admin
@@ -96,7 +85,7 @@ exports.handler = async (event) => {
     if (action === "login") {
       const { data: found, error: findErr } = await admin
         .from("app_users")
-        .select("username, full_name, pin_hash, pin_salt, is_admin, approved")
+        .select("username, full_name, email, pin_hash, pin_salt, is_admin, approved")
         .ilike("username", username)
         .maybeSingle();
       if (findErr) throw findErr;
@@ -109,7 +98,7 @@ exports.handler = async (event) => {
       }
 
       const isAdmin = !!found.is_admin;
-      const user = { username: found.username, fullName: found.full_name, isAdmin };
+      const user = { username: found.username, fullName: found.full_name, email: found.email || "", isAdmin };
       if (isAdmin) user.adminToken = issueAdminToken(found.username);
 
       return j(200, { ok: true, user });
