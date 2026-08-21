@@ -323,7 +323,9 @@ export default function Results() {
           key={label}
           title={`${label}: ${team}`}
           style={{
-            display: "inline-block",
+            display: "inline-flex",
+            alignItems: "center",
+            justifyContent: "center",
             width: 13,
             height: 13,
             margin: "2px 1px 0",
@@ -336,7 +338,7 @@ export default function Results() {
             <img
               src={src}
               alt={team}
-              style={{ width: "100%", height: "100%", objectFit: "contain" }}
+              style={{ display: "block", width: "100%", height: "100%", objectFit: "contain" }}
               onError={(e) => (e.currentTarget.style.display = "none")}
             />
           )}
