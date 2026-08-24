@@ -3,6 +3,7 @@ import { Link, useSearchParams } from "react-router-dom";
 import { supabase } from "./supabaseClient";
 import Button from "./Button";
 import Avatar from "./Avatar";
+import { calcPot, countPickParticipants } from "./potCalc";
 
 /* ---------- Logos map (same keys as your games.away/home full names) ---------- */
 const teamLogoSlug = {
@@ -107,6 +108,7 @@ export default function Leaderboard() {
   const [rows, setRows] = useState([]);
   const [usernameByFullName, setUsernameByFullName] = useState({});
   const [avatarByFullName, setAvatarByFullName] = useState({});
+  const [potInfo, setPotInfo] = useState(null);
 
   // Tiebreak watch state
   const [tbWatch, setTbWatch] = useState(null);
@@ -144,6 +146,12 @@ export default function Leaderboard() {
             setAvatarByFullName(d.avatars || {});
           }
         })
+        .catch(() => {});
+
+      // 1c) This week's pot (participants who saved >=1 pick x $20, minus
+      // commission) -- non-blocking, same as the usernames/avatars fetch
+      countPickParticipants(season, week)
+        .then((n) => setPotInfo(calcPot(n)))
         .catch(() => {});
 
       // 2) Load leaderboard rows for that season/week
@@ -504,6 +512,12 @@ export default function Leaderboard() {
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 16, flexWrap: "wrap", gap: 10 }}>
         <div style={{ color: "#555", fontSize: 14 }}>
           Season <b style={{ color: "#111" }}>{meta.season}</b> • Week <b style={{ color: "#111" }}>{meta.week}</b>
+          {potInfo && potInfo.n > 0 && (
+            <div style={{ marginTop: 4, fontSize: 13 }}>
+              🏆 This week's pot: <b style={{ color: "#b8860b" }}>${potInfo.pot.toFixed(2)}</b>
+              <span style={{ color: "#888" }}> ({potInfo.n} participant{potInfo.n === 1 ? "" : "s"})</span>
+            </div>
+          )}
         </div>
         <div style={{ display: "flex", gap: 8 }}>
           <PillButton onClick={loadMetaAndLeaderboard}>Refresh</PillButton>

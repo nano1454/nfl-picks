@@ -5,6 +5,7 @@ import { getSession, clearSession } from "./auth";
 import { pageBackgroundStyle } from "./backgroundStyle";
 import Button from "./Button";
 import Avatar from "./Avatar";
+import { calcPot, countPickParticipants } from "./potCalc";
 
 /* ---------- Styles (MUST be above App so useState can reference it) ---------- */
 const styles = {
@@ -371,7 +372,7 @@ function isValidTBValue(v) {
 const BONUS_CATEGORIES = ["passing_yards", "rushing_yards"];
 
 export default function App() {
-  const [week, setWeek] = useState({ week: "", games: [], tiebreakers: [], byes: [] });
+  const [week, setWeek] = useState({ season: "", week: "", games: [], tiebreakers: [], byes: [] });
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState("");
 
@@ -425,6 +426,7 @@ export default function App() {
         }
 
         setWeek({
+          season,
           week: data.week,
           games: data.games || [],
           tiebreakers: tbIds,
@@ -504,6 +506,22 @@ export default function App() {
       }
     })();
   }, [week.week, session?.fullName]);
+
+  // This week's pot (participants who've saved at least one pick x $20,
+  // minus commission) -- shown on the Done screen
+  const [potInfo, setPotInfo] = useState(null);
+
+  useEffect(() => {
+    if (!week.season || !week.week) return;
+    (async () => {
+      try {
+        const n = await countPickParticipants(week.season, week.week);
+        setPotInfo(calcPot(n));
+      } catch (e) {
+        console.error("countPickParticipants failed:", e);
+      }
+    })();
+  }, [week.season, week.week]);
 
   // update "now" every 30 seconds so lock state updates on screen
   useEffect(() => {
@@ -827,6 +845,7 @@ export default function App() {
               statusOf={statusOf}
               byes={week.byes}
               hasPaid={hasPaid}
+              potInfo={potInfo}
               savedPicks={savedPicks}
               savedBonusPicks={savedBonusPicks}
               savedTbTotals={savedTbTotals}
@@ -984,6 +1003,7 @@ function DoneScreen({
   statusOf,
   byes,
   hasPaid,
+  potInfo,
   savedPicks,
   savedBonusPicks,
   savedTbTotals,
@@ -1142,6 +1162,25 @@ function DoneScreen({
           })}
         </div>
       </div>
+      )}
+
+      {potInfo && potInfo.n > 0 && (
+        <div
+          style={{
+            marginTop: 16,
+            padding: 14,
+            borderRadius: 14,
+            border: "1px solid rgba(184,134,11,0.3)",
+            background: "linear-gradient(135deg, rgba(255,215,0,0.08), rgba(0,0,0,0.02))",
+          }}
+        >
+          <div style={{ fontWeight: 900, fontSize: 15 }}>
+            🏆 This week's pot: ${potInfo.pot.toFixed(2)}
+          </div>
+          <p style={{ margin: "4px 0 0", fontSize: 12, color: "#666" }}>
+            {potInfo.n} participant{potInfo.n === 1 ? "" : "s"} × ${potInfo.buyIn.toFixed(2)} − {Math.round(potInfo.commissionPct * 100)}% commission
+          </p>
+        </div>
       )}
 
       {hasPaid === true && (
