@@ -839,6 +839,7 @@ export default function App() {
               week={week.week}
               steps={steps}
               statusOf={statusOf}
+              savedBonusPicks={savedBonusPicks}
               onStart={() => goTo(firstOpenIndex())}
             />
           )}
@@ -967,11 +968,19 @@ function StepProgress({ steps, activeStep, statusOf, onJump }) {
 }
 
 /* ---------- Intro / resume screen ---------- */
-function IntroScreen({ fullName, username, week, steps, statusOf, onStart }) {
+function IntroScreen({ fullName, username, week, steps, statusOf, savedBonusPicks, onStart }) {
   const gameSteps = steps.filter((s) => s.type === "game");
   const tbSteps = steps.filter((s) => s.type === "tb");
   const answeredGames = gameSteps.filter((s) => statusOf(s) === "answered").length;
   const answeredTbs = tbSteps.filter((s) => statusOf(s) === "answered").length;
+  const bonusTotal = gameSteps.length * 2;
+  const answeredBonus = gameSteps.reduce((sum, s) => {
+    const gid = s.game.id;
+    let c = 0;
+    if (savedBonusPicks?.passing_yards?.[gid]) c++;
+    if (savedBonusPicks?.rushing_yards?.[gid]) c++;
+    return sum + c;
+  }, 0);
   const allDone = gameSteps.every((s) => statusOf(s) !== "open") && tbSteps.every((s) => statusOf(s) !== "open");
   const anyProgress = answeredGames + answeredTbs > 0;
 
@@ -987,6 +996,9 @@ function IntroScreen({ fullName, username, week, steps, statusOf, onStart }) {
       <div style={{ display: "flex", gap: 18, marginTop: 10, flexWrap: "wrap", fontSize: 14 }}>
         <div>
           <b>{answeredGames}</b> / {gameSteps.length} games picked
+        </div>
+        <div>
+          <b>{answeredBonus}</b> / {bonusTotal} bonus picks picked
         </div>
         <div>
           <b>{answeredTbs}</b> / {tbSteps.length} tiebreakers picked
@@ -1020,6 +1032,14 @@ function DoneScreen({
   const count = (arr, status) => arr.filter((s) => statusOf(s) === status).length;
   const openGames = count(gameSteps, "open");
   const openTbs = count(tbSteps, "open");
+  const bonusTotal = gameSteps.length * 2;
+  const answeredBonus = gameSteps.reduce((sum, s) => {
+    const gid = s.game.id;
+    let c = 0;
+    if (savedBonusPicks?.passing_yards?.[gid]) c++;
+    if (savedBonusPicks?.rushing_yards?.[gid]) c++;
+    return sum + c;
+  }, 0);
 
   const [showRecap, setShowRecap] = useState(false);
 
@@ -1043,6 +1063,10 @@ function DoneScreen({
         <li>
           {count(gameSteps, "answered")} of {gameSteps.length} games picked
           {openGames > 0 ? ` (${openGames} still open)` : ""}
+        </li>
+        <li>
+          {answeredBonus} of {bonusTotal} bonus picks picked
+          {answeredBonus < bonusTotal ? ` (${bonusTotal - answeredBonus} still open)` : ""}
         </li>
         <li>
           {count(tbSteps, "answered")} of {tbSteps.length} tiebreakers picked
