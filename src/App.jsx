@@ -638,8 +638,12 @@ export default function App() {
 
   function statusOf(step) {
     if (step.type === "game") {
-      if (savedPicks[step.game.id]) return "answered";
-      if (isGameLocked(step.game.id)) return "locked";
+      const gid = step.game.id;
+      const hasMain = !!savedPicks[gid];
+      const hasPassing = !!savedBonusPicks?.passing_yards?.[gid];
+      const hasRushing = !!savedBonusPicks?.rushing_yards?.[gid];
+      if (hasMain && hasPassing && hasRushing) return "answered";
+      if (isGameLocked(gid)) return "locked";
       return "open";
     }
     if (step.type === "tb") {
@@ -1391,7 +1395,9 @@ function GamePickScreen({
     (pick && pick !== savedPick) ||
     (passingPick && passingPick !== savedBonusPicks?.passing_yards?.[game.id]) ||
     (rushingPick && rushingPick !== savedBonusPicks?.rushing_yards?.[game.id]);
-  const canSave = !locked && !!pick;
+  const canSave = !locked && !!pick && !!passingPick && !!rushingPick;
+  const isFullySaved =
+    !!savedPick && !!savedBonusPicks?.passing_yards?.[game.id] && !!savedBonusPicks?.rushing_yards?.[game.id];
 
   return (
     <div>
@@ -1399,7 +1405,7 @@ function GamePickScreen({
         <div style={styles.darkMuted}>
           Game {index + 1} of {totalGames}
         </div>
-        {savedPick && !isDirty && (
+        {isFullySaved && !isDirty && (
           <span style={{ fontSize: 12, fontWeight: 800, color: "#7CFB9B" }}>✓ Saved</span>
         )}
       </div>
@@ -1462,7 +1468,7 @@ function GamePickScreen({
 
       <BonusPickRow
         category="passing_yards"
-        label="Bonus (+0.5 pt) — More Passing Yards"
+        label="Required (+0.5 pt) — More Passing Yards"
         game={game}
         value={passingPick}
         locked={locked}
@@ -1470,7 +1476,7 @@ function GamePickScreen({
       />
       <BonusPickRow
         category="rushing_yards"
-        label="Bonus (+0.5 pt) — More Rushing Yards"
+        label="Required (+0.5 pt) — More Rushing Yards"
         game={game}
         value={rushingPick}
         locked={locked}

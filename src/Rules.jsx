@@ -61,9 +61,10 @@ export default function Rules() {
             </li>
             <li>Enter your <b>email address</b> (used to send you a copy of your picks).</li>
             <li>
-              For every game, select your predicted <b>winner</b> — plus two bonus half-point picks:
-              which team will have <b>more passing yards</b>, and which team will have <b>more
-              rushing yards</b>.
+              For every game, select your predicted <b>winner</b> — plus two required half-point
+              bonus picks: which team will have <b>more passing yards</b>, and which team will
+              have <b>more rushing yards</b>. All three are required for that game to count as
+              picked.
             </li>
             <li>Enter your <b>total points prediction</b> for all three tiebreaker games.</li>
             <li>Click <b>"Submit Picks"</b> before the deadline. You're done!</li>
@@ -84,10 +85,10 @@ export default function Rules() {
               new submissions are accepted.
             </li>
             <li>
-              <b>Individual game locks</b> — Each game (and its two bonus picks) automatically locks
-              <b> 1 hour before kickoff</b>. If a specific game is already locked when you submit,
+              <b>Individual game locks</b> — Each game (and its two required bonus picks) automatically
+              locks <b> 1 hour before kickoff</b>. If a specific game is already locked when you submit,
               you must still pick all remaining unlocked games — you cannot submit with a missing
-              pick for a started game.
+              winner or bonus pick for a started game.
             </li>
           </ul>
           <Callout type="warning">

@@ -63,8 +63,9 @@ export default function Reglas() {
             <li>Ingresa tu <b>correo electrónico</b> (se usa para enviarte una copia de tus picks).</li>
             <li>
               Para cada partido, selecciona a tu <b>ganador</b> — más dos picks extra de medio
-              punto: qué equipo tendrá <b>más yardas por pase</b>, y qué equipo tendrá <b>más
-              yardas por acarreo</b>.
+              punto, obligatorios: qué equipo tendrá <b>más yardas por pase</b>, y qué equipo
+              tendrá <b>más yardas por acarreo</b>. Los tres son necesarios para que ese partido
+              cuente como completado.
             </li>
             <li>Ingresa tu predicción de <b>puntos totales combinados</b> para los tres partidos de desempate.</li>
             <li>Dale clic a <b>"Submit Picks"</b> antes del límite de tiempo. ¡Listo!</li>
@@ -85,10 +86,11 @@ export default function Reglas() {
               se bloquea y no se aceptan más envíos.
             </li>
             <li>
-              <b>Bloqueo por partido</b> — Cada partido (y sus dos picks extra) se bloquea
-              automáticamente <b>1 hora antes del kickoff</b>. Si un partido ya está bloqueado
-              cuando intentas enviar, debes seleccionar todos los demás partidos disponibles — no
-              puedes enviar con un pick faltante de un partido que ya empezó.
+              <b>Bloqueo por partido</b> — Cada partido (y sus dos picks extra obligatorios) se
+              bloquea automáticamente <b>1 hora antes del kickoff</b>. Si un partido ya está
+              bloqueado cuando intentas enviar, debes seleccionar todos los demás partidos
+              disponibles — no puedes enviar con un pick de ganador o extra faltante de un partido
+              que ya empezó.
             </li>
           </ul>
           <Callout type="warning">
