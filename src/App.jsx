@@ -811,6 +811,10 @@ export default function App() {
               <Button variant="secondary" size="sm" pill>Live Leaderboard</Button>
             </Link>
 
+            <Link to="/whos-in">
+              <Button variant="secondary" size="sm" pill>Who's In</Button>
+            </Link>
+
             <Link to="/rules">
               <Button variant="secondary" size="sm" pill>Rules</Button>
             </Link>

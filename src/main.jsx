@@ -10,6 +10,7 @@ import Reglas from "./Reglas.jsx";
 import History from "./History.jsx";
 import Login from "./Login.jsx";
 import Profile from "./Profile.jsx";
+import WhosIn from "./WhosIn.jsx";
 import RequireAuth from "./RequireAuth.jsx";
 import UpdateBanner from "./UpdateBanner.jsx";
 
@@ -27,6 +28,7 @@ ReactDOM.createRoot(document.getElementById("root")).render(
         <Route path="/reglas" element={<RequireAuth><Reglas /></RequireAuth>} />
         <Route path="/history" element={<RequireAuth><History /></RequireAuth>} />
         <Route path="/profile" element={<RequireAuth><Profile /></RequireAuth>} />
+        <Route path="/whos-in" element={<RequireAuth><WhosIn /></RequireAuth>} />
       </Routes>
     </BrowserRouter>
   </React.StrictMode>
