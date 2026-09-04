@@ -3,7 +3,7 @@ import Avatar from "./Avatar";
 
 const RADIUS = 50; // physics collision radius, px
 const AVATAR_SIZE = 60;
-const SPEED = 0.4; // baseline px/frame -- kept small for a slow-motion feel
+const SPEED = 0.8; // baseline px/frame
 
 export default function BouncingRoster({ people }) {
   const containerRef = useRef(null);
