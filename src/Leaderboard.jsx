@@ -646,7 +646,8 @@ function RaceList({ rows, totalAvailable, dispName, avatarByFullName }) {
     <div style={{ display: "grid", gap: 10 }}>
       {rows.map((r, idx) => {
         const points = Number(r.points || 0);
-        const pct = max > 0 ? Math.max(2, Math.min(100, (points / max) * 100)) : 0;
+        const truePct = max > 0 ? Math.min(100, (points / max) * 100) : 0;
+        const barPct = max > 0 ? Math.max(2, truePct) : 0; // floor is visual-only (keeps a 0pt bar from vanishing)
         const medal = medalStyle[idx];
 
         return (
@@ -696,7 +697,7 @@ function RaceList({ rows, totalAvailable, dispName, avatarByFullName }) {
                 <div
                   style={{
                     height: "100%",
-                    width: `${pct}%`,
+                    width: `${barPct}%`,
                     background: "linear-gradient(90deg, #111 0%, #7a5c14 55%, #ffd700 100%)",
                     transition: "width 650ms cubic-bezier(0.2, 0.9, 0.2, 1)",
                     position: "relative",
@@ -715,7 +716,7 @@ function RaceList({ rows, totalAvailable, dispName, avatarByFullName }) {
               </div>
 
               <div style={{ marginTop: 6, fontSize: 12, color: "#666" }}>
-                {max > 0 ? `${Math.round(pct)}% of points available` : ""}
+                {max > 0 ? `${Math.round(truePct)}% of points available` : ""}
               </div>
             </div>
 
