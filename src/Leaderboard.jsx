@@ -809,7 +809,7 @@ function TiebreakWatchPanel({ tbWatch, dispName }) {
         </div>
 
         <div style={{ alignSelf: "flex-end", fontSize: 13 }}>
-          Current winner{(tbWatch.winners || []).length > 1 ? "s" : ""}: <b>{(tbWatch.winners || []).map(dispName).join(", ")}</b>
+          Current Frontrunners: <b>{(tbWatch.winners || []).map(dispName).join(", ")}</b>
         </div>
       </div>
 
@@ -906,7 +906,7 @@ function TiebreakWatchPanel({ tbWatch, dispName }) {
 
               <div style={{ marginTop: 8, fontSize: 12, color: "#555" }}>
                 {tb.status === "PENDING_FINAL" && "This tiebreak game isn’t FINAL yet — standings will update automatically."}
-                {tb.status === "NO_ELIGIBLE_ALL_BUSTED" && "Everyone in today's tied group busted this tiebreak → next tiebreak game decides among them (if this group is still tied once the week wraps up)."}
+                {tb.status === "NO_ELIGIBLE_ALL_BUSTED" && "Current Top 3 Participants busted for this tiebreak → next tiebreak game decides among them (if this group is still tied once the week wraps up)."}
                 {tb.status === "TIED_CONTINUE" && `Still tied among today's group → advancing: ${(tb.bestUsers || []).map(dispName).join(", ")}`}
                 {tb.status === "DECIDED" && `Would currently be decided here: ${(tb.bestUsers || []).map(dispName).join(", ")}`}
               </div>
