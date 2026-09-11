@@ -906,7 +906,8 @@ function TiebreakWatchPanel({ tbWatch, dispName }) {
 
               <div style={{ marginTop: 8, fontSize: 12, color: "#555" }}>
                 {tb.status === "PENDING_FINAL" && "This tiebreak game isn’t FINAL yet — standings will update automatically."}
-                {tb.status === "NO_ELIGIBLE_ALL_BUSTED" && "Current Top 3 Participants busted for this tiebreak → next tiebreak game decides among them (if this group is still tied once the week wraps up)."}
+                {tb.status === "NO_ELIGIBLE_ALL_BUSTED" &&
+                  `Current Top ${tb.rows.length} Participant${tb.rows.length === 1 ? "" : "s"} busted for this tiebreak → next tiebreak game decides among them (if this group is still tied once the week wraps up).`}
                 {tb.status === "TIED_CONTINUE" && `Still tied among today's group → advancing: ${(tb.bestUsers || []).map(dispName).join(", ")}`}
                 {tb.status === "DECIDED" && `Would currently be decided here: ${(tb.bestUsers || []).map(dispName).join(", ")}`}
               </div>
