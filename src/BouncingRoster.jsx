@@ -1,9 +1,14 @@
 import React, { useEffect, useRef, useState } from "react";
 import Avatar from "./Avatar";
 
-const RADIUS = 50; // physics collision radius, px
 const AVATAR_SIZE = 60;
+// Collision radius matches the avatar's own visual radius exactly, so two
+// balls' circles actually touch at the moment they bounce -- previously this
+// was a separate, larger 50px "personal space" radius around a 30px-radius
+// avatar, so balls visibly bounced ~40px apart from real contact.
+const RADIUS = AVATAR_SIZE / 2;
 const SPEED = 0.8; // baseline px/frame
+const LABEL_CLEARANCE = 18; // room reserved below the avatar for the username label
 
 export default function BouncingRoster({ people }) {
   const containerRef = useRef(null);
@@ -75,7 +80,13 @@ export default function BouncingRoster({ people }) {
         if (b.x - b.r < 0) { b.x = b.r; b.vx = Math.abs(b.vx); }
         if (b.x + b.r > bounds.width) { b.x = bounds.width - b.r; b.vx = -Math.abs(b.vx); }
         if (b.y - b.r < 0) { b.y = b.r; b.vy = Math.abs(b.vy); }
-        if (b.y + b.r > bounds.height) { b.y = bounds.height - b.r; b.vy = -Math.abs(b.vy); }
+        // Bottom wall reserves extra room for the username label rendered
+        // below the avatar (ball-to-ball collision below still uses plain
+        // b.r, so this only affects how close a ball can get to the floor)
+        if (b.y + b.r + LABEL_CLEARANCE > bounds.height) {
+          b.y = bounds.height - b.r - LABEL_CLEARANCE;
+          b.vy = -Math.abs(b.vy);
+        }
       }
 
       for (let i = 0; i < n; i++) {
@@ -150,10 +161,6 @@ export default function BouncingRoster({ people }) {
             left: 0,
             width: RADIUS * 2,
             height: RADIUS * 2,
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            justifyContent: "center",
             willChange: "transform",
             pointerEvents: "none",
           }}
@@ -161,15 +168,20 @@ export default function BouncingRoster({ people }) {
           <Avatar username={p.username} avatar={p.avatar} size={AVATAR_SIZE} />
           <div
             style={{
+              position: "absolute",
+              top: "100%",
+              left: "50%",
+              transform: "translateX(-50%)",
+              marginTop: 2,
               fontSize: 11,
               fontWeight: 800,
               color: "#fff",
               textShadow: "0 1px 3px rgba(0,0,0,0.85)",
-              marginTop: 2,
               maxWidth: 110,
               whiteSpace: "nowrap",
               overflow: "hidden",
               textOverflow: "ellipsis",
+              textAlign: "center",
             }}
           >
             {p.username}
