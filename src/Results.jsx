@@ -84,6 +84,8 @@ export default function Results() {
   const [bonusPicksRows, setBonusPicksRows] = useState([]); // { user_name, game_id, category, pick }
   const [tbGameIds, setTbGameIds] = useState([]); // 3 ids
   const [tbRows, setTbRows] = useState([]); // { user_name, tb_no, game_id, total }
+  const [gameResultsRows, setGameResultsRows] = useState([]); // { game_id, status, away_score, home_score }
+  const [leaderboardRows, setLeaderboardRows] = useState([]); // { user_name, points }
 
   const [nowTs, setNowTs] = useState(() => Date.now());
 
@@ -193,6 +195,36 @@ export default function Results() {
       } else {
         setTbRows(tb || []);
       }
+
+      // 6) game results (for the green "correct pick" border/checkmark -- only
+      // meaningful once a game is FINAL, i.e. the results processor has run)
+      const { data: gr, error: grErr } = await supabase
+        .from("game_results")
+        .select("game_id, status, away_score, home_score")
+        .eq("season", season)
+        .eq("week", week);
+
+      if (grErr) {
+        console.warn("game_results load warning:", grErr);
+        setGameResultsRows([]);
+      } else {
+        setGameResultsRows(gr || []);
+      }
+
+      // 7) leaderboard points (already-scored totals -- reused as-is rather
+      // than re-deriving points here, so this always matches the Leaderboard page)
+      const { data: lb, error: lbErr } = await supabase
+        .from("leaderboard")
+        .select("user_name, points")
+        .eq("season", season)
+        .eq("week", week);
+
+      if (lbErr) {
+        console.warn("leaderboard load warning:", lbErr);
+        setLeaderboardRows([]);
+      } else {
+        setLeaderboardRows(lb || []);
+      }
     } catch (e) {
       setErr(String(e?.message || e));
     } finally {
@@ -237,10 +269,32 @@ export default function Results() {
       )
       .subscribe();
 
+    // Refresh when the results processor runs, so the correct-pick borders
+    // and points column appear live without a manual page reload
+    const grCh = supabase
+      .channel("results_game_results_live")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "game_results", filter: `week=eq.${meta.week}` },
+        () => loadAll()
+      )
+      .subscribe();
+
+    const lbCh = supabase
+      .channel("results_leaderboard_live")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "leaderboard", filter: `week=eq.${meta.week}` },
+        () => loadAll()
+      )
+      .subscribe();
+
     return () => {
       supabase.removeChannel(pCh);
       supabase.removeChannel(bpCh);
       supabase.removeChannel(wmCh);
+      supabase.removeChannel(grCh);
+      supabase.removeChannel(lbCh);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [meta.season, meta.week, meta.isCurrent]);
@@ -327,6 +381,39 @@ export default function Results() {
     return m;
   }, [tbRows]);
 
+  // gid -> { status, winnerSide } -- winnerSide only set once status is
+  // FINAL, i.e. the results processor has scored this specific game
+  const gameResultByGid = useMemo(() => {
+    const m = {};
+    for (const r of gameResultsRows || []) {
+      const gid = String(r.game_id || "").trim();
+      if (!gid) continue;
+      const status = String(r.status || "").toUpperCase();
+      let winnerSide = null;
+      if (status === "FINAL") {
+        const awayScore = Number(r.away_score);
+        const homeScore = Number(r.home_score);
+        if (Number.isFinite(awayScore) && Number.isFinite(homeScore)) {
+          winnerSide = homeScore > awayScore ? "HOME" : awayScore > homeScore ? "AWAY" : "TIE";
+        }
+      }
+      m[gid] = { status, winnerSide };
+    }
+    return m;
+  }, [gameResultsRows]);
+
+  // user_name -> points, from the already-scored leaderboard (reused as-is
+  // rather than re-deriving totals here, so this always matches Leaderboard.jsx)
+  const pointsByUser = useMemo(() => {
+    const m = {};
+    for (const r of leaderboardRows || []) {
+      const u = String(r.user_name || "").trim();
+      if (!u) continue;
+      m[u] = Number(r.points);
+    }
+    return m;
+  }, [leaderboardRows]);
+
   // helper: render the small passing/rushing bonus-pick badges below a pick cell
   function renderBonusBadges(userName, gid) {
     const picks = bonusPickByUserGame?.[userName]?.[gid];
@@ -388,6 +475,13 @@ export default function Results() {
       <div style={{ fontSize: 9, fontWeight: 800, color: "#999", letterSpacing: 0.5, marginBottom: 2 }}>W</div>
     );
 
+    // Only mark a pick "correct" once this specific game is FINAL (the
+    // results processor has scored it) -- distinct from just "locked"
+    const gr = gameResultByGid[gid];
+    const correct = !!pick && !!gr?.winnerSide && pick === gr.winnerSide;
+    const correctWrap = correct ? styles.correctWrap : styles.plainWrap;
+    const checkBadge = correct ? <span style={styles.correctCheck}>✓</span> : null;
+
     if (!pick || !g) {
       return (
         <div>
@@ -406,7 +500,10 @@ export default function Results() {
       return (
         <div>
           {winnerLabel}
-          <span style={styles.tiePill}>TIE</span>
+          <span style={correctWrap}>
+            <span style={styles.tiePill}>TIE</span>
+            {checkBadge}
+          </span>
         </div>
       );
 
@@ -425,13 +522,16 @@ export default function Results() {
     return (
       <div>
         {winnerLabel}
-        <img
-          src={src}
-          alt={team}
-          title={team}
-          style={{ width: 42, height: 42, objectFit: "contain", display: "block", margin: "0 auto" }}
-          onError={(e) => (e.currentTarget.style.display = "none")}
-        />
+        <span style={correctWrap}>
+          <img
+            src={src}
+            alt={team}
+            title={correct ? `${team} — correct pick!` : team}
+            style={{ width: 42, height: 42, objectFit: "contain", display: "block", margin: "0 auto" }}
+            onError={(e) => (e.currentTarget.style.display = "none")}
+          />
+          {checkBadge}
+        </span>
       </div>
     );
   }
@@ -504,6 +604,7 @@ export default function Results() {
                 <tr>
                   <th style={thStickyLeft}>#</th>
                   <th style={thStickyName}>Participant</th>
+                  <th style={th}>Points</th>
 
                   {(games || []).map((g, idx) => {
                     const gameLocked = lockedGameIds.has(String(g.id));
@@ -550,7 +651,7 @@ export default function Results() {
               <tbody>
                 {users.length === 0 ? (
                   <tr>
-                    <td colSpan={(games?.length || 0) + 2 + (tbGameIds.length === 3 ? 3 : 0)} style={{ padding: 14, color: "#666" }}>
+                    <td colSpan={(games?.length || 0) + 3 + (tbGameIds.length === 3 ? 3 : 0)} style={{ padding: 14, color: "#666" }}>
                       No picks found for this week yet.
                     </td>
                   </tr>
@@ -563,6 +664,11 @@ export default function Results() {
                           <Avatar username={dispName(u)} avatar={avatarByFullName[u]} size={32} />
                           <span>{dispName(u)}</span>
                         </div>
+                      </td>
+                      <td style={tdPoints}>
+                        {pointsByUser[u] != null
+                          ? (Number.isInteger(pointsByUser[u]) ? pointsByUser[u] : pointsByUser[u].toFixed(1))
+                          : <span style={{ color: "#bbb", fontWeight: 400 }}>—</span>}
                       </td>
 
                       {(games || []).map((g) => {
@@ -604,7 +710,7 @@ export default function Results() {
           </div>
 
           <div style={{ marginTop: 10, fontSize: 12, color: "#777", textAlign: "center" }}>
-            🔒 = picks still hidden (game hasn’t locked yet) &nbsp;·&nbsp; purple-bordered logo = passing-yards bonus pick, orange-bordered logo = rushing-yards bonus pick &nbsp;·&nbsp; This table updates automatically as games lock.
+            🔒 = picks still hidden (game hasn’t locked yet) &nbsp;·&nbsp; purple-bordered logo = passing-yards bonus pick, orange-bordered logo = rushing-yards bonus pick &nbsp;·&nbsp; ✅ green border + checkmark = correct pick (appears once results are processed) &nbsp;·&nbsp; This table updates automatically as games lock and as results are processed.
           </div>
         </div>
       )}
@@ -670,6 +776,13 @@ const tdName = {
   fontWeight: 800,
 };
 
+const tdPoints = {
+  ...tdCenter,
+  fontWeight: 900,
+  color: "#b8860b",
+  fontSize: 14,
+};
+
 const styles = {
   tiePill: {
     display: "inline-flex",
@@ -683,5 +796,34 @@ const styles = {
     color: "#111",
     fontSize: 12,
     fontWeight: 800,
+  },
+  plainWrap: {
+    position: "relative",
+    display: "inline-block",
+  },
+  correctWrap: {
+    position: "relative",
+    display: "inline-block",
+    border: "3px solid #16a34a",
+    borderRadius: 10,
+    background: "rgba(22,163,74,0.10)",
+    padding: 2,
+  },
+  correctCheck: {
+    position: "absolute",
+    top: -8,
+    right: -8,
+    width: 16,
+    height: 16,
+    borderRadius: "50%",
+    background: "#16a34a",
+    color: "#fff",
+    fontSize: 11,
+    fontWeight: 900,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    boxShadow: "0 1px 3px rgba(0,0,0,0.4)",
+    lineHeight: 1,
   },
 };
