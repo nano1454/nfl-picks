@@ -102,7 +102,8 @@ export default function WhosIn() {
       style={{
         position: "fixed",
         inset: 0,
-        background: "linear-gradient(135deg, #0a0a0a 0%, #1c1c1c 55%, #000 100%)",
+        background:
+          "linear-gradient(rgba(0,0,0,0.4), rgba(0,0,0,0.6)), url(/who_is_in_bg.jpg) center center / cover no-repeat, linear-gradient(135deg, #0a0a0a 0%, #1c1c1c 55%, #000 100%)",
         display: "flex",
         flexDirection: "column",
       }}
