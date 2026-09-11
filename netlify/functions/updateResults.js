@@ -105,7 +105,60 @@ export default async (req) => {
       week = Number(current.week);
     }
 
-    // 2) Pull FINALs from *your* game_results first (simulation writes here)
+    // 2) Always check the real nflverse CSV for this week's finals, independent
+    // of what's already in game_results. Previously this fetch only ran when
+    // game_results had ZERO finals for the whole week -- which meant the
+    // first game of the week to finish permanently blocked every LATER game
+    // that week from ever being discovered/scored automatically, since every
+    // subsequent run saw finalRows.length > 0 and skipped the CSV check
+    // entirely. Now every run re-checks the CSV and upserts any newly-final
+    // games, then reads the authoritative FINAL list back from game_results
+    // (which also picks up manually-simulated FINALs from simulateGameFinal.js
+    // that wouldn't be in the real CSV).
+    const csvRes = await fetch(CSV_URL, { headers: { "User-Agent": "netlify-function" } });
+    if (!csvRes.ok) return json(500, { ok: false, error: `Failed to fetch games.csv (${csvRes.status})` });
+
+    const text = await csvRes.text();
+    const rows = parseCsv(text);
+
+    const filtered = rows.filter((r) => {
+      const rSeason = Number(r.season);
+      const rWeek = Number(r.week);
+      const isREG = String(r.game_type || "").toUpperCase() === "REG";
+      return rSeason === season && rWeek === week && isREG;
+    });
+
+    const finalsFromCsv = [];
+    for (const r of filtered) {
+      const gameId = String(r.game_id || "").trim();
+      if (!gameId) continue;
+
+      const awayScore = toInt(r.away_score);
+      const homeScore = toInt(r.home_score);
+      if (awayScore === null || homeScore === null) continue;
+
+      finalsFromCsv.push({
+        game_id: gameId,
+        status: "FINAL",
+        away_score: awayScore,
+        home_score: homeScore,
+      });
+    }
+
+    if (finalsFromCsv.length > 0) {
+      const upRows = finalsFromCsv.map((x) => ({
+        season,
+        week,
+        game_id: x.game_id,
+        status: "FINAL",
+        away_score: x.away_score,
+        home_score: x.home_score,
+        updated_at: new Date().toISOString(),
+      }));
+      const { error: upErr } = await admin.from("game_results").upsert(upRows, { onConflict: "season,week,game_id" });
+      if (upErr) throw upErr;
+    }
+
     const { data: finals, error: finalsErr } = await admin
       .from("game_results")
       .select("game_id, status, home_score, away_score, passing_winner, rushing_winner")
@@ -115,59 +168,8 @@ export default async (req) => {
 
     if (finalsErr) throw finalsErr;
 
-    // If none found, fall back to nflverse CSV finals (real season use)
-    let finalRows = finals || [];
-    let source = "game_results";
-
-    if (finalRows.length === 0) {
-      const csvRes = await fetch(CSV_URL, { headers: { "User-Agent": "netlify-function" } });
-      if (!csvRes.ok) return json(500, { ok: false, error: `Failed to fetch games.csv (${csvRes.status})` });
-
-      const text = await csvRes.text();
-      const rows = parseCsv(text);
-
-      const filtered = rows.filter((r) => {
-        const rSeason = Number(r.season);
-        const rWeek = Number(r.week);
-        const isREG = String(r.game_type || "").toUpperCase() === "REG";
-        return rSeason === season && rWeek === week && isREG;
-      });
-
-      const finalsFromCsv = [];
-      for (const r of filtered) {
-        const gameId = String(r.game_id || "").trim();
-        if (!gameId) continue;
-
-        const awayScore = toInt(r.away_score);
-        const homeScore = toInt(r.home_score);
-        if (awayScore === null || homeScore === null) continue;
-
-        finalsFromCsv.push({
-          game_id: gameId,
-          status: "FINAL",
-          away_score: awayScore,
-          home_score: homeScore,
-        });
-      }
-
-      finalRows = finalsFromCsv;
-      source = "nflverse_csv";
-
-      // Also upsert into game_results so the rest of the system is consistent
-      if (finalRows.length > 0) {
-        const upRows = finalRows.map((x) => ({
-          season,
-          week,
-          game_id: x.game_id,
-          status: "FINAL",
-          away_score: x.away_score,
-          home_score: x.home_score,
-          updated_at: new Date().toISOString(),
-        }));
-        const { error: upErr } = await admin.from("game_results").upsert(upRows, { onConflict: "season,week,game_id" });
-        if (upErr) throw upErr;
-      }
-    }
+    const finalRows = finals || [];
+    const source = finalsFromCsv.length > 0 ? "nflverse_csv" : "game_results";
 
     if (finalRows.length === 0) {
       return json(200, { ok: true, season, week, finals: 0, message: "No FINAL games yet." });
