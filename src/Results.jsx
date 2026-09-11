@@ -567,6 +567,9 @@ export default function Results() {
             Season <b>{meta.season}</b> • Week <b>{meta.week}</b>
           </div>
           <div style={{ marginTop: 6, fontSize: 13, color: "#666" }}>{lockLabel}</div>
+          <div style={{ marginTop: 4, fontSize: 13, color: "#666" }}>
+            ✅ Green check mark will mark correct picks as soon as data is officially available.
+          </div>
         </div>
 
         <div style={{ display: "flex", gap: 8 }}>
