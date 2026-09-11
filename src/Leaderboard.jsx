@@ -580,6 +580,8 @@ export default function Leaderboard() {
             <div style={{ fontWeight: 900, fontSize: 16, color: "#111" }}>🏈 Points Tracker</div>
             <div style={{ marginTop: 4, color: "#555", fontSize: 13 }}>
               Live rankings based on completed games.
+              <br />
+              Points will update as soon as data is officially available.
             </div>
           </div>
 
