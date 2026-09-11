@@ -5,6 +5,7 @@ import { getSession, clearSession } from "./auth";
 import { pageBackgroundStyle } from "./backgroundStyle";
 import Button from "./Button";
 import Avatar from "./Avatar";
+import NavDrawer from "./NavDrawer";
 import { calcPot, countPickParticipants } from "./potCalc";
 
 /* ---------- Styles (MUST be above App so useState can reference it) ---------- */
@@ -35,6 +36,27 @@ const styles = {
     flexWrap: "wrap",
     alignItems: "center",
     justifyContent: "flex-end",
+  },
+  hamburgerBtn: {
+    display: "flex",
+    flexDirection: "column",
+    justifyContent: "center",
+    alignItems: "center",
+    gap: 5,
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    border: "none",
+    background: "#111",
+    cursor: "pointer",
+    boxShadow: "0 3px 10px rgba(0,0,0,0.25)",
+  },
+  hamburgerBar: {
+    display: "block",
+    width: 22,
+    height: 3,
+    borderRadius: 2,
+    background: "#ffd700",
   },
 
   card: {
@@ -192,15 +214,35 @@ const styles = {
     width: "100%",
     height: 64,
     borderRadius: 14,
-    border: "1px solid rgba(0,0,0,0.08)",
+    border: "3px solid transparent",
     background: "#fff",
     boxShadow: "0 4px 14px rgba(0,0,0,0.35)",
-    transition: "transform 0.15s, box-shadow 0.2s",
+    transition: "transform 0.15s, box-shadow 0.2s, border-color 0.15s, background 0.15s",
     overflow: "hidden",
+    boxSizing: "border-box",
   },
   teamPillSelected: {
-    boxShadow: "0 4px 14px rgba(0,0,0,0.35), 0 0 0 3px rgba(255,215,0,0.55), 0 0 22px rgba(255,215,0,0.35)",
-    transform: "scale(1.04)",
+    border: "3px solid #ffd700",
+    background: "linear-gradient(135deg, #fff8dc 0%, #fff 65%)",
+    boxShadow: "0 4px 14px rgba(0,0,0,0.35), 0 0 0 3px rgba(255,215,0,0.55), 0 0 22px rgba(255,215,0,0.45)",
+    transform: "scale(1.06)",
+  },
+  teamPillCheck: {
+    position: "absolute",
+    top: -6,
+    right: -6,
+    width: 22,
+    height: 22,
+    borderRadius: "50%",
+    background: "#ffd700",
+    color: "#111",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    fontSize: 13,
+    fontWeight: 900,
+    boxShadow: "0 2px 6px rgba(0,0,0,0.4)",
+    zIndex: 2,
   },
   teamPillDisabled: {
     opacity: 0.4,
@@ -389,6 +431,7 @@ export default function App() {
   const [savedTbTotals, setSavedTbTotals] = useState({}); // { [tb_no]: "41" }
 
   // which step in the wizard is currently showing
+  const [drawerOpen, setDrawerOpen] = useState(false);
   const [activeStep, setActiveStep] = useState(0);
   const [savingKey, setSavingKey] = useState(null);
   const [saveOkKey, setSaveOkKey] = useState("");
@@ -803,37 +846,25 @@ export default function App() {
           </div>
 
           <div style={styles.headerRight}>
-            <Link to="/results">
-              <Button variant="secondary" size="sm" pill>View Picks Table</Button>
-            </Link>
-
-            <Link to="/leaderboard">
-              <Button variant="secondary" size="sm" pill>Live Leaderboard</Button>
-            </Link>
-
-            <Link to="/whos-in">
-              <Button variant="secondary" size="sm" pill>Who's In</Button>
-            </Link>
-
-            <Link to="/rules">
-              <Button variant="secondary" size="sm" pill>Rules</Button>
-            </Link>
-
-            <Link to="/reglas">
-              <Button variant="secondary" size="sm" pill>Reglas</Button>
-            </Link>
-
-            <Link to="/history">
-              <Button variant="secondary" size="sm" pill>Season History</Button>
-            </Link>
-
-            <PaymentMenu />
-
-            <Button variant="secondary" size="sm" pill onClick={logout} title="Log out">
-              Log out
-            </Button>
+            <button
+              type="button"
+              onClick={() => setDrawerOpen(true)}
+              aria-label="Open menu"
+              style={styles.hamburgerBtn}
+            >
+              <span style={styles.hamburgerBar} />
+              <span style={styles.hamburgerBar} />
+              <span style={styles.hamburgerBar} />
+            </button>
           </div>
         </div>
+
+        <NavDrawer
+          open={drawerOpen}
+          onClose={() => setDrawerOpen(false)}
+          onLogout={logout}
+          paymentMenu={<PaymentMenu />}
+        />
 
         <div style={styles.screenWrap} key={step.key}>
           {step.type === "intro" && (
@@ -1486,6 +1517,7 @@ function GamePickScreen({
                     onError={(e) => (e.currentTarget.style.display = "none")}
                   />
                 )}
+                {isSelected && <span style={styles.teamPillCheck}>✓</span>}
               </div>
               <span style={styles.teamPillCaption}>{shortTeamName(opt.label)}</span>
             </label>

@@ -47,19 +47,9 @@ export default function WhosIn() {
         }
       }
 
-      const { data: bonusRows, error: bpErr } = await supabase
-        .from("bonus_picks")
-        .select("user_name, game_id, category")
-        .eq("week", weekNum);
-      if (bpErr) throw bpErr;
-
-      const { data: tbRows, error: tbErr } = await supabase
-        .from("tiebreakers")
-        .select("user_name, tb_no, total")
-        .eq("week", weekNum);
-      if (tbErr) throw tbErr;
-
-      // Per-user completion tallies -- same "submitted" definition Admin.jsx uses.
+      // Per-user pick tallies. "Who's In" means at least one pick made this
+      // week (participants pick game-by-game up until each game's own
+      // kickoff, so requiring full completion excluded anyone still mid-week).
       const picksByUser = {};
       for (const p of picks) {
         const name = String(p.user_name || "").trim();
@@ -68,37 +58,9 @@ export default function WhosIn() {
         (picksByUser[name] ||= new Set()).add(gid);
       }
 
-      const bonusByUser = {};
-      for (const b of bonusRows || []) {
-        const name = String(b.user_name || "").trim();
-        const gid = String(b.game_id || "");
-        if (!name || !gameIds.has(gid)) continue;
-        const bucket = (bonusByUser[name] ||= { passing_yards: new Set(), rushing_yards: new Set() });
-        if (b.category === "passing_yards") bucket.passing_yards.add(gid);
-        if (b.category === "rushing_yards") bucket.rushing_yards.add(gid);
-      }
-
-      const tbByUser = {};
-      for (const t of tbRows || []) {
-        const name = String(t.user_name || "").trim();
-        const hasVal = t.total !== null && t.total !== undefined && String(t.total).trim() !== "";
-        if (!name || !hasVal) continue;
-        (tbByUser[name] ||= new Set()).add(Number(t.tb_no));
-      }
-
       const fullNames = activeParticipants.map((n) => String(n || "").trim()).filter(Boolean);
 
-      const submittedNames = gameCount === 0 ? [] : fullNames.filter((name) => {
-        const picksCount = picksByUser[name]?.size || 0;
-        const bonus = bonusByUser[name] || { passing_yards: new Set(), rushing_yards: new Set() };
-        const tbCount = tbByUser[name]?.size || 0;
-        return (
-          picksCount === gameCount &&
-          bonus.passing_yards.size === gameCount &&
-          bonus.rushing_yards.size === gameCount &&
-          tbCount === 3
-        );
-      });
+      const submittedNames = gameCount === 0 ? [] : fullNames.filter((name) => (picksByUser[name]?.size || 0) >= 1);
 
       const uRes = await fetch("/.netlify/functions/getUsernames", { cache: "no-store" });
       const uData = await uRes.json().catch(() => ({}));
@@ -196,7 +158,7 @@ export default function WhosIn() {
           <div style={{ color: "#ff8a8a", textAlign: "center", paddingTop: 140, padding: "140px 16px 0" }}>{err}</div>
         ) : people.length === 0 ? (
           <div style={{ color: "#fff", textAlign: "center", paddingTop: 150, fontSize: 16 }}>
-            No one's fully locked in yet — check back soon!
+            No one's made a pick yet this week — check back soon!
           </div>
         ) : (
           <BouncingRoster people={people} />
