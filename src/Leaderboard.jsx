@@ -784,10 +784,10 @@ function TiebreakWatchPanel({ tbWatch, dispName }) {
     tbWatch.decidedBy === "PENDING"
       ? "Pending (waiting on tiebreak game FINAL)"
       : tbWatch.decidedBy === "SEASON_POINTS"
-      ? "Decided by season points"
+      ? "Currently decided by season points"
       : tbWatch.decidedBy === "SPLIT"
       ? "Still tied — split winnings"
-      : `Decided by ${tbWatch.decidedBy}`;
+      : `Currently decided by ${tbWatch.decidedBy}`;
 
   const logoBox = { width: 26, height: 26, display: "inline-flex", alignItems: "center", justifyContent: "center" };
   const logoImg = { width: 24, height: 24, objectFit: "contain", display: "block" };
@@ -798,7 +798,10 @@ function TiebreakWatchPanel({ tbWatch, dispName }) {
         <div>
           <div style={{ fontWeight: 900, fontSize: 16, color: "#111" }}>⚖️ Tiebreak Watch</div>
           <div style={{ color: "#555", marginTop: 2 }}>
-            Tie for 1st at <b>{tbWatch.maxPoints}</b> points: <b>{tbWatch.tiedUsers.map(dispName).join(", ")}</b>
+            Tie for 1st <i>right now</i> at <b>{tbWatch.maxPoints}</b> points: <b>{tbWatch.tiedUsers.map(dispName).join(", ")}</b>
+          </div>
+          <div style={{ marginTop: 4, fontSize: 12, color: "#888" }}>
+            ⏳ Live snapshot — recalculates automatically as more games finish. Who's tied, and everything below, can still change until every game this week is FINAL.
           </div>
           <div style={{ marginTop: 6, fontSize: 13, color: "#333" }}>
             Status: <b>{decidedLabel}</b>
@@ -903,9 +906,9 @@ function TiebreakWatchPanel({ tbWatch, dispName }) {
 
               <div style={{ marginTop: 8, fontSize: 12, color: "#555" }}>
                 {tb.status === "PENDING_FINAL" && "This tiebreak game isn’t FINAL yet — standings will update automatically."}
-                {tb.status === "NO_ELIGIBLE_ALL_BUSTED" && "Everyone busted on this tiebreak → moving to the next one."}
-                {tb.status === "TIED_CONTINUE" && `Still tied → advancing: ${(tb.bestUsers || []).map(dispName).join(", ")}`}
-                {tb.status === "DECIDED" && `Winner decided here: ${(tb.bestUsers || []).map(dispName).join(", ")}`}
+                {tb.status === "NO_ELIGIBLE_ALL_BUSTED" && "Everyone in today's tied group busted this tiebreak → next tiebreak game decides among them (if this group is still tied once the week wraps up)."}
+                {tb.status === "TIED_CONTINUE" && `Still tied among today's group → advancing: ${(tb.bestUsers || []).map(dispName).join(", ")}`}
+                {tb.status === "DECIDED" && `Would currently be decided here: ${(tb.bestUsers || []).map(dispName).join(", ")}`}
               </div>
             </div>
           );
