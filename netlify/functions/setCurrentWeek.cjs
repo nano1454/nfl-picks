@@ -19,11 +19,16 @@ exports.handler = async (event) => {
     if (!(await requireAdmin(admin, token))) return json(401, { ok: false, error: "Unauthorized." });
     if (!season || !week) return json(400, { ok: false, error: "Missing season/week." });
 
-    // ✅ turn off current ONLY for this season
+    // Turn off current for EVERY week, not just this season -- is_current is
+    // meant to be a singleton across the whole table (exactly one current
+    // week, ever), not one-per-season. Scoping this to `.eq("season", season)`
+    // let a season-rollover leave the old season's week stuck at
+    // is_current=true forever, which silently pointed the scheduled scoring
+    // job at a stale week (see 2026-09-10 incident).
     const { error: offErr } = await admin
       .from("weeks")
       .update({ is_current: false })
-      .eq("season", season);
+      .eq("is_current", true);
 
     if (offErr) return json(500, { ok: false, error: offErr.message });
 
