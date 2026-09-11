@@ -200,7 +200,7 @@ export default function Results() {
       // meaningful once a game is FINAL, i.e. the results processor has run)
       const { data: gr, error: grErr } = await supabase
         .from("game_results")
-        .select("game_id, status, away_score, home_score")
+        .select("game_id, status, away_score, home_score, passing_winner, rushing_winner")
         .eq("season", season)
         .eq("week", week);
 
@@ -381,8 +381,9 @@ export default function Results() {
     return m;
   }, [tbRows]);
 
-  // gid -> { status, winnerSide } -- winnerSide only set once status is
-  // FINAL, i.e. the results processor has scored this specific game
+  // gid -> { status, winnerSide, passingWinner, rushingWinner } -- winnerSide/
+  // passingWinner/rushingWinner only set once status is FINAL, i.e. the
+  // results processor has scored this specific game
   const gameResultByGid = useMemo(() => {
     const m = {};
     for (const r of gameResultsRows || []) {
@@ -390,14 +391,21 @@ export default function Results() {
       if (!gid) continue;
       const status = String(r.status || "").toUpperCase();
       let winnerSide = null;
+      let passingWinner = null;
+      let rushingWinner = null;
       if (status === "FINAL") {
         const awayScore = Number(r.away_score);
         const homeScore = Number(r.home_score);
         if (Number.isFinite(awayScore) && Number.isFinite(homeScore)) {
           winnerSide = homeScore > awayScore ? "HOME" : awayScore > homeScore ? "AWAY" : "TIE";
         }
+        // PUSH (exact tie) leaves these null -- nobody's bonus pick can be "correct"
+        const pw = String(r.passing_winner || "").toUpperCase();
+        const rw = String(r.rushing_winner || "").toUpperCase();
+        if (pw === "AWAY" || pw === "HOME") passingWinner = pw;
+        if (rw === "AWAY" || rw === "HOME") rushingWinner = rw;
       }
-      m[gid] = { status, winnerSide };
+      m[gid] = { status, winnerSide, passingWinner, rushingWinner };
     }
     return m;
   }, [gameResultsRows]);
@@ -420,37 +428,44 @@ export default function Results() {
     const g = gameById[gid];
     if (!picks || !g) return null;
 
-    const badge = (raw, color, label, letter) => {
+    const gr = gameResultByGid[gid];
+
+    const badge = (raw, color, label, letter, categoryWinner) => {
       const pick = String(raw || "").toUpperCase();
       const team = pick === "AWAY" ? g.away : pick === "HOME" ? g.home : null;
       if (!team) return null;
       const src = logoSrc(team);
+      const correct = !!categoryWinner && pick === categoryWinner;
+
       return (
         <div
           key={label}
           style={{ display: "inline-flex", flexDirection: "column", alignItems: "center", margin: "0 2px" }}
         >
-          <span
-            title={`${label}: ${team}`}
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              justifyContent: "center",
-              width: 20,
-              height: 20,
-              border: `2px solid ${color}`,
-              borderRadius: 4,
-              overflow: "hidden",
-            }}
-          >
-            {src && (
-              <img
-                src={src}
-                alt={team}
-                style={{ display: "block", width: "100%", height: "100%", objectFit: "contain" }}
-                onError={(e) => (e.currentTarget.style.display = "none")}
-              />
-            )}
+          <span style={correct ? styles.correctWrapSmall : styles.plainWrap}>
+            <span
+              title={correct ? `${label}: ${team} — correct!` : `${label}: ${team}`}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                width: 20,
+                height: 20,
+                border: `2px solid ${color}`,
+                borderRadius: 4,
+                overflow: "hidden",
+              }}
+            >
+              {src && (
+                <img
+                  src={src}
+                  alt={team}
+                  style={{ display: "block", width: "100%", height: "100%", objectFit: "contain" }}
+                  onError={(e) => (e.currentTarget.style.display = "none")}
+                />
+              )}
+            </span>
+            {correct && <span style={styles.correctCheckSmall}>✓</span>}
           </span>
           <span style={{ fontSize: 9, fontWeight: 800, color, letterSpacing: 0.5, marginTop: 1 }}>{letter}</span>
         </div>
@@ -459,8 +474,8 @@ export default function Results() {
 
     return (
       <div style={{ marginTop: 3 }}>
-        {badge(picks.passing_yards, "#7c3aed", "Passing", "P")}
-        {badge(picks.rushing_yards, "#ea580c", "Rushing", "R")}
+        {badge(picks.passing_yards, "#7c3aed", "Passing", "P", gr?.passingWinner)}
+        {badge(picks.rushing_yards, "#ea580c", "Rushing", "R", gr?.rushingWinner)}
       </div>
     );
   }
@@ -824,6 +839,31 @@ const styles = {
     alignItems: "center",
     justifyContent: "center",
     boxShadow: "0 1px 3px rgba(0,0,0,0.4)",
+    lineHeight: 1,
+  },
+  correctWrapSmall: {
+    position: "relative",
+    display: "inline-block",
+    border: "2px solid #16a34a",
+    borderRadius: 6,
+    background: "rgba(22,163,74,0.10)",
+    padding: 1,
+  },
+  correctCheckSmall: {
+    position: "absolute",
+    top: -6,
+    right: -6,
+    width: 12,
+    height: 12,
+    borderRadius: "50%",
+    background: "#16a34a",
+    color: "#fff",
+    fontSize: 8,
+    fontWeight: 900,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    boxShadow: "0 1px 2px rgba(0,0,0,0.4)",
     lineHeight: 1,
   },
 };
