@@ -772,6 +772,18 @@ export default function App() {
       return;
     }
 
+    // The input/Save/Skip already hide once locked, but "Continue" stays
+    // enabled at every step (so someone can move past an already-answered
+    // one), and this function had no lock check of its own -- meaning a
+    // value already sitting in local state (typed just before the game
+    // locked, then never submitted) could still slip through on Continue.
+    // Guard it here explicitly rather than only in the UI.
+    if (tb.gameId && isGameLocked(tb.gameId)) {
+      setSaveErr("This tiebreaker's game has already locked, so it can no longer be changed.");
+      if (advance) goTo(activeStep + 1);
+      return;
+    }
+
     setSavingKey(`tb_${tbIndex + 1}`);
     setSaveErr("");
 

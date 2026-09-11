@@ -216,10 +216,11 @@ export default function Leaderboard() {
         return;
       }
 
-      // 1b) Load games metadata so we can show logos + "@" in the panel
+      // 1b) Load games metadata so we can show logos + "@" in the panel, plus
+      // kickoff so we know when each TB round's guesses are safe to reveal
       const { data: tbGames, error: tbGamesErr } = await supabase
         .from("games")
-        .select("id, away, home")
+        .select("id, away, home, kickoff")
         .eq("season", season)
         .eq("week", week)
         .in("id", tbGameIds);
@@ -227,8 +228,12 @@ export default function Leaderboard() {
       if (tbGamesErr) throw tbGamesErr;
 
       const gameMetaById = {};
+      const lockedByGame = {};
+      const nowMs = Date.now();
       for (const g of tbGames || []) {
         gameMetaById[String(g.id)] = { away: g.away, home: g.home };
+        const kickoffMs = g.kickoff ? new Date(g.kickoff).getTime() : NaN;
+        lockedByGame[String(g.id)] = Number.isFinite(kickoffMs) && nowMs >= kickoffMs - 60 * 60 * 1000;
       }
 
       // 2) Read game_results for those TB games (need status + scores)
@@ -270,6 +275,13 @@ export default function Leaderboard() {
         const hs = isFinal ? Number(r?.home_score) : null;
         const as = isFinal ? Number(r?.away_score) : null;
         const actual = isFinal && Number.isFinite(hs) && Number.isFinite(as) ? hs + as : null;
+        // Guesses stay hidden from everyone (including other tied leaders)
+        // until this specific TB round's game has locked -- otherwise a
+        // participant could see a rival's guess before submitting/changing
+        // their own for a later-locking TB round, defeating the point of a
+        // blind tiebreaker guess. Eligible/busted/diff already only ever
+        // apply once the game is FINAL, which implies locked.
+        const revealGuesses = !!lockedByGame[String(gameId)];
 
         const rows = currentUsers.map((u) => {
           const guess = guessByUser?.[u]?.[tbNo];
@@ -280,7 +292,8 @@ export default function Leaderboard() {
 
           return {
             user_name: u,
-            guess: hasGuess ? guess : null,
+            guess: revealGuesses && hasGuess ? guess : null,
+            hidden: !revealGuesses && hasGuess,
             eligible,
             busted: !!busted,
             diff,
@@ -428,6 +441,17 @@ export default function Leaderboard() {
     loadTiebreakWatch(meta.season, meta.week, rows);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [meta.season, meta.week, rows]);
+
+  // A TB round locking is a pure time event (no DB write happens at that
+  // moment), so the realtime subscriptions below won't catch it -- poll
+  // periodically while viewing the live current week so a guess reveals
+  // right on schedule instead of only on the next unrelated data change.
+  useEffect(() => {
+    if (!meta.season || !meta.week || !meta.isCurrent) return;
+    const t = setInterval(() => loadTiebreakWatch(meta.season, meta.week, rows), 60_000);
+    return () => clearInterval(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [meta.season, meta.week, meta.isCurrent, rows]);
 
   // realtime refresh whenever leaderboard / game_results / tiebreakers changes
   // (only meaningful for the live current week -- a historical week's rows
@@ -833,14 +857,15 @@ function TiebreakWatchPanel({ tbWatch, dispName }) {
                   </thead>
                   <tbody>
                     {(tb.rows || []).map((r) => {
-                      const status =
-                        tb.actual === null
-                          ? "Waiting…"
-                          : r.guess === null
-                          ? "No guess"
-                          : r.busted
-                          ? "BUSTED (over)"
-                          : "ALIVE (≤ actual)";
+                      const status = r.hidden
+                        ? "🔒 Hidden until locked"
+                        : tb.actual === null
+                        ? "Waiting…"
+                        : r.guess === null
+                        ? "No guess"
+                        : r.busted
+                        ? "BUSTED (over)"
+                        : "ALIVE (≤ actual)";
                       const diffText = r.diff === null || r.diff === undefined ? "—" : String(r.diff);
 
                       return (
@@ -848,7 +873,7 @@ function TiebreakWatchPanel({ tbWatch, dispName }) {
                           <td style={td}>
                             <b>{dispName(r.user_name)}</b>
                           </td>
-                          <td style={td}>{r.guess ?? "—"}</td>
+                          <td style={td}>{r.hidden ? "🔒" : r.guess ?? "—"}</td>
                           <td style={td}>
                             <span
                               style={{
