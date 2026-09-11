@@ -576,6 +576,9 @@ export default function Results() {
           <Button variant="secondary" size="sm" onClick={loadAll}>
             Refresh
           </Button>
+          <Link to="/leaderboard">
+            <Button variant="secondary" size="sm">🏆 Leaderboard</Button>
+          </Link>
           <Link to="/">
             <Button variant="dark" size="sm">← Back</Button>
           </Link>

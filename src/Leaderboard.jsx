@@ -521,6 +521,9 @@ export default function Leaderboard() {
         </div>
         <div style={{ display: "flex", gap: 8 }}>
           <PillButton onClick={loadMetaAndLeaderboard}>Refresh</PillButton>
+          <Link to="/results" style={{ textDecoration: "none" }}>
+            <PillButton>📋 Picks Table</PillButton>
+          </Link>
           <Link to="/" style={{ textDecoration: "none" }}>
             <PillButton primary>← Back</PillButton>
           </Link>
