@@ -114,7 +114,7 @@ function splitCsvLine(line) {
  * /.netlify/functions/recalcLeaderboard?season=2025&week=10&token=<adminToken>
  *
  * Computes leaderboard rows using:
- * - game_results.winner  ("AWAY" | "HOME" | "TIE")
+ * - game_results.{away_score,home_score}  (winner derived: HOME/AWAY/TIE)
  * - picks.pick           ("AWAY" | "HOME" | "TIE")  (and supports legacy team-string picks)
  *
  * Tie-break (only when 1st place is tied):
@@ -223,13 +223,23 @@ export default async (req) => {
       }
     }
 
-    // 4) Winner map
+    // 4) Winner map, derived from the real away_score/home_score (matches
+    // updateResults.js exactly). Previously this read a plain `winner` text
+    // column that nothing in the codebase ever writes -- always null for
+    // every real game, which silently zeroed out every main-pick point on
+    // every manual "Process Results" click. Only ever looked fine because
+    // the scheduled updateResults.js job (which always derived the winner
+    // from scores correctly) re-ran every 2 minutes and overwrote the
+    // broken result shortly after -- until Adrian caught it in a screenshot
+    // taken in that gap.
     const winnerSideByGame = {};
     for (const f of finals) {
       const gid = String(f.game_id || "").trim();
-      const w = String(f.winner || "").trim().toUpperCase();
-      if (!gid || !w) continue;
-      winnerSideByGame[gid] = w; // AWAY/HOME/TIE
+      if (!gid) continue;
+      const awayScore = Number(f.away_score);
+      const homeScore = Number(f.home_score);
+      if (!Number.isFinite(awayScore) || !Number.isFinite(homeScore)) continue;
+      winnerSideByGame[gid] = homeScore > awayScore ? "HOME" : awayScore > homeScore ? "AWAY" : "TIE";
     }
 
     // 5) Score picks (only FINAL games)
