@@ -625,7 +625,7 @@ export default function Results() {
                 <tr>
                   <th style={thStickyLeft}>#</th>
                   <th style={thStickyName}>Participant</th>
-                  <th style={th}>Points</th>
+                  <th style={thStickyPoints}>Points</th>
 
                   {(games || []).map((g, idx) => {
                     const gameLocked = lockedGameIds.has(String(g.id));
@@ -683,7 +683,7 @@ export default function Results() {
                       <td style={tdName}>
                         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 3 }}>
                           <Avatar username={dispName(u)} avatar={avatarByFullName[u]} size={32} />
-                          <span>{dispName(u)}</span>
+                          <span style={nameTextStyle}>{dispName(u)}</span>
                         </div>
                       </td>
                       <td style={tdPoints}>
@@ -760,6 +760,12 @@ const thStickyLeft = {
   width: 42,
 };
 
+// Fixed (not just min) width so the Points column's sticky offset next to
+// it is always correct -- long usernames are truncated via nameTextStyle
+// below instead of growing this column and throwing that offset off.
+const NAME_COL_WIDTH = 130;
+const POINTS_COL_LEFT = 42 + NAME_COL_WIDTH;
+
 const thStickyName = {
   ...th,
   position: "sticky",
@@ -767,7 +773,16 @@ const thStickyName = {
   background: "#fff",
   zIndex: 3,
   textAlign: "center",
-  minWidth: 120,
+  width: NAME_COL_WIDTH,
+};
+
+const thStickyPoints = {
+  ...th,
+  position: "sticky",
+  left: POINTS_COL_LEFT,
+  background: "#fff",
+  zIndex: 3,
+  width: 64,
 };
 
 const tdCenter = {
@@ -795,10 +810,28 @@ const tdName = {
   zIndex: 2,
   textAlign: "center",
   fontWeight: 800,
+  width: NAME_COL_WIDTH,
+};
+
+// box-sizing is border-box app-wide (index.html), so NAME_COL_WIDTH already
+// includes tdCenter's 8px-each-side padding -- subtract the full 16px to
+// get the actual available content width, or a long username could still
+// push this column wider than POINTS_COL_LEFT expects.
+const nameTextStyle = {
+  display: "block",
+  maxWidth: NAME_COL_WIDTH - 16,
+  overflow: "hidden",
+  textOverflow: "ellipsis",
+  whiteSpace: "nowrap",
 };
 
 const tdPoints = {
   ...tdCenter,
+  position: "sticky",
+  left: POINTS_COL_LEFT,
+  background: "#fff",
+  zIndex: 2,
+  width: 64,
   fontWeight: 900,
   color: "#b8860b",
   fontSize: 14,
