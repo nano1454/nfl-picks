@@ -27,7 +27,8 @@ exports.handler = async (event) => {
     const pin = String(body.pin || "").trim();
 
     if (!username) return j(400, { ok: false, error: "Username is required." });
-    if (!/^[a-zA-Z0-9_.-]{3,24}$/.test(username)) {
+    // \p{L} matches any Unicode letter (á, é, ñ, ü, etc. included), not just a-z
+    if (!/^[\p{L}0-9_.-]{3,24}$/u.test(username)) {
       return j(400, { ok: false, error: "Username must be 3-24 characters (letters, numbers, _ . -)." });
     }
     if (!/^\d{4}$/.test(pin)) return j(400, { ok: false, error: "PIN must be exactly 4 digits." });

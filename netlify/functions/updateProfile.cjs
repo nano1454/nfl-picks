@@ -45,7 +45,8 @@ exports.handler = async (event) => {
     if (body.newUsername !== undefined) {
       const newUsername = String(body.newUsername || "").trim();
       if (newUsername && newUsername.toLowerCase() !== found.username.toLowerCase()) {
-        if (!/^[a-zA-Z0-9_.-]{3,24}$/.test(newUsername)) {
+        // \p{L} matches any Unicode letter (á, é, ñ, ü, etc. included), not just a-z
+        if (!/^[\p{L}0-9_.-]{3,24}$/u.test(newUsername)) {
           return j(400, { ok: false, error: "Username must be 3-24 characters (letters, numbers, _ . -)." });
         }
         const { data: clash, error: clashErr } = await admin
