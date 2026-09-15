@@ -132,12 +132,15 @@ export default function History() {
                   ) : (
                     <span style={{ color: "#888" }}>No results yet</span>
                   )}
-                  <div style={{ display: "flex", gap: 8, marginTop: 8, justifyContent: "flex-end" }}>
+                  <div style={{ display: "flex", gap: 8, marginTop: 8, justifyContent: "flex-end", flexWrap: "wrap" }}>
                     <Link to={`/results?season=${season}&week=${w.week}`}>
                       <Button variant="secondary" size="sm">Picks Table</Button>
                     </Link>
                     <Link to={`/leaderboard?season=${season}&week=${w.week}`}>
                       <Button variant="dark" size="sm">Leaderboard</Button>
+                    </Link>
+                    <Link to={`/week-summary?season=${season}&week=${w.week}`}>
+                      <Button variant="secondary" size="sm">Week {w.week} Summary</Button>
                     </Link>
                   </div>
                 </div>
