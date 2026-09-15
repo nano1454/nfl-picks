@@ -5,6 +5,7 @@ const NAV_LINKS = [
   { to: "/results", label: "View Picks Table" },
   { to: "/leaderboard", label: "Live Leaderboard" },
   { to: "/whos-in", label: "Who's In" },
+  { to: "/hall-of-champions", label: "🏆 Hall of Champions" },
   { to: "/rules", label: "Rules" },
   { to: "/reglas", label: "Reglas" },
   { to: "/history", label: "Season History" },

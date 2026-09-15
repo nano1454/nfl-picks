@@ -4,47 +4,8 @@ import { supabase } from "./supabaseClient";
 import Button from "./Button";
 import Avatar from "./Avatar";
 import { calcPot, countPickParticipants } from "./potCalc";
-
-/* ---------- Logos map (same keys as your games.away/home full names) ---------- */
-const teamLogoSlug = {
-  "Arizona Cardinals": "cardinals",
-  "Atlanta Falcons": "falcons",
-  "Baltimore Ravens": "ravens",
-  "Buffalo Bills": "bills",
-  "Carolina Panthers": "panthers",
-  "Chicago Bears": "bears",
-  "Cincinnati Bengals": "bengals",
-  "Cleveland Browns": "browns",
-  "Dallas Cowboys": "cowboys",
-  "Denver Broncos": "broncos",
-  "Detroit Lions": "lions",
-  "Green Bay Packers": "packers",
-  "Houston Texans": "texans",
-  "Indianapolis Colts": "colts",
-  "Jacksonville Jaguars": "jaguars",
-  "Kansas City Chiefs": "chiefs",
-  "Las Vegas Raiders": "raiders",
-  "Los Angeles Chargers": "chargers",
-  "Los Angeles Rams": "rams",
-  "Miami Dolphins": "dolphins",
-  "Minnesota Vikings": "vikings",
-  "New England Patriots": "patriots",
-  "New Orleans Saints": "saints",
-  "New York Giants": "giants",
-  "New York Jets": "jets",
-  "Philadelphia Eagles": "eagles",
-  "Pittsburgh Steelers": "steelers",
-  "San Francisco 49ers": "49ers",
-  "Seattle Seahawks": "seahawks",
-  "Tampa Bay Buccaneers": "buccaneers",
-  "Tennessee Titans": "titans",
-  "Washington Commanders": "commanders",
-};
-
-function logoSrc(team) {
-  const slug = teamLogoSlug[team];
-  return slug ? `/logos/${slug}.png` : null;
-}
+import { logoSrc } from "./teamLogos";
+import { resolveCascade } from "./tiebreakCascade";
 
 function LeaderboardTitle() {
   return (
@@ -269,150 +230,46 @@ export default function Leaderboard() {
         guessByUser[u][n] = Number.isFinite(val) ? val : null;
       }
 
-      function evalTB(tbNo, gameId, currentUsers) {
-        const r = resultByGame[String(gameId)];
-        const isFinal = String(r?.status || "").toUpperCase() === "FINAL";
-        const hs = isFinal ? Number(r?.home_score) : null;
-        const as = isFinal ? Number(r?.away_score) : null;
-        const actual = isFinal && Number.isFinite(hs) && Number.isFinite(as) ? hs + as : null;
-        // Guesses stay hidden from everyone (including other tied leaders)
-        // until this specific TB round's game has locked -- otherwise a
-        // participant could see a rival's guess before submitting/changing
-        // their own for a later-locking TB round, defeating the point of a
-        // blind tiebreaker guess. Eligible/busted/diff already only ever
-        // apply once the game is FINAL, which implies locked.
-        const revealGuesses = !!lockedByGame[String(gameId)];
+      // Season points (through this week, inclusive) for the tied group --
+      // only actually consulted by resolveCascade if still tied after all
+      // 3 TB rounds are FINAL.
+      const { data: seasonLb, error: seasonErr } = await supabase
+        .from("leaderboard")
+        .select("user_name, week, points")
+        .eq("season", season)
+        .lte("week", week)
+        .in("user_name", tiedUsers);
+      if (seasonErr) throw seasonErr;
 
-        const rows = currentUsers.map((u) => {
-          const guess = guessByUser?.[u]?.[tbNo];
-          const hasGuess = Number.isFinite(guess);
-          const busted = actual === null ? null : hasGuess ? guess > actual : null;
-          const eligible = actual === null ? false : hasGuess ? guess <= actual : false;
-          const diff = actual === null ? null : eligible ? actual - guess : null;
-
-          return {
-            user_name: u,
-            guess: revealGuesses && hasGuess ? guess : null,
-            hidden: !revealGuesses && hasGuess,
-            eligible,
-            busted: !!busted,
-            diff,
-          };
-        });
-
-        if (actual === null) {
-          return { tbNo, gameId, isFinal: false, actual: null, rows, status: "PENDING_FINAL", bestUsers: currentUsers };
-        }
-
-        const eligibleRows = rows.filter((x) => x.eligible);
-        if (eligibleRows.length === 0) {
-          return {
-            tbNo,
-            gameId,
-            isFinal: true,
-            actual,
-            rows,
-            status: "NO_ELIGIBLE_ALL_BUSTED",
-            bestUsers: currentUsers,
-          };
-        }
-
-        const bestDiff = Math.min(...eligibleRows.map((x) => x.diff));
-        const bestUsers = eligibleRows.filter((x) => x.diff === bestDiff).map((x) => x.user_name);
-
-        return {
-          tbNo,
-          gameId,
-          isFinal: true,
-          actual,
-          rows,
-          status: bestUsers.length === 1 ? "DECIDED" : "TIED_CONTINUE",
-          bestDiff,
-          bestUsers,
-        };
+      const seasonPointsByUser = {};
+      for (const u of tiedUsers) seasonPointsByUser[u] = 0;
+      for (const r of seasonLb || []) {
+        const u = String(r.user_name || "").trim();
+        const pts = Number(r.points || 0);
+        if (!u || !Number.isFinite(pts)) continue;
+        seasonPointsByUser[u] = (seasonPointsByUser[u] || 0) + pts;
       }
 
-      let remaining = [...tiedUsers];
-      const perTB = [];
-      let decidedBy = "PENDING";
-      let winners = remaining;
+      // Guesses stay hidden from everyone (including other tied leaders)
+      // until each specific TB round's game has locked -- otherwise a
+      // participant could see a rival's guess before submitting/changing
+      // their own for a later-locking TB round, defeating the point of a
+      // blind tiebreaker guess. Since lock timing can differ per round,
+      // resolve per-round reveal below rather than passing one flag for
+      // all three -- reuse resolveCascade's per-round evaluator directly.
+      const { decidedBy, winners, perTB: perTBRaw, seasonTotals } = resolveCascade({
+        tiedUsers,
+        tbGameIds,
+        resultByGame,
+        guessByUser,
+        seasonPointsByUser,
+        revealGuesses: (gameId) => !!lockedByGame[String(gameId)],
+      });
 
-      for (let i = 0; i < 3; i++) {
-        const tbNo = i + 1;
-        const gid = tbGameIds[i];
-
-        const res = evalTB(tbNo, gid, remaining);
-
-        const gm = gameMetaById[String(gid)] || null;
-        perTB.push({
-          ...res,
-          away: gm?.away || null,
-          home: gm?.home || null,
-        });
-
-        if (res.status === "PENDING_FINAL") {
-          decidedBy = "PENDING";
-          winners = remaining;
-          break;
-        }
-
-        if (res.status === "DECIDED") {
-          decidedBy = `TB${tbNo}`;
-          winners = res.bestUsers;
-          break;
-        }
-
-        if (res.status === "TIED_CONTINUE") {
-          remaining = res.bestUsers;
-          winners = remaining;
-          continue;
-        }
-      }
-
-      const allTBFinal = perTB.length === 3 && perTB.every((x) => x.isFinal);
-      if (decidedBy !== "PENDING" && winners.length > 1 && allTBFinal) {
-        const { data: seasonLb, error: seasonErr } = await supabase
-          .from("leaderboard")
-          .select("user_name, week, points")
-          .eq("season", season)
-          .lte("week", week)
-          .in("user_name", winners);
-
-        if (!seasonErr) {
-          const seasonTotals = {};
-          for (const u of winners) seasonTotals[u] = 0;
-          for (const r of seasonLb || []) {
-            const u = String(r.user_name || "").trim();
-            const pts = Number(r.points || 0);
-            if (!u || !Number.isFinite(pts)) continue;
-            if (seasonTotals[u] === undefined) seasonTotals[u] = 0;
-            seasonTotals[u] += pts;
-          }
-
-          const maxSeasonPts = Math.max(...Object.values(seasonTotals).map((n) => Number(n || 0)));
-          const bestSeason = winners.filter((u) => Number(seasonTotals[u] || 0) === maxSeasonPts);
-
-          if (bestSeason.length === 1) {
-            decidedBy = "SEASON_POINTS";
-            winners = bestSeason;
-          } else {
-            decidedBy = "SPLIT";
-            winners = bestSeason;
-          }
-
-          setTbWatch({
-            applicable: true,
-            maxPoints,
-            tiedUsers,
-            tbGameIds,
-            perTB,
-            decidedBy,
-            winners,
-            seasonTotals,
-          });
-          return;
-        }
-      }
+      const perTB = perTBRaw.map((res) => {
+        const gm = gameMetaById[String(res.gameId)] || null;
+        return { ...res, away: gm?.away || null, home: gm?.home || null };
+      });
 
       setTbWatch({
         applicable: true,
@@ -422,7 +279,7 @@ export default function Leaderboard() {
         perTB,
         decidedBy,
         winners,
-        seasonTotals: null,
+        seasonTotals,
       });
     } catch (e) {
       setTbWatch({ applicable: true, error: String(e?.message || e) });

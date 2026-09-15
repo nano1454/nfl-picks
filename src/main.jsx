@@ -12,6 +12,8 @@ import WeekSummary from "./WeekSummary.jsx";
 import Login from "./Login.jsx";
 import Profile from "./Profile.jsx";
 import WhosIn from "./WhosIn.jsx";
+import HallOfChampions from "./HallOfChampions.jsx";
+import ChampionWeekDetail from "./ChampionWeekDetail.jsx";
 import RequireAuth from "./RequireAuth.jsx";
 import UpdateBanner from "./UpdateBanner.jsx";
 
@@ -31,6 +33,8 @@ ReactDOM.createRoot(document.getElementById("root")).render(
         <Route path="/week-summary" element={<RequireAuth><WeekSummary /></RequireAuth>} />
         <Route path="/profile" element={<RequireAuth><Profile /></RequireAuth>} />
         <Route path="/whos-in" element={<RequireAuth><WhosIn /></RequireAuth>} />
+        <Route path="/hall-of-champions" element={<RequireAuth><HallOfChampions /></RequireAuth>} />
+        <Route path="/champion-week" element={<RequireAuth><ChampionWeekDetail /></RequireAuth>} />
       </Routes>
     </BrowserRouter>
   </React.StrictMode>
