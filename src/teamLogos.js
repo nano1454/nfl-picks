@@ -46,3 +46,17 @@ export function fmtMatchup(g) {
   const home = String(g?.home || "").trim();
   return away && home ? `${away} @ ${home}` : String(g?.id || "");
 }
+
+// Compact "AWAY@HOME" form using the team abbreviations already embedded in
+// the game_id (nflverse convention: "{season}_{week}_{awayAbbr}_{homeAbbr}",
+// e.g. "2026_01_DAL_TB" -> "DAL@TB") -- same TV-scoreboard-style codes this
+// app's own data already uses, so no separate abbreviation map to maintain.
+export function fmtMatchupAbbr(g) {
+  const parts = String(g?.id || "").split("_");
+  if (parts.length >= 4) {
+    const awayAbbr = parts[parts.length - 2];
+    const homeAbbr = parts[parts.length - 1];
+    if (awayAbbr && homeAbbr) return `${awayAbbr}@${homeAbbr}`;
+  }
+  return fmtMatchup(g);
+}

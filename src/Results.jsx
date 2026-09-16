@@ -3,7 +3,7 @@ import { Link, useSearchParams } from "react-router-dom";
 import { supabase } from "./supabaseClient";
 import Button from "./Button";
 import Avatar from "./Avatar";
-import { logoSrc, fmtMatchup } from "./teamLogos";
+import { logoSrc, fmtMatchupAbbr } from "./teamLogos";
 
 /** True when the global deadline has passed */
 function isDeadlinePassed(deadlineIso, nowTs) {
@@ -593,7 +593,7 @@ export default function Results() {
                       <th key={g.id} style={th}>
                         Game {idx + 1}
                         <div style={{ fontSize: 11, fontWeight: 600, color: "#666", marginTop: 2 }}>
-                          {fmtMatchup(g)}
+                          {fmtMatchupAbbr(g)}
                         </div>
                         {gameLocked ? (
                           <div style={{ fontSize: 10, color: "#b00", marginTop: 3, fontWeight: 700 }}>🔒 LOCKED</div>
@@ -614,7 +614,7 @@ export default function Results() {
                         <th key={`tb_${i + 1}`} style={th}>
                           TB{i + 1}
                           <div style={{ fontSize: 11, fontWeight: 600, color: "#666", marginTop: 2 }}>
-                            {g ? fmtMatchup(g) : gid}
+                            {g ? fmtMatchupAbbr(g) : gid}
                           </div>
                           {gameLocked && (
                             <div style={{ fontSize: 10, color: "#b00", marginTop: 3, fontWeight: 700 }}>🔒 LOCKED</div>
