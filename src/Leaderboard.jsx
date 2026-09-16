@@ -547,70 +547,90 @@ function RaceList({ rows, totalAvailable, dispName, avatarByFullName }) {
               itemRefs.current.set(String(r.user_name), el);
             }}
             style={{
+              position: "relative",
+              overflow: "hidden",
               border: idx === 0 ? "1px solid rgba(184,134,11,0.5)" : "1px solid rgba(0,0,0,0.08)",
               borderRadius: 14,
-              padding: 12,
-              display: "flex",
-              gap: 12,
-              alignItems: "center",
-              background: "#fff",
+              background: "#f0f0f0",
               boxShadow: idx === 0 ? "0 4px 18px rgba(184,134,11,0.18)" : "0 4px 14px rgba(0,0,0,0.05)",
             }}
           >
+            {/* Fill layer -- the whole card doubles as the progress bar now,
+                instead of a separate bar-in-a-box between the avatar and points */}
             <div
               style={{
-                width: 32,
-                height: 32,
-                borderRadius: "50%",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                fontWeight: 900,
-                fontSize: 14,
-                flexShrink: 0,
-                background: medal ? medal.background : "#111",
-                color: medal ? medal.color : "#fff",
-                boxShadow: medal ? "0 2px 6px rgba(0,0,0,0.25)" : "none",
+                position: "absolute",
+                top: 0,
+                left: 0,
+                bottom: 0,
+                width: `${barPct}%`,
+                background: "linear-gradient(90deg, #111 0%, #7a5c14 55%, #ffd700 100%)",
+                transition: "width 650ms cubic-bezier(0.2, 0.9, 0.2, 1)",
+                overflow: "hidden",
               }}
             >
-              {idx + 1}
+              <div style={{
+                position: "absolute",
+                top: 0, left: 0,
+                width: "45%",
+                height: "100%",
+                background: "linear-gradient(90deg, transparent, rgba(255,255,255,0.5), transparent)",
+                animation: "lbBarShimmer 1.8s ease-in-out infinite",
+              }} />
             </div>
 
-            <div style={{ width: 220, display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
-              <Avatar username={dispName(r.user_name)} avatar={avatarByFullName?.[r.user_name]} size={40} />
-              <div style={{ fontWeight: 800, color: "#111" }}>{dispName(r.user_name)}</div>
-            </div>
+            {/* Content sits above the fill -- name/points get a semi-opaque
+                chip behind them so they stay legible whether they land over
+                the dark/gold fill or the plain unfilled track */}
+            <div style={{ position: "relative", padding: 12, display: "flex", gap: 12, alignItems: "center" }}>
+              <div
+                style={{
+                  width: 32,
+                  height: 32,
+                  borderRadius: "50%",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  fontWeight: 900,
+                  fontSize: 14,
+                  flexShrink: 0,
+                  background: medal ? medal.background : "#111",
+                  color: medal ? medal.color : "#fff",
+                  boxShadow: medal ? "0 2px 6px rgba(0,0,0,0.25)" : "none",
+                }}
+              >
+                {idx + 1}
+              </div>
 
-            <div style={{ flex: 1 }}>
-              <div style={{ height: 16, background: "#eee", borderRadius: 999, overflow: "hidden" }}>
-                <div
-                  style={{
-                    height: "100%",
-                    width: `${barPct}%`,
-                    background: "linear-gradient(90deg, #111 0%, #7a5c14 55%, #ffd700 100%)",
-                    transition: "width 650ms cubic-bezier(0.2, 0.9, 0.2, 1)",
-                    position: "relative",
-                    overflow: "hidden",
-                  }}
-                >
-                  <div style={{
-                    position: "absolute",
-                    top: 0, left: 0,
-                    width: "45%",
-                    height: "100%",
-                    background: "linear-gradient(90deg, transparent, rgba(255,255,255,0.5), transparent)",
-                    animation: "lbBarShimmer 1.8s ease-in-out infinite",
-                  }} />
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
+                  background: "rgba(255,255,255,0.88)",
+                  borderRadius: 999,
+                  padding: "4px 12px 4px 4px",
+                }}
+              >
+                <Avatar username={dispName(r.user_name)} avatar={avatarByFullName?.[r.user_name]} size={32} />
+                <div style={{ fontWeight: 800, color: "#111" }}>{dispName(r.user_name)}</div>
+              </div>
+
+              <div style={{ flex: 1 }} />
+
+              <div
+                style={{
+                  textAlign: "right",
+                  background: "rgba(255,255,255,0.88)",
+                  borderRadius: 10,
+                  padding: "4px 10px",
+                }}
+              >
+                <div style={{ fontWeight: 900, fontSize: 18, color: idx === 0 ? "#b8860b" : "#111" }}>
+                  {Number(points).toFixed(1)}
                 </div>
+                {max > 0 && <div style={{ fontSize: 10, color: "#666" }}>{Math.round(truePct)}%</div>}
               </div>
-
-              <div style={{ marginTop: 6, fontSize: 12, color: "#666" }}>
-                {max > 0 ? `${Math.round(truePct)}% of points available` : ""}
-              </div>
-            </div>
-
-            <div style={{ width: 90, textAlign: "right", fontWeight: 900, fontSize: 18, color: idx === 0 ? "#b8860b" : "#111" }}>
-              {Number(points).toFixed(1)}
             </div>
           </div>
         );
