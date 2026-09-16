@@ -20,6 +20,15 @@ function fmtPts(n) {
   return Number.isInteger(v) ? String(v) : v.toFixed(1);
 }
 
+// Passing/rushing bonus picks aren't tracked as their own count anywhere --
+// but each is worth exactly 0.5 points and correct_picks only ever counts
+// main (straight-up) picks, so the bonus-correct count is fully derivable
+// from the same two leaderboard fields the other two stat pills already use.
+function correctBonusPicks(points, correctStraightPicks) {
+  const bonusPoints = Number(points || 0) - Number(correctStraightPicks || 0);
+  return Math.max(0, Math.round(bonusPoints / 0.5));
+}
+
 // Only meaningful when decidedBy is "TBn" -- names the round and the
 // champion's winning guess vs. the actual combined score.
 function tbBadgeText(champ) {
@@ -210,7 +219,8 @@ export default function HallOfChampions() {
               {hero.winners.length > 1 && <div style={coChampionsNote}>🤝 Co-Champions</div>}
               <div style={{ display: "flex", gap: 10, justifyContent: "center", flexWrap: "wrap", marginTop: 14 }}>
                 <StatPill>{fmtPts(hero.points)} points</StatPill>
-                <StatPill>{hero.correctPicksByUser?.[hero.winners[0]] ?? "—"} correct picks</StatPill>
+                <StatPill>{hero.correctPicksByUser?.[hero.winners[0]] ?? "—"} correct straight picks</StatPill>
+                <StatPill>{correctBonusPicks(hero.points, hero.correctPicksByUser?.[hero.winners[0]])} correct P/R picks</StatPill>
                 {tbBadgeText(hero) && <StatPill>{tbBadgeText(hero)}</StatPill>}
               </div>
               <div style={{ marginTop: 18 }}>
@@ -245,7 +255,8 @@ export default function HallOfChampions() {
             {seasonChampion.winners.length > 1 && <div style={coChampionsNote}>🤝 Co-Champions — season ended in a tie</div>}
             <div style={{ display: "flex", gap: 10, justifyContent: "center", flexWrap: "wrap", marginTop: 14 }}>
               <StatPill>{fmtPts(seasonChampion.total)} season points</StatPill>
-              <StatPill>{seasonChampion.correctPicksByUser?.[seasonChampion.winners[0]] ?? "—"} correct picks all season</StatPill>
+              <StatPill>{seasonChampion.correctPicksByUser?.[seasonChampion.winners[0]] ?? "—"} correct straight picks all season</StatPill>
+              <StatPill>{correctBonusPicks(seasonChampion.total, seasonChampion.correctPicksByUser?.[seasonChampion.winners[0]])} correct P/R picks all season</StatPill>
             </div>
           </div>
         )}

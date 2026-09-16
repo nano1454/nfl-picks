@@ -11,6 +11,15 @@ function fmtPts(n) {
   return Number.isInteger(v) ? String(v) : v.toFixed(1);
 }
 
+// Passing/rushing bonus picks aren't tracked as their own count anywhere --
+// but each is worth exactly 0.5 points and correct_picks only ever counts
+// main (straight-up) picks, so the bonus-correct count is fully derivable
+// from the same two leaderboard fields the other two stat pills already use.
+function correctBonusPicks(points, correctStraightPicks) {
+  const bonusPoints = Number(points || 0) - Number(correctStraightPicks || 0);
+  return Math.max(0, Math.round(bonusPoints / 0.5));
+}
+
 function winnerSideOf(result) {
   if (!result || String(result.status || "").toUpperCase() !== "FINAL") return null;
   const hs = Number(result.home_score);
@@ -216,7 +225,8 @@ export default function ChampionWeekDetail() {
           <div style={championName}>{champ.winners.map(dispName).join(" & ")}</div>
           <div style={{ display: "flex", gap: 10, justifyContent: "center", flexWrap: "wrap", marginTop: 14 }}>
             <StatPill>{fmtPts(champ.points)} points</StatPill>
-            <StatPill>{champ.correctPicksByUser?.[champ.winners[0]] ?? "—"} correct picks</StatPill>
+            <StatPill>{champ.correctPicksByUser?.[champ.winners[0]] ?? "—"} correct straight picks</StatPill>
+            <StatPill>{correctBonusPicks(champ.points, champ.correctPicksByUser?.[champ.winners[0]])} correct P/R picks</StatPill>
           </div>
         </div>
 
