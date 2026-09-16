@@ -581,8 +581,10 @@ export default function Results() {
               <thead>
                 <tr>
                   <th style={thStickyLeft}>#</th>
-                  <th style={thStickyName}>Participant</th>
-                  <th style={thStickyPoints}>Points</th>
+                  <th style={thStickyName}>
+                    Participant
+                    <div style={{ fontSize: 10, fontWeight: 800, color: "#b8860b", marginTop: 2 }}>Points</div>
+                  </th>
 
                   {(games || []).map((g, idx) => {
                     const gameLocked = lockedGameIds.has(String(g.id));
@@ -629,7 +631,7 @@ export default function Results() {
               <tbody>
                 {users.length === 0 ? (
                   <tr>
-                    <td colSpan={(games?.length || 0) + 3 + (tbGameIds.length === 3 ? 3 : 0)} style={{ padding: 14, color: "#666" }}>
+                    <td colSpan={(games?.length || 0) + 2 + (tbGameIds.length === 3 ? 3 : 0)} style={{ padding: 14, color: "#666" }}>
                       No picks found for this week yet.
                     </td>
                   </tr>
@@ -638,15 +640,15 @@ export default function Results() {
                     <tr key={u} style={{ borderTop: "1px solid #eee" }}>
                       <td style={tdNum}>{i + 1}</td>
                       <td style={tdName}>
-                        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 3 }}>
-                          <Avatar username={dispName(u)} avatar={avatarByFullName[u]} size={32} />
+                        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2 }}>
+                          <Avatar username={dispName(u)} avatar={avatarByFullName[u]} size={26} />
                           <span style={nameTextStyle}>{dispName(u)}</span>
+                          <span style={pointsUnderNameStyle}>
+                            {pointsByUser[u] != null
+                              ? (Number.isInteger(pointsByUser[u]) ? pointsByUser[u] : pointsByUser[u].toFixed(1))
+                              : <span style={{ color: "#bbb", fontWeight: 400 }}>—</span>}
+                          </span>
                         </div>
-                      </td>
-                      <td style={tdPoints}>
-                        {pointsByUser[u] != null
-                          ? (Number.isInteger(pointsByUser[u]) ? pointsByUser[u] : pointsByUser[u].toFixed(1))
-                          : <span style={{ color: "#bbb", fontWeight: 400 }}>—</span>}
                       </td>
 
                       {(games || []).map((g) => {
@@ -717,11 +719,9 @@ const thStickyLeft = {
   width: 42,
 };
 
-// Fixed (not just min) width so the Points column's sticky offset next to
-// it is always correct -- long usernames are truncated via nameTextStyle
-// below instead of growing this column and throwing that offset off.
-const NAME_COL_WIDTH = 130;
-const POINTS_COL_LEFT = 42 + NAME_COL_WIDTH;
+// Fixed (not just min) width so long usernames truncate via nameTextStyle
+// below instead of silently growing this column.
+const NAME_COL_WIDTH = 90;
 
 const thStickyName = {
   ...th,
@@ -731,15 +731,6 @@ const thStickyName = {
   zIndex: 3,
   textAlign: "center",
   width: NAME_COL_WIDTH,
-};
-
-const thStickyPoints = {
-  ...th,
-  position: "sticky",
-  left: POINTS_COL_LEFT,
-  background: "#fff",
-  zIndex: 3,
-  width: 64,
 };
 
 const tdCenter = {
@@ -772,26 +763,20 @@ const tdName = {
 
 // box-sizing is border-box app-wide (index.html), so NAME_COL_WIDTH already
 // includes tdCenter's 8px-each-side padding -- subtract the full 16px to
-// get the actual available content width, or a long username could still
-// push this column wider than POINTS_COL_LEFT expects.
+// get the actual available content width.
 const nameTextStyle = {
   display: "block",
   maxWidth: NAME_COL_WIDTH - 16,
   overflow: "hidden",
   textOverflow: "ellipsis",
   whiteSpace: "nowrap",
+  fontSize: 11,
 };
 
-const tdPoints = {
-  ...tdCenter,
-  position: "sticky",
-  left: POINTS_COL_LEFT,
-  background: "#fff",
-  zIndex: 2,
-  width: 64,
+const pointsUnderNameStyle = {
   fontWeight: 900,
   color: "#b8860b",
-  fontSize: 14,
+  fontSize: 12,
 };
 
 const styles = {
