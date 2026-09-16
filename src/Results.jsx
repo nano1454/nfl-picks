@@ -533,6 +533,9 @@ export default function Results() {
           <Link to="/leaderboard">
             <Button variant="secondary" size="sm">🏆 Leaderboard</Button>
           </Link>
+          <Link to="/history">
+            <Button variant="secondary" size="sm" pill>📅 Season History</Button>
+          </Link>
           <Link to="/">
             <Button variant="dark" size="sm">← Back</Button>
           </Link>

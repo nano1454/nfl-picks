@@ -405,6 +405,9 @@ export default function Leaderboard() {
           <Link to="/results" style={{ textDecoration: "none" }}>
             <PillButton>📋 Picks Table</PillButton>
           </Link>
+          <Link to="/history" style={{ textDecoration: "none" }}>
+            <PillButton>📅 Season History</PillButton>
+          </Link>
           <Link to="/" style={{ textDecoration: "none" }}>
             <PillButton primary>← Back</PillButton>
           </Link>
