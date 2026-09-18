@@ -60,25 +60,27 @@ export function evaluateTBRound({ tbNo, gameId, currentUsers, guessByUser, resul
 
 // Runs the full TB1 -> TB2 -> TB3 -> season-points -> split cascade for a
 // tied-for-1st group. Returns { decidedBy, winners, perTB, seasonTotals }.
-// - tbGameIds: exactly 3 game ids, in TB1/TB2/TB3 order
+// - tbGameIds: game ids in TB order -- exactly 3 for a regular-season week,
+//   exactly 1 for a playoff round (weeks 19-22, one tiebreaker per round);
+//   the cascade below runs however many rounds it's given.
 // - resultByGame: { [gameId]: { status, home_score, away_score } }
 // - guessByUser: { [user_name]: { 1, 2, 3 } }
 // - seasonPointsByUser: { [user_name]: number } -- each tied user's total
 //   points for the season through (and including) the week being resolved;
-//   only consulted if still tied after all 3 TB rounds are FINAL
-// - revealGuesses: boolean (uniform for all 3 rounds) or (gameId) => boolean
+//   only consulted if still tied after all TB rounds are FINAL
+// - revealGuesses: boolean (uniform for all rounds) or (gameId) => boolean
 //   (per-round, e.g. gated on that specific game's own lock time)
 export function resolveCascade({ tiedUsers, tbGameIds, resultByGame, guessByUser, seasonPointsByUser, revealGuesses = true }) {
   if (!Array.isArray(tiedUsers) || tiedUsers.length <= 1) {
     return { decidedBy: null, winners: tiedUsers || [], perTB: [], seasonTotals: null };
   }
-  if (!Array.isArray(tbGameIds) || tbGameIds.length < 3) {
+  if (!Array.isArray(tbGameIds) || tbGameIds.length === 0) {
     return {
       decidedBy: "ERROR",
       winners: tiedUsers,
       perTB: [],
       seasonTotals: null,
-      error: "tbGameIds missing/invalid (need 3 game_ids).",
+      error: "tbGameIds missing/invalid (need at least 1 game_id).",
     };
   }
 
@@ -87,7 +89,7 @@ export function resolveCascade({ tiedUsers, tbGameIds, resultByGame, guessByUser
   let decidedBy = "PENDING";
   let winners = remaining;
 
-  for (let i = 0; i < 3; i++) {
+  for (let i = 0; i < tbGameIds.length; i++) {
     const tbNo = i + 1;
     const gid = tbGameIds[i];
     // Each TB round has its own game, so its lock time (and thus whether
@@ -123,16 +125,17 @@ export function resolveCascade({ tiedUsers, tbGameIds, resultByGame, guessByUser
     // round; the group carries over unchanged into the next TB round.
   }
 
-  // Gated on allTBFinal (all 3 rounds genuinely evaluated as FINAL), not on
+  // Gated on allTBFinal (every round genuinely evaluated as FINAL), not on
   // decidedBy still being "PENDING" -- a group that's still tied after all
-  // 3 real tiebreakers never actually reassigns decidedBy away from its
+  // real tiebreakers never actually reassigns decidedBy away from its
   // "PENDING" initial value (that only happens in the DECIDED/PENDING_FINAL
   // branches above), so gating on decidedBy here would incorrectly report
   // "still pending a future game" forever instead of falling through to the
   // season-points tiebreak. allTBFinal alone is both necessary and
-  // sufficient: it's only true when the loop ran all 3 iterations without
-  // an early break, which only happens when every round was FINAL.
-  const allTBFinal = perTB.length === 3 && perTB.every((x) => x.isFinal);
+  // sufficient: it's only true when the loop ran every iteration (3 for a
+  // regular-season week, 1 for a playoff round) without an early break,
+  // which only happens when every round was FINAL.
+  const allTBFinal = perTB.length === tbGameIds.length && perTB.every((x) => x.isFinal);
   if (allTBFinal && winners.length > 1 && seasonPointsByUser) {
     const seasonTotals = {};
     for (const u of winners) seasonTotals[u] = Number(seasonPointsByUser[u] || 0);

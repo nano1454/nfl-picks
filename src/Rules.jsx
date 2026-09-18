@@ -186,6 +186,87 @@ export default function Rules() {
           </ul>
         </Section>
 
+        <hr style={{ border: "none", borderTop: "2px solid #eee", margin: "28px 0" }} />
+
+        {/* Playoffs Pool Rules -- separate competition, appended after the
+            regular-season content above (always visible, no live data). */}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 12 }}>
+          <div>
+            <h1 style={{ margin: 0, fontSize: 28, fontWeight: 900 }}>🏆 Playoffs Pool Rules</h1>
+            <p style={{ margin: "4px 0 0", color: "#555", fontSize: 14 }}>Wild Card → Divisional → Conference Championships → Super Bowl</p>
+          </div>
+        </div>
+        <hr style={{ border: "none", borderTop: "2px solid #eee", margin: "20px 0" }} />
+
+        <Section title="📋 Overview">
+          <p>
+            After the 18-week regular season ends, a separate playoffs pool runs across the 4 NFL
+            playoff rounds. It uses the same picks page and Leaderboard, but <b>scores start
+            completely fresh</b> — nothing carries over from the regular season. One <b>$40 buy-in
+            covers the entire playoffs</b> (all 4 rounds), not a per-round charge.
+          </p>
+          <ul style={{ paddingLeft: 20, lineHeight: 2, marginTop: 8 }}>
+            <li>Straight-up winner picks only — <b>no passing/rushing bonus picks</b> in the playoffs.</li>
+            <li>Just <b>1 tiebreaker game</b> per round (instead of 3 in the regular season).</li>
+            <li>Points accumulate round to round toward a <b>44.0-point max</b> across all 4 rounds.</li>
+            <li>Payout: <b>60% to 1st place, 25% to 2nd place</b>.</li>
+          </ul>
+        </Section>
+
+        <Section title="🏈 Points Per Round">
+          <p>
+            Each round's correct picks are worth more than the last, and every game pays a
+            <b> higher value for correctly picking the underdog</b> (the team with the worse odds)
+            than for picking the favorite. The app determines the favorite/underdog automatically
+            from real betting odds and <b>flags you if it changes</b> before a game locks.
+          </p>
+          <div style={{ overflowX: "auto", marginTop: 10 }}>
+            <table style={{ borderCollapse: "collapse", width: "100%", fontSize: 14 }}>
+              <thead>
+                <tr>
+                  <th style={thStyle}>Round</th>
+                  <th style={thStyle}>Games</th>
+                  <th style={thStyle}>Favorite</th>
+                  <th style={thStyle}>Underdog</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr><td style={tdStyle}>Wild Card</td><td style={tdStyle}>6</td><td style={tdStyle}>1.0 pts</td><td style={tdStyle}>1.1 pts</td></tr>
+                <tr><td style={tdStyle}>Divisional</td><td style={tdStyle}>4</td><td style={tdStyle}>3.0 pts</td><td style={tdStyle}>3.3 pts</td></tr>
+                <tr><td style={tdStyle}>Conference Championships</td><td style={tdStyle}>2</td><td style={tdStyle}>7.0 pts</td><td style={tdStyle}>7.7 pts</td></tr>
+                <tr><td style={tdStyle}>Super Bowl</td><td style={tdStyle}>1</td><td style={tdStyle}>8.0 pts</td><td style={tdStyle}>8.8 pts</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </Section>
+
+        <Section title="🔢 Tiebreaker Per Round">
+          <p>
+            Each round has <b>one tiebreaker game</b> — you predict its combined final score, same
+            "closest without going over" rule as the regular season.
+          </p>
+          <ul style={{ paddingLeft: 20, lineHeight: 2 }}>
+            <li><b>Wild Card &amp; Divisional</b> — the last game of that round.</li>
+            <li><b>Conference Championships</b> — specifically the <b>AFC Championship</b> game.</li>
+            <li><b>Super Bowl</b> — the Super Bowl itself.</li>
+          </ul>
+          <p style={{ marginTop: 10, fontSize: 13, color: "#666" }}>
+            If points are still tied after that round's tiebreaker, the next round's tiebreaker
+            decides once it's played. If still tied after the Super Bowl's tiebreaker, whoever has
+            more total points accumulated across the whole playoffs wins; if that's still tied, the
+            prize is split.
+          </p>
+        </Section>
+
+        <Section title="💵 Buy-In & Payout">
+          <ul style={{ paddingLeft: 20, lineHeight: 2 }}>
+            <li>One <b>$40 buy-in</b> per participant covers all 4 rounds — pay it once, any time during the playoffs.</li>
+            <li><b>1st place wins 60%</b> of the pot, <b>2nd place wins 25%</b>.</li>
+            <li>Commission: 15% under 20 participants, 20% at 20 or more.</li>
+            <li>Roster is separate from the regular season — some people opt out, others opt in just for the playoffs.</li>
+          </ul>
+        </Section>
+
         {/* Footer */}
         <hr style={{ border: "none", borderTop: "2px solid #eee", margin: "24px 0 16px" }} />
         <p style={{ textAlign: "center", fontSize: 13, color: "#888" }}>
@@ -211,6 +292,9 @@ export default function Rules() {
     </div>
   );
 }
+
+const thStyle = { textAlign: "left", padding: "8px 10px", borderBottom: "2px solid #ddd" };
+const tdStyle = { textAlign: "left", padding: "8px 10px", borderBottom: "1px solid #eee" };
 
 function Section({ title, children }) {
   return (

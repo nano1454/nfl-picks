@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { supabase } from "./supabaseClient";
 import { getSession } from "./auth";
 import Button from "./Button";
+import { isPlayoffWeek, roundNameForWeek } from "./playoffsConfig";
 
 function normalizeName(s) {
   return (s || "").trim();
@@ -45,6 +46,19 @@ export default function Admin() {
   const [newBuyIn, setNewBuyIn] = useState("");
 
   const [runningResults, setRunningResults] = useState(false);
+
+  // --- Playoffs Setup (weeks 19-22) -- fully additive, own state, doesn't
+  // touch anything above. Separate roster/payment tables + functions so
+  // this can never write into the regular-season participants/week data.
+  const [playoffsRound, setPlayoffsRound] = useState("19");
+  const [playoffsParticipants, setPlayoffsParticipants] = useState([]);
+  const [playoffsPayments, setPlayoffsPayments] = useState({});
+  const [loadingPlayoffs, setLoadingPlayoffs] = useState(false);
+  const [playoffsSelected, setPlayoffsSelected] = useState("");
+  const [playoffsNewBuyIn, setPlayoffsNewBuyIn] = useState("");
+  const [importingPlayoffsSchedule, setImportingPlayoffsSchedule] = useState(false);
+  const [settingPlayoffsCurrent, setSettingPlayoffsCurrent] = useState(false);
+  const [syncingOdds, setSyncingOdds] = useState(false);
 
   function formatMissingMatchups(matchups, showAll) {
     const list = Array.isArray(matchups) ? matchups : [];
@@ -252,6 +266,147 @@ export default function Admin() {
       setLoading(false);
     }
   }
+
+  async function loadPlayoffsAdmin() {
+    if (!adminToken) return;
+    setLoadingPlayoffs(true);
+    try {
+      const res = await fetch(
+        `/.netlify/functions/getAdminPlayoffsParticipants?token=${encodeURIComponent(adminToken)}`,
+        { cache: "no-store" }
+      );
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.ok) throw new Error(data?.error || `Could not load playoffs roster (HTTP ${res.status})`);
+      setPlayoffsParticipants(data.participants || []);
+      const payMap = {};
+      for (const [name, paid] of Object.entries(data.payments || {})) payMap[normalizeName(name)] = !!paid;
+      setPlayoffsPayments(payMap);
+    } catch (e) {
+      console.error("loadPlayoffsAdmin failed:", e);
+    } finally {
+      setLoadingPlayoffs(false);
+    }
+  }
+
+  async function importPlayoffsScheduleNow() {
+    if (!adminToken) return alert("Not signed in as an admin.");
+    const season = Number(String(importSeason).trim());
+    const week = Number(playoffsRound);
+    if (!season || !week) return alert("Enter a valid season and pick a round.");
+
+    setImportingPlayoffsSchedule(true);
+    try {
+      const url = `/.netlify/functions/importSchedule?season=${season}&week=${week}&token=${encodeURIComponent(adminToken)}`;
+      const res = await fetch(url);
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.ok) throw new Error(data?.error || `Import failed (HTTP ${res.status})`);
+      alert(
+        `✅ Imported ${roundNameForWeek(week)}, ${season}\nGames: ${data.imported_games}\nTiebreaker: ${(data.tiebreakers || []).join(", ")}\n${data.note || ""}`
+      );
+    } catch (e) {
+      alert(String(e?.message || e));
+    } finally {
+      setImportingPlayoffsSchedule(false);
+    }
+  }
+
+  async function setPlayoffsCurrentNow() {
+    if (!adminToken) return alert("Not signed in as an admin.");
+    const season = Number(String(importSeason).trim());
+    const week = Number(playoffsRound);
+    if (!season || !week) return alert("Enter a valid season and pick a round.");
+
+    setSettingPlayoffsCurrent(true);
+    try {
+      const url = `/.netlify/functions/setCurrentWeek?season=${season}&week=${week}&token=${encodeURIComponent(adminToken)}`;
+      const res = await fetch(url);
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.ok) throw new Error(data?.error || `Failed (HTTP ${res.status})`);
+      alert(`✅ Set current: ${roundNameForWeek(week)}, Season ${season}`);
+      await loadAll();
+    } catch (e) {
+      alert(String(e?.message || e));
+    } finally {
+      setSettingPlayoffsCurrent(false);
+    }
+  }
+
+  async function syncOddsNow() {
+    setSyncingOdds(true);
+    try {
+      const season = Number(String(importSeason).trim());
+      const week = Number(playoffsRound);
+      const url = `/.netlify/functions/syncPlayoffOdds?season=${season}&week=${week}`;
+      const res = await fetch(url);
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.ok) throw new Error(data?.error || `Failed (HTTP ${res.status})`);
+      if (data.skipped) alert(`No-op: ${data.reason}`);
+      else alert(`✅ Odds sync done. Checked ${data.checked ?? 0}, updated ${data.updated ?? 0}.`);
+    } catch (e) {
+      alert(String(e?.message || e));
+    } finally {
+      setSyncingOdds(false);
+    }
+  }
+
+  async function savePlayoffsBuyIn() {
+    const name = normalizeName(playoffsSelected);
+    if (!name) return alert("Enter a participant name.");
+    const buyIn = playoffsNewBuyIn === "" ? 40 : Number(playoffsNewBuyIn);
+    if (Number.isNaN(buyIn) || buyIn < 0) return alert("Buy-in must be a number (0 or more).");
+    if (!adminToken) return alert("Not signed in as an admin.");
+
+    try {
+      const url =
+        `/.netlify/functions/upsertPlayoffsParticipant?user_name=${encodeURIComponent(name)}` +
+        `&buy_in=${buyIn}&active=true&token=${encodeURIComponent(adminToken)}`;
+      const res = await fetch(url, { cache: "no-store" });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.ok) throw new Error(data?.error || `Failed (HTTP ${res.status})`);
+      setPlayoffsSelected("");
+      setPlayoffsNewBuyIn("");
+      await loadPlayoffsAdmin();
+    } catch (e) {
+      alert(`Could not save: ${String(e?.message || e)}`);
+    }
+  }
+
+  async function removePlayoffsParticipant(user_name) {
+    if (!window.confirm(`Remove "${user_name}" from the playoffs roster?`)) return;
+    if (!adminToken) return alert("Not signed in as an admin.");
+    try {
+      const url =
+        `/.netlify/functions/setPlayoffsParticipantActive?user_name=${encodeURIComponent(user_name)}` +
+        `&active=false&token=${encodeURIComponent(adminToken)}`;
+      const res = await fetch(url, { cache: "no-store" });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.ok) throw new Error(data?.error || `Failed (HTTP ${res.status})`);
+      await loadPlayoffsAdmin();
+    } catch (e) {
+      alert(`Could not remove: ${String(e?.message || e)}`);
+    }
+  }
+
+  async function togglePlayoffsPaid(user_name, nextPaid) {
+    if (!adminToken) return alert("Not signed in as an admin.");
+    try {
+      const url =
+        `/.netlify/functions/setPlayoffsPayment?user_name=${encodeURIComponent(user_name)}` +
+        `&paid=${!!nextPaid}&token=${encodeURIComponent(adminToken)}`;
+      const res = await fetch(url, { cache: "no-store" });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.ok) throw new Error(data?.error || `Failed (HTTP ${res.status})`);
+      setPlayoffsPayments((m) => ({ ...m, [normalizeName(user_name)]: !!nextPaid }));
+    } catch (e) {
+      alert(`Could not update paid status: ${String(e?.message || e)}`);
+    }
+  }
+
+  useEffect(() => {
+    if (!isAdmin) return;
+    loadPlayoffsAdmin();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAdmin]);
 
   useEffect(() => {
     if (!isAdmin) return;
@@ -579,7 +734,9 @@ export default function Admin() {
   return (
     <div style={{ maxWidth: 1100, margin: "24px auto", padding: 16, fontFamily: "system-ui" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 12 }}>
-        <h1 style={{ margin: 0 }}>Admin — Week {weekMeta.week}</h1>
+        <h1 style={{ margin: 0 }}>
+          Admin — {isPlayoffWeek(weekMeta.week) ? roundNameForWeek(weekMeta.week) : `Week ${weekMeta.week}`}
+        </h1>
         <div style={{ display: "flex", gap: 8 }}>
           <Button variant="secondary" size="sm" onClick={loadAll}>
             Refresh
@@ -953,6 +1110,115 @@ export default function Admin() {
         <Button variant="primary" onClick={runResultsNow} disabled={runningResults}>
           {runningResults ? "Running…" : "Run Results Processor"}
         </Button>
+      </div>
+
+      {/* Playoffs Setup -- fully separate from Steps 1-6 above, own tables
+          and functions, never touches regular-season data/structure. */}
+      <div style={{ border: "1px solid #b8860b", borderRadius: 10, padding: 12, marginTop: 24, background: "rgba(255,215,0,0.04)" }}>
+        <h3 style={{ marginTop: 0 }}>🏆 Playoffs Setup (weeks 19-22)</h3>
+        <p style={{ margin: "0 0 10px", color: "#666", fontSize: 13 }}>
+          Separate pool, separate roster, scores start fresh. Uses the same season number as the regular season above
+          (weeks 19-22 have never been used by the regular season, so nothing here can collide with it).
+        </p>
+
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginBottom: 14 }}>
+          <select
+            value={playoffsRound}
+            onChange={(e) => setPlayoffsRound(e.target.value)}
+            style={{ padding: 10, minWidth: 200 }}
+          >
+            <option value="19">Week 19 — Wild Card Round</option>
+            <option value="20">Week 20 — Divisional Round</option>
+            <option value="21">Week 21 — Conference Championships</option>
+            <option value="22">Week 22 — Super Bowl</option>
+          </select>
+
+          <Button variant="primary" onClick={importPlayoffsScheduleNow} disabled={importingPlayoffsSchedule}>
+            {importingPlayoffsSchedule ? "Importing…" : "Import round games"}
+          </Button>
+
+          <Button variant="secondary" onClick={setPlayoffsCurrentNow} disabled={settingPlayoffsCurrent}>
+            {settingPlayoffsCurrent ? "Setting…" : "Set as current round"}
+          </Button>
+
+          <Button variant="secondary" onClick={syncOddsNow} disabled={syncingOdds}>
+            {syncingOdds ? "Syncing…" : "Sync odds now"}
+          </Button>
+        </div>
+        <p style={{ margin: "0 0 14px", color: "#666", fontSize: 12 }}>
+          Uses the Season field from Step 1 above. Importing a round does NOT auto-set it as current (unlike the
+          regular season) -- click "Set as current round" explicitly when ready for participants to see it. Odds
+          sync also runs automatically every 10 minutes for whichever round is current.
+        </p>
+
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 10 }}>
+          <input
+            value={playoffsSelected}
+            onChange={(e) => setPlayoffsSelected(e.target.value)}
+            placeholder="Participant name"
+            style={{ padding: 10, minWidth: 220 }}
+          />
+          <input
+            value={playoffsNewBuyIn}
+            onChange={(e) => setPlayoffsNewBuyIn(e.target.value.replace(/[^0-9.]/g, ""))}
+            placeholder="Buy-in (default 40)"
+            style={{ padding: 10, width: 170 }}
+          />
+          <Button variant="primary" onClick={savePlayoffsBuyIn}>
+            Add / Update
+          </Button>
+          <Button variant="secondary" onClick={loadPlayoffsAdmin} disabled={loadingPlayoffs}>
+            {loadingPlayoffs ? "Loading…" : "Refresh roster"}
+          </Button>
+        </div>
+        <p style={{ margin: "0 0 10px", fontSize: 12, color: "#666" }}>
+          Roster is independent of the regular season's participants -- add anyone opting into the playoffs pool here,
+          even if they weren't in the regular season (or leave out anyone who was but isn't doing playoffs).
+        </p>
+
+        {playoffsParticipants.length === 0 ? (
+          <p style={{ color: "#666", fontSize: 13 }}>No playoffs participants yet.</p>
+        ) : (
+          <div style={{ overflowX: "auto" }}>
+            <table style={{ borderCollapse: "collapse", width: "100%" }}>
+              <thead>
+                <tr>
+                  <th style={thLeft}>Participant</th>
+                  <th style={thCenter}>Buy-in</th>
+                  <th style={thCenter}>Paid (whole playoffs)</th>
+                  <th style={thCenter}>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {playoffsParticipants.map((p) => {
+                  const name = normalizeName(p.user_name);
+                  const paid = !!playoffsPayments[name];
+                  return (
+                    <tr key={name}>
+                      <td style={tdLeft}>{name}</td>
+                      <td style={tdCenter}>${Number(p.buy_in || 0).toFixed(2)}</td>
+                      <td style={tdCenter}>
+                        <label style={{ display: "inline-flex", alignItems: "center", gap: 6, cursor: "pointer" }}>
+                          <input
+                            type="checkbox"
+                            checked={paid}
+                            onChange={(e) => togglePlayoffsPaid(name, e.target.checked)}
+                          />
+                          {paid ? "Paid" : "No"}
+                        </label>
+                      </td>
+                      <td style={tdCenter}>
+                        <Button variant="danger" size="sm" onClick={() => removePlayoffsParticipant(name)}>
+                          Remove
+                        </Button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
     </div>
   );

@@ -608,7 +608,7 @@ export default function Results() {
                     );
                   })}
 
-                  {tbGameIds.length === 3 ? (
+                  {tbGameIds.length > 0 ? (
                     tbGameIds.map((gid, i) => {
                       const g = gameById[gid];
                       const gameLocked = lockedGameIds.has(String(gid));
@@ -631,7 +631,7 @@ export default function Results() {
               <tbody>
                 {users.length === 0 ? (
                   <tr>
-                    <td colSpan={(games?.length || 0) + 2 + (tbGameIds.length === 3 ? 3 : 0)} style={{ padding: 14, color: "#666" }}>
+                    <td colSpan={(games?.length || 0) + 2 + tbGameIds.length} style={{ padding: 14, color: "#666" }}>
                       No picks found for this week yet.
                     </td>
                   </tr>
@@ -668,8 +668,9 @@ export default function Results() {
                         );
                       })}
 
-                      {tbGameIds.length === 3 ? (
-                        [1, 2, 3].map((tbNo) => {
+                      {tbGameIds.length > 0 ? (
+                        tbGameIds.map((_, idx) => {
+                          const tbNo = idx + 1;
                           const gid = tbGameIds[tbNo - 1];
                           const gameLocked = lockedGameIds.has(String(gid));
                           return (

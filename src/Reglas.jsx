@@ -190,6 +190,88 @@ export default function Reglas() {
           </ul>
         </Section>
 
+        <hr style={{ border: "none", borderTop: "2px solid #eee", margin: "28px 0" }} />
+
+        {/* Reglas de los Playoffs -- competencia aparte, agregada después
+            del contenido de temporada regular (siempre visible, sin datos en vivo). */}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 12 }}>
+          <div>
+            <h1 style={{ margin: 0, fontSize: 28, fontWeight: 900 }}>🏆 Reglas de los Playoffs</h1>
+            <p style={{ margin: "4px 0 0", color: "#555", fontSize: 14 }}>Wild Card → Divisional → Campeonatos de Conferencia → Super Bowl</p>
+          </div>
+        </div>
+        <hr style={{ border: "none", borderTop: "2px solid #eee", margin: "20px 0" }} />
+
+        <Section title="📋 ¿De qué se trata?">
+          <p>
+            Después de las 18 semanas de temporada regular, corre una quiniela aparte para los 4
+            rounds de playoffs. Usa la misma página de picks y el mismo Marcador, pero <b>los
+            puntos empiezan completamente en cero</b> — nada se traslada de la temporada regular.
+            Una sola <b>aportación de $40 cubre todos los playoffs</b> (los 4 rounds), no es un
+            cobro por round.
+          </p>
+          <ul style={{ paddingLeft: 20, lineHeight: 2, marginTop: 8 }}>
+            <li>Solo picks de ganador directo — <b>no hay picks extra de pase/acarreo</b> en playoffs.</li>
+            <li>Solo <b>1 partido de desempate</b> por round (en vez de 3 en temporada regular).</li>
+            <li>Los puntos se acumulan de round en round hasta un <b>máximo de 44.0</b> en total.</li>
+            <li>Premio: <b>60% para el 1er lugar, 25% para el 2do lugar</b>.</li>
+          </ul>
+        </Section>
+
+        <Section title="🏈 Puntos Por Round">
+          <p>
+            Cada round vale más puntos que el anterior, y cada partido paga <b>más puntos por
+            acertar al equipo menos favorecido</b> (underdog, el equipo con peores momios) que por
+            acertar al favorito. La app determina el favorito/underdog automáticamente con momios
+            reales y <b>te avisa si cambia</b> antes de que el partido se bloquee.
+          </p>
+          <div style={{ overflowX: "auto", marginTop: 10 }}>
+            <table style={{ borderCollapse: "collapse", width: "100%", fontSize: 14 }}>
+              <thead>
+                <tr>
+                  <th style={thStyle}>Round</th>
+                  <th style={thStyle}>Partidos</th>
+                  <th style={thStyle}>Favorito</th>
+                  <th style={thStyle}>Underdog</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr><td style={tdStyle}>Wild Card</td><td style={tdStyle}>6</td><td style={tdStyle}>1.0 pts</td><td style={tdStyle}>1.1 pts</td></tr>
+                <tr><td style={tdStyle}>Divisional</td><td style={tdStyle}>4</td><td style={tdStyle}>3.0 pts</td><td style={tdStyle}>3.3 pts</td></tr>
+                <tr><td style={tdStyle}>Campeonatos de Conferencia</td><td style={tdStyle}>2</td><td style={tdStyle}>7.0 pts</td><td style={tdStyle}>7.7 pts</td></tr>
+                <tr><td style={tdStyle}>Super Bowl</td><td style={tdStyle}>1</td><td style={tdStyle}>8.0 pts</td><td style={tdStyle}>8.8 pts</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </Section>
+
+        <Section title="🔢 Desempate Por Round">
+          <p>
+            Cada round tiene <b>un solo partido de desempate</b> — predices su marcador combinado
+            final, con la misma regla de "más cercano sin pasarse" que en temporada regular.
+          </p>
+          <ul style={{ paddingLeft: 20, lineHeight: 2 }}>
+            <li><b>Wild Card y Divisional</b> — el último partido de ese round.</li>
+            <li><b>Campeonatos de Conferencia</b> — específicamente el partido del <b>Campeonato de la AFC</b>.</li>
+            <li><b>Super Bowl</b> — el Super Bowl mismo.</li>
+          </ul>
+          <p style={{ marginTop: 10, fontSize: 13, color: "#666" }}>
+            Si el empate sigue después del desempate de ese round, el desempate del siguiente round
+            decide una vez que se juegue. Si sigue el empate después del desempate del Super Bowl,
+            gana quien tenga más puntos acumulados en total durante los playoffs; si eso también
+            está empatado, el premio se divide.
+          </p>
+        </Section>
+
+        <Section title="💵 Aportación y Premio">
+          <ul style={{ paddingLeft: 20, lineHeight: 2 }}>
+            <li>Una sola <b>aportación de $40</b> por participante cubre los 4 rounds — se paga una vez, en cualquier momento durante los playoffs.</li>
+            <li>El <b>1er lugar gana 60%</b> del pozo, el <b>2do lugar gana 25%</b>.</li>
+            <li>Comisión: 15% con menos de 20 participantes, 20% con 20 o más.</li>
+            <li>El grupo es independiente de la temporada regular — algunos se salen, otros se unen solo para playoffs.</li>
+          </ul>
+        </Section>
+
         {/* Pie de página */}
         <hr style={{ border: "none", borderTop: "2px solid #eee", margin: "24px 0 16px" }} />
         <p style={{ textAlign: "center", fontSize: 13, color: "#888" }}>
@@ -215,6 +297,9 @@ export default function Reglas() {
     </div>
   );
 }
+
+const thStyle = { textAlign: "left", padding: "8px 10px", borderBottom: "2px solid #ddd" };
+const tdStyle = { textAlign: "left", padding: "8px 10px", borderBottom: "1px solid #eee" };
 
 function Section({ title, children }) {
   return (

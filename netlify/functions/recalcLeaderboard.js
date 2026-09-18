@@ -10,6 +10,23 @@ function toNum(v) {
   return Number.isFinite(n) ? n : null;
 }
 
+// Playoffs pool (weeks 19-22) -- fixed structure, hardcoded deliberately,
+// see src/playoffsConfig.js for why. Kept in sync with updateResults.js/
+// importSchedule.cjs/syncPlayoffOdds.js's own duplicated copies (ESM
+// functions here can't require() a .cjs helper, same reason
+// verifyAdminToken below is its own copy rather than importing _adminAuth.cjs).
+const ROUND_POINTS = { 19: [1.0, 1.1], 20: [3.0, 3.3], 21: [7.0, 7.7], 22: [8.0, 8.8] };
+
+// Points for a correct pick on this game. Regular season (week < 19) always
+// returns 1 -- untouched, unaffected by anything playoffs-related below.
+function pointsForPick(week, game, pickSide) {
+  const round = ROUND_POINTS[Number(week)];
+  if (!round) return 1;
+  const [base, underdogBonus] = round;
+  const underdogSide = String(game?.underdog_side || "").toUpperCase();
+  return pickSide && underdogSide && pickSide === underdogSide ? underdogBonus : base;
+}
+
 // game_id format is "{season}_{week}_{awayAbbr}_{homeAbbr}" (nflverse convention,
 // same string this app already uses as games.id -- see importSchedule.cjs).
 function awayHomeAbbrFromGameId(gameId) {
@@ -197,10 +214,12 @@ export default async (req) => {
 
     const finalGameIds = finals.map((f) => String(f.game_id)).filter(Boolean);
 
-    // 2) Load games (for legacy pick support if pick stored as team name)
+    // 2) Load games (for legacy pick support if pick stored as team name).
+    // underdog_side is only ever non-null for playoff weeks (19-22) -- see
+    // pointsForPick() above.
     const { data: games, error: gamesErr } = await admin
       .from("games")
-      .select("id, away, home")
+      .select("id, away, home, underdog_side")
       .eq("season", season)
       .eq("week", week)
       .in("id", finalGameIds);
@@ -273,7 +292,7 @@ export default async (req) => {
 
       if (!totals[name]) totals[name] = { points: 0, correct: 0 };
       if (correct) {
-        totals[name].points += 1;
+        totals[name].points += pointsForPick(week, gameById[gid], pickUpper);
         totals[name].correct += 1;
       }
     }
@@ -417,13 +436,17 @@ async function computeTiebreakSnapshot({ admin, season, week, lbRows, finals, ga
     return { applicable: true, maxPoints, tied_users: tied, error: `week_meta read: ${metaErr.message}` };
   }
 
+  // Regular season always has exactly 3; playoffs (weeks 19-22) has exactly
+  // 1 -- .slice(0,3) is a no-op for playoffs, and the real error condition
+  // in both cases is simply "no tiebreaker game_ids at all," not "fewer
+  // than 3" (which would incorrectly reject a valid 1-tiebreaker round).
   const tbGameIds = Array.isArray(meta?.tiebreakers) ? meta.tiebreakers.slice(0, 3).map(String) : [];
-  if (tbGameIds.length < 3) {
+  if (tbGameIds.length === 0) {
     return {
       applicable: true,
       maxPoints,
       tied_users: tied,
-      error: "week_meta.tiebreakers missing/invalid (need 3 game_ids).",
+      error: "week_meta.tiebreakers missing/invalid (need at least 1 game_id).",
       tbGameIds,
     };
   }
@@ -594,10 +617,19 @@ async function computeTiebreakSnapshot({ admin, season, week, lbRows, finals, ga
 async function getSeasonTotalsUpToWeek(admin, season, week, users) {
   // We compute from leaderboard table: sum(points) where season=season and week<=week and user_name in users
   // If leaderboard is large, this is still fine for typical pick pools.
+  //
+  // Playoffs (weeks 19-22) share the same `season` value as the regular
+  // season that preceded them, so an unbounded week<=week sum would
+  // incorrectly blend in regular-season weeks 1-18 when this is used as a
+  // tiebreak fallback for a playoff-week tie. Floor the range at week 19
+  // for playoff weeks; regular season keeps its original unbounded-below
+  // range (no week 0 exists, so this is a no-op there).
+  const lowerBound = week >= 19 ? 19 : 0;
   const { data, error } = await admin
     .from("leaderboard")
     .select("user_name, week, points")
     .eq("season", season)
+    .gte("week", lowerBound)
     .lte("week", week)
     .in("user_name", users);
 

@@ -10,6 +10,23 @@ function toNum(v) {
   return Number.isFinite(n) ? n : null;
 }
 
+// Playoffs pool (weeks 19-22) -- fixed structure, hardcoded deliberately,
+// see src/playoffsConfig.js for why. ESM functions in this project can't
+// require() a .cjs helper (see the existing comment on that below, and in
+// recalcLeaderboard.js), so this is its own duplicated copy, kept in sync
+// with recalcLeaderboard.js/importSchedule.cjs/syncPlayoffOdds.js.
+const ROUND_POINTS = { 19: [1.0, 1.1], 20: [3.0, 3.3], 21: [7.0, 7.7], 22: [8.0, 8.8] };
+
+// Points for a correct pick on this game. Regular season (week < 19) always
+// returns 1 -- untouched, unaffected by anything playoffs-related below.
+function pointsForPick(week, game, pickSide) {
+  const round = ROUND_POINTS[Number(week)];
+  if (!round) return 1;
+  const [base, underdogBonus] = round;
+  const underdogSide = String(game?.underdog_side || "").toUpperCase();
+  return pickSide && underdogSide && pickSide === underdogSide ? underdogBonus : base;
+}
+
 // game_id format is "{season}_{week}_{awayAbbr}_{homeAbbr}" (nflverse convention,
 // same string this app already uses as games.id -- see importSchedule.cjs).
 function awayHomeAbbrFromGameId(gameId) {
@@ -177,9 +194,11 @@ export default async (req) => {
 
     // 3) Build winnerByGame as TEAM NAME (matches your picks UI)
     // picks are storing actual team names (e.g. "Carolina Panthers"), not "HOME/AWAY"
+    // underdog_side is only ever non-null for playoff weeks (19-22) -- see
+    // pointsForPick() below.
     const { data: games, error: gamesErr } = await admin
       .from("games")
-      .select("id, away, home")
+      .select("id, away, home, underdog_side")
       .eq("season", season)
       .eq("week", week)
       .in("id", finalRows.map((x) => x.game_id));
@@ -254,7 +273,7 @@ export default async (req) => {
 
       if (!totals[name]) totals[name] = { points: 0, correct: 0 };
       if (correct) {
-        totals[name].points += 1;
+        totals[name].points += pointsForPick(week, gameMap[gid], pickUpper);
         totals[name].correct += 1;
       }
     }

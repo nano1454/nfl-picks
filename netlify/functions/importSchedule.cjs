@@ -43,6 +43,32 @@ const TEAM_ABBR_TO_FULL = {
   WSH: "Washington Commanders",
 };
 
+// Playoffs pool (weeks 19-22) -- fixed structure, hardcoded deliberately,
+// see src/playoffsConfig.js for why. This is the .cjs (CommonJS) copy;
+// updateResults.js/recalcLeaderboard.js keep their own duplicated copies
+// too since ESM functions in this project can't require() a .cjs helper
+// (see the existing comment on that in recalcLeaderboard.js).
+const PLAYOFFS_FIRST_WEEK = 19;
+const PLAYOFFS_LAST_WEEK = 22;
+const ROUND_GAME_TYPE = { 19: "WC", 20: "DIV", 21: "CON", 22: "SB" };
+function isPlayoffWeek(week) {
+  return week >= PLAYOFFS_FIRST_WEEK && week <= PLAYOFFS_LAST_WEEK;
+}
+
+// Needed only to pick the AFC Championship game as that round's single
+// tiebreaker (Adrian's rule is specifically "the AFC Championship", not
+// just "the last game" like Wild Card/Divisional use).
+const TEAM_CONFERENCE = {
+  "Buffalo Bills": "AFC", "Miami Dolphins": "AFC", "New England Patriots": "AFC", "New York Jets": "AFC",
+  "Baltimore Ravens": "AFC", "Cincinnati Bengals": "AFC", "Cleveland Browns": "AFC", "Pittsburgh Steelers": "AFC",
+  "Houston Texans": "AFC", "Indianapolis Colts": "AFC", "Jacksonville Jaguars": "AFC", "Tennessee Titans": "AFC",
+  "Denver Broncos": "AFC", "Kansas City Chiefs": "AFC", "Las Vegas Raiders": "AFC", "Los Angeles Chargers": "AFC",
+  "Dallas Cowboys": "NFC", "New York Giants": "NFC", "Philadelphia Eagles": "NFC", "Washington Commanders": "NFC",
+  "Chicago Bears": "NFC", "Detroit Lions": "NFC", "Green Bay Packers": "NFC", "Minnesota Vikings": "NFC",
+  "Atlanta Falcons": "NFC", "Carolina Panthers": "NFC", "New Orleans Saints": "NFC", "Tampa Bay Buccaneers": "NFC",
+  "Arizona Cardinals": "NFC", "Los Angeles Rams": "NFC", "San Francisco 49ers": "NFC", "Seattle Seahawks": "NFC",
+};
+
 exports.handler = async (event) => {
   try {
     const supabaseUrl = process.env.SUPABASE_URL;
@@ -68,13 +94,25 @@ exports.handler = async (event) => {
     const rows = parseCsv(csvText);
     if (!rows.length) return json(500, { ok: false, error: "CSV parsed to 0 rows." });
 
-    // 2) Filter to REG for season/week
-    const filtered = rows.filter((r) => {
-      const rSeason = Number(r.season);
-      const rWeek = Number(r.week);
-      const gt = String(r.game_type || "").toUpperCase();
-      return rSeason === season && rWeek === week && gt === "REG";
-    });
+    // 2) Filter to this season/week's games. Regular season (week <= 18)
+    // keeps its exact original REG-only filter, untouched; playoff weeks
+    // (19-22) match nflverse's postseason game_type codes instead -- these
+    // don't share a week-number range with REG rows in the CSV (nflverse
+    // numbers postseason weeks independently), so the requested `week` here
+    // is purely our own app's week number, not matched against the CSV's
+    // week column for playoff rows.
+    const filtered = isPlayoffWeek(week)
+      ? rows.filter((r) => {
+          const rSeason = Number(r.season);
+          const gt = String(r.game_type || "").toUpperCase();
+          return rSeason === season && gt === ROUND_GAME_TYPE[week];
+        })
+      : rows.filter((r) => {
+          const rSeason = Number(r.season);
+          const rWeek = Number(r.week);
+          const gt = String(r.game_type || "").toUpperCase();
+          return rSeason === season && rWeek === week && gt === "REG";
+        });
 
     // 3) Build games payload for your existing "games" table
     // Your getweek() function reads from "games" and "week_meta"
@@ -97,47 +135,65 @@ exports.handler = async (event) => {
       })
       .filter(Boolean);
 
-    if (games.length === 0) return json(404, { ok: false, error: "No REG games found for that season/week." });
+    if (games.length === 0) return json(404, { ok: false, error: "No games found for that season/week/round." });
 
     // 4) Upsert games into "games"
     const { error: gamesErr } = await admin.from("games").upsert(games, { onConflict: "id" });
     if (gamesErr) return json(500, { ok: false, error: `games upsert: ${gamesErr.message}` });
 
-    // 5) Assign TBs: last Thursday game (TB1), last Sunday game (TB2), last Monday game (TB3)
-    //    Falls back to games[0/1/2] (sorted by kickoff) when that day has no games.
     const sortedGames = [...games].sort((a, b) => {
       const aTime = a.kickoff ? new Date(a.kickoff).getTime() : 0;
       const bTime = b.kickoff ? new Date(b.kickoff).getTime() : 0;
       return aTime - bTime;
     });
 
-    // Build weekday map from raw CSV rows (nflverse "weekday" field, or derived from "gameday")
-    const weekdayById = {};
-    for (const r of filtered) {
-      const id = String(r.game_id || "").trim();
-      if (!id) continue;
-      let day = String(r.weekday || "").trim();
-      if (!day && r.gameday) {
-        const d = new Date(String(r.gameday));
-        if (!Number.isNaN(d.getTime())) {
-          day = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"][d.getUTCDay()];
-        }
+    // 5) Assign tiebreaker game(s). Regular season keeps its exact original
+    // 3-tiebreaker logic (last Thursday/Sunday/Monday game), untouched.
+    // Playoff weeks get exactly 1 tiebreaker per Adrian's rules: Wild
+    // Card/Divisional -> that round's last game chronologically; Conference
+    // Championships -> specifically the AFC Championship game (not just
+    // "last game", per the Excel rules); Super Bowl -> its only game.
+    let tiebreakers;
+    if (isPlayoffWeek(week)) {
+      let tbId = null;
+      if (week === 21) {
+        const afcGame = games.find(
+          (g) => TEAM_CONFERENCE[g.away] === "AFC" && TEAM_CONFERENCE[g.home] === "AFC"
+        );
+        tbId = afcGame?.id ?? sortedGames[sortedGames.length - 1]?.id ?? null;
+      } else {
+        tbId = sortedGames[sortedGames.length - 1]?.id ?? null;
       }
-      if (day) weekdayById[id] = day;
+      tiebreakers = tbId ? [tbId] : [];
+    } else {
+      // Build weekday map from raw CSV rows (nflverse "weekday" field, or derived from "gameday")
+      const weekdayById = {};
+      for (const r of filtered) {
+        const id = String(r.game_id || "").trim();
+        if (!id) continue;
+        let day = String(r.weekday || "").trim();
+        if (!day && r.gameday) {
+          const d = new Date(String(r.gameday));
+          if (!Number.isNaN(d.getTime())) {
+            day = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"][d.getUTCDay()];
+          }
+        }
+        if (day) weekdayById[id] = day;
+      }
+
+      function lastOnDay(dayName) {
+        const matches = sortedGames.filter(
+          (g) => (weekdayById[g.id] || "").toLowerCase() === dayName.toLowerCase()
+        );
+        return matches.length > 0 ? matches[matches.length - 1].id : null;
+      }
+
+      const tb1 = lastOnDay("Thursday") ?? sortedGames[0]?.id ?? null;
+      const tb2 = lastOnDay("Sunday")   ?? sortedGames[1]?.id ?? null;
+      const tb3 = lastOnDay("Monday")   ?? sortedGames[2]?.id ?? null;
+
+      tiebreakers = [tb1, tb2, tb3].filter(Boolean);
     }
-
-    function lastOnDay(dayName) {
-      const matches = sortedGames.filter(
-        (g) => (weekdayById[g.id] || "").toLowerCase() === dayName.toLowerCase()
-      );
-      return matches.length > 0 ? matches[matches.length - 1].id : null;
-    }
-
-    const tb1 = lastOnDay("Thursday") ?? sortedGames[0]?.id ?? null;
-    const tb2 = lastOnDay("Sunday")   ?? sortedGames[1]?.id ?? null;
-    const tb3 = lastOnDay("Monday")   ?? sortedGames[2]?.id ?? null;
-
-    const tiebreakers = [tb1, tb2, tb3].filter(Boolean);
 
     // Compute actual bye teams: any of the 32 teams not playing in one of
     // this week's games (previously this was always hardcoded to [], so the
@@ -178,9 +234,55 @@ exports.handler = async (event) => {
       );
     if (metaErr) return json(500, { ok: false, error: `week_meta upsert: ${metaErr.message}` });
 
-    // 7) ✅ SET CURRENT WEEK AUTOMATICALLY
-    // Turn off any previous current week for this season
-    const { error: offErr } = await admin.from("weeks").update({ is_current: false }).eq("season", season);
+    // 7) Playoff weeks: import the schedule/tiebreakers but do NOT auto-set
+    // current -- Adrian tests a round as admin first (reachable directly via
+    // ?season=&week=, same as any historical week) before deliberately
+    // flipping it live for everyone via a separate "Set as current" action.
+    // Regular season keeps its existing auto-set-current-on-import behavior.
+    if (isPlayoffWeek(week)) {
+      // Still ensure a `weeks` row exists (without touching is_current) so
+      // this round is visible to admin via direct navigation and shows up
+      // wherever the app lists known weeks.
+      const { data: existingWeek } = await admin
+        .from("weeks")
+        .select("is_current")
+        .eq("season", season)
+        .eq("week", week)
+        .maybeSingle();
+
+      const { error: wkErr } = await admin
+        .from("weeks")
+        .upsert(
+          [
+            {
+              season,
+              week,
+              is_current: existingWeek?.is_current ?? false,
+              deadline: preservedDeadline,
+              byes,
+              tiebreakers,
+            },
+          ],
+          { onConflict: "season,week" }
+        );
+      if (wkErr) return json(500, { ok: false, error: `weeks upsert: ${wkErr.message}` });
+
+      return json(200, {
+        ok: true,
+        season,
+        week,
+        imported_games: games.length,
+        tiebreakers,
+        note: "Playoff round imported but NOT set as current -- use 'Set as current' explicitly when ready to go live.",
+      });
+    }
+
+    // ✅ Regular season: set current week automatically, same as before.
+    // Turn off is_current GLOBALLY (not just within this season) -- a
+    // season-scoped clear left a stale is_current=true row across a season
+    // rollover before (the same bug already fixed once in setCurrentWeek.cjs;
+    // found again here while touching this function and fixed the same way).
+    const { error: offErr } = await admin.from("weeks").update({ is_current: false }).eq("is_current", true);
     if (offErr) return json(500, { ok: false, error: `weeks clear current: ${offErr.message}` });
 
     // Upsert the current week row

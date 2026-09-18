@@ -3,9 +3,10 @@ import { Link, useSearchParams } from "react-router-dom";
 import { supabase } from "./supabaseClient";
 import Button from "./Button";
 import Avatar from "./Avatar";
-import { calcPot, countPickParticipants } from "./potCalc";
+import { calcPot, countPickParticipants, calcPlayoffsPot, countPlayoffsParticipants } from "./potCalc";
 import { logoSrc } from "./teamLogos";
 import { resolveCascade } from "./tiebreakCascade";
+import { isPlayoffWeek, PLAYOFFS_FIRST_WEEK } from "./playoffsConfig";
 
 function LeaderboardTitle() {
   return (
@@ -67,6 +68,7 @@ export default function Leaderboard() {
   const [err, setErr] = useState("");
   const [meta, setMeta] = useState({ season: null, week: null, isCurrent: true });
   const [rows, setRows] = useState([]);
+  const [playoffWeeksRaw, setPlayoffWeeksRaw] = useState([]); // per-week rows for weeks>=19, kept un-merged so totalAvailablePoints can weight each round by its own per-game max
   const [usernameByFullName, setUsernameByFullName] = useState({});
   const [avatarByFullName, setAvatarByFullName] = useState({});
   const [potInfo, setPotInfo] = useState(null);
@@ -109,24 +111,65 @@ export default function Leaderboard() {
         })
         .catch(() => {});
 
-      // 1c) This week's pot (participants who saved >=1 pick x $20, minus
-      // commission) -- non-blocking, same as the usernames/avatars fetch
-      countPickParticipants(season, week)
-        .then((n) => setPotInfo(calcPot(n)))
-        .catch(() => {});
+      // 1c) The pot -- non-blocking, same as the usernames/avatars fetch.
+      // Playoffs is one flat $40 buy-in for the whole postseason (sourced
+      // from playoffs_participants), not a per-week charge like the
+      // regular season's countPickParticipants()+calcPot().
+      if (isPlayoffWeek(week)) {
+        countPlayoffsParticipants()
+          .then((n) => setPotInfo(calcPlayoffsPot(n)))
+          .catch(() => {});
+      } else {
+        countPickParticipants(season, week)
+          .then((n) => setPotInfo(calcPot(n)))
+          .catch(() => {});
+      }
 
-      // 2) Load leaderboard rows for that season/week
-      const { data: lb, error } = await supabase
-        .from("leaderboard")
-        .select("user_name, points, correct_picks, games_final_count, updated_at")
-        .eq("season", season)
-        .eq("week", week)
-        .order("points", { ascending: false })
-        .order("user_name", { ascending: true });
+      // 2) Load leaderboard rows for that season/week. Playoffs (weeks
+      // 19-22) never reset the live Leaderboard round to round -- it shows
+      // the running cumulative total across every playoff round played so
+      // far, unlike the regular season's per-week-only view -- so for a
+      // playoff week this sums every week from 19 through the current one
+      // per user instead of reading a single week's rows.
+      if (isPlayoffWeek(week)) {
+        const { data: lbRaw, error } = await supabase
+          .from("leaderboard")
+          .select("user_name, week, points, correct_picks, games_final_count, updated_at")
+          .eq("season", season)
+          .gte("week", PLAYOFFS_FIRST_WEEK)
+          .lte("week", week);
 
-      if (error) throw error;
+        if (error) throw error;
 
-      setRows(lb || []);
+        const byUser = {};
+        for (const r of lbRaw || []) {
+          const u = String(r.user_name || "").trim();
+          if (!u) continue;
+          if (!byUser[u]) byUser[u] = { user_name: u, points: 0, correct_picks: 0, games_final_count: 0, updated_at: r.updated_at };
+          byUser[u].points += Number(r.points || 0);
+          byUser[u].correct_picks += Number(r.correct_picks || 0);
+          if (r.updated_at && (!byUser[u].updated_at || r.updated_at > byUser[u].updated_at)) byUser[u].updated_at = r.updated_at;
+        }
+        const merged = Object.values(byUser).sort(
+          (a, b) => b.points - a.points || a.user_name.localeCompare(b.user_name)
+        );
+
+        setRows(merged);
+        setPlayoffWeeksRaw(lbRaw || []);
+      } else {
+        const { data: lb, error } = await supabase
+          .from("leaderboard")
+          .select("user_name, points, correct_picks, games_final_count, updated_at")
+          .eq("season", season)
+          .eq("week", week)
+          .order("points", { ascending: false })
+          .order("user_name", { ascending: true });
+
+        if (error) throw error;
+
+        setRows(lb || []);
+        setPlayoffWeeksRaw([]);
+      }
     } catch (e) {
       setErr(String(e?.message || e));
     } finally {
@@ -165,13 +208,17 @@ export default function Leaderboard() {
 
       if (metaErr) throw metaErr;
 
+      // Regular season always has exactly 3 tiebreakers; playoffs (weeks
+      // 19-22) has exactly 1 per round -- .slice(0,3) is a no-op there, and
+      // the real error condition in both cases is "none at all," not
+      // "fewer than 3" (which would wrongly reject a valid playoff round).
       const tbGameIds = Array.isArray(metaRow?.tiebreakers) ? metaRow.tiebreakers.slice(0, 3).map(String) : [];
-      if (tbGameIds.length < 3) {
+      if (tbGameIds.length === 0) {
         setTbWatch({
           applicable: true,
           maxPoints,
           tiedUsers,
-          error: "week_meta.tiebreakers missing/invalid (need 3 game_ids).",
+          error: "week_meta.tiebreakers missing/invalid (need at least 1 game_id).",
           tbGameIds,
         });
         return;
@@ -232,11 +279,15 @@ export default function Leaderboard() {
 
       // Season points (through this week, inclusive) for the tied group --
       // only actually consulted by resolveCascade if still tied after all
-      // 3 TB rounds are FINAL.
+      // TB rounds are FINAL. Playoffs (weeks 19-22) share the same `season`
+      // value as the regular season that preceded them, so this is floored
+      // at week 19 for a playoff week -- otherwise it would incorrectly
+      // blend in regular-season weeks 1-18 as a playoff tiebreak fallback.
       const { data: seasonLb, error: seasonErr } = await supabase
         .from("leaderboard")
         .select("user_name, week, points")
         .eq("season", season)
+        .gte("week", isPlayoffWeek(week) ? PLAYOFFS_FIRST_WEEK : 0)
         .lte("week", week)
         .in("user_name", tiedUsers);
       if (seasonErr) throw seasonErr;
@@ -372,12 +423,30 @@ export default function Leaderboard() {
 
   const hasPoints = useMemo(() => (rows || []).some((r) => Number(r.points || 0) > 0), [rows]);
 
-  // Total points available for the week: 1 pt per FINAL game (winner) + 0.5
-  // each for the passing/rushing bonus picks on that game.
+  // Total points available: for the regular season, 1 pt per FINAL game
+  // (winner) + 0.5 each for the passing/rushing bonus picks on that game.
+  // Playoffs has no bonus picks and a different max-per-game each round
+  // (1.1/3.3/7.7/8.8, favorite-or-underdog), and -- since the Leaderboard
+  // is cumulative there -- needs to sum that per-round max across every
+  // round played so far, not just the current one.
+  const PLAYOFF_ROUND_MAX_PER_GAME = { 19: 1.1, 20: 3.3, 21: 7.7, 22: 8.8 };
   const totalAvailablePoints = useMemo(() => {
+    if (isPlayoffWeek(meta.week)) {
+      const gamesFinalByWeek = {};
+      for (const r of playoffWeeksRaw || []) {
+        const w = Number(r.week);
+        const gfc = Number(r.games_final_count || 0);
+        if (!(w in gamesFinalByWeek) || gfc > gamesFinalByWeek[w]) gamesFinalByWeek[w] = gfc;
+      }
+      let total = 0;
+      for (const [w, gfc] of Object.entries(gamesFinalByWeek)) {
+        total += gfc * (PLAYOFF_ROUND_MAX_PER_GAME[Number(w)] || 0);
+      }
+      return total;
+    }
     const gamesFinal = Math.max(0, ...(rows || []).map((r) => Number(r.games_final_count || 0)));
     return gamesFinal * 2;
-  }, [rows]);
+  }, [rows, meta.week, playoffWeeksRaw]);
 
   if (loading) return <div style={{ maxWidth: 980, margin: "24px auto", padding: 16 }}>Loading leaderboard…</div>;
   if (err) return <div style={{ maxWidth: 980, margin: "24px auto", padding: 16, color: "red" }}>{err}</div>;
@@ -395,7 +464,7 @@ export default function Leaderboard() {
           Season <b style={{ color: "#111" }}>{meta.season}</b> • Week <b style={{ color: "#111" }}>{meta.week}</b>
           {potInfo && potInfo.n > 0 && (
             <div style={{ marginTop: 4, fontSize: 13 }}>
-              🏆 This week's pot: <b style={{ color: "#b8860b" }}>${potInfo.pot.toFixed(2)}</b>
+              🏆 {isPlayoffWeek(meta.week) ? "Playoffs' Pot" : "This week's pot"}: <b style={{ color: "#b8860b" }}>${potInfo.pot.toFixed(2)}</b>
               <span style={{ color: "#888" }}> ({potInfo.n} participant{potInfo.n === 1 ? "" : "s"})</span>
             </div>
           )}

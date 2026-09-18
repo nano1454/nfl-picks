@@ -6,7 +6,8 @@ import { pageBackgroundStyle } from "./backgroundStyle";
 import Button from "./Button";
 import Avatar from "./Avatar";
 import NavDrawer from "./NavDrawer";
-import { calcPot, countPickParticipants } from "./potCalc";
+import { calcPot, countPickParticipants, calcPlayoffsPot, countPlayoffsParticipants } from "./potCalc";
+import { isPlayoffWeek, roundNameForWeek, pointsForPick, PLAYOFFS_FIRST_WEEK } from "./playoffsConfig";
 
 /* ---------- Styles (MUST be above App so useState can reference it) ---------- */
 const styles = {
@@ -427,6 +428,7 @@ export default function App() {
 
   // what's actually been saved to Supabase so far (used for progress + "unsaved change" detection)
   const [savedPicks, setSavedPicks] = useState({}); // { [gameId]: "AWAY" | "HOME" }
+  const [savedPickCreatedAt, setSavedPickCreatedAt] = useState({}); // { [gameId]: iso string } -- playoffs only, for the "odds changed since you picked" alert
   const [savedBonusPicks, setSavedBonusPicks] = useState({ passing_yards: {}, rushing_yards: {} });
   const [savedTbTotals, setSavedTbTotals] = useState({}); // { [tb_no]: "41" }
 
@@ -459,13 +461,22 @@ export default function App() {
         const data = await res.json();
         if (!data.ok) throw new Error(data.error || "Could not load week data");
 
-        // ✅ ensure exactly 3 predetermined tiebreakers (KEEP THIS LOGIC)
-        let tbIds = Array.isArray(data.tiebreakers) ? data.tiebreakers.slice(0, 3) : [];
-        if (tbIds.length < 3) {
-          tbIds = (data.games || [])
-            .slice(0, 3)
-            .map((g) => g.id)
-            .slice(0, 3);
+        // Regular season: ensure exactly 3 predetermined tiebreakers (KEEP
+        // THIS LOGIC). Playoffs (weeks 19-22) has exactly 1 tiebreaker per
+        // round -- it must NOT fall into the pad-to-3 branch below, which
+        // would otherwise manufacture 2 bogus extra tiebreakers from the
+        // week's first games.
+        let tbIds;
+        if (isPlayoffWeek(data.week)) {
+          tbIds = Array.isArray(data.tiebreakers) ? data.tiebreakers.slice(0, 1) : [];
+        } else {
+          tbIds = Array.isArray(data.tiebreakers) ? data.tiebreakers.slice(0, 3) : [];
+          if (tbIds.length < 3) {
+            tbIds = (data.games || [])
+              .slice(0, 3)
+              .map((g) => g.id)
+              .slice(0, 3);
+          }
         }
 
         setWeek({
@@ -502,16 +513,21 @@ export default function App() {
       const weekNum = Number(week.week);
 
       const [{ data: pRows }, { data: bRows }, { data: tRows }] = await Promise.all([
-        supabase.from("picks").select("game_id, pick").eq("week", weekNum).eq("user_name", name),
+        supabase.from("picks").select("game_id, pick, created_at").eq("week", weekNum).eq("user_name", name),
         supabase.from("bonus_picks").select("game_id, category, pick").eq("week", weekNum).eq("user_name", name),
         supabase.from("tiebreakers").select("tb_no, total").eq("week", weekNum).eq("user_name", name),
       ]);
 
       if (pRows?.length) {
         const map = {};
-        for (const r of pRows) map[r.game_id] = r.pick;
+        const createdAtMap = {};
+        for (const r of pRows) {
+          map[r.game_id] = r.pick;
+          createdAtMap[r.game_id] = r.created_at;
+        }
         setPicks((prev) => ({ ...prev, ...map }));
         setSavedPicks(map);
+        setSavedPickCreatedAt(createdAtMap);
       }
       if (bRows?.length) {
         const map = { passing_yards: {}, rushing_yards: {} };
@@ -538,8 +554,14 @@ export default function App() {
     if (!week.week || !session?.fullName) return;
     (async () => {
       try {
+        // Playoffs' $40 buy-in is one flat payment covering all 4 rounds,
+        // not a per-round charge -- so every playoff round always checks
+        // (and marks) the same reference week (19) instead of its own,
+        // otherwise someone who paid during Wild Card would incorrectly
+        // show as unpaid again once Divisional opens.
+        const paymentRefWeek = isPlayoffWeek(week.week) ? PLAYOFFS_FIRST_WEEK : Number(week.week);
         const res = await fetch(
-          `/.netlify/functions/getPaymentStatus?week=${Number(week.week)}&user_name=${encodeURIComponent(session.fullName)}`,
+          `/.netlify/functions/getPaymentStatus?week=${paymentRefWeek}&user_name=${encodeURIComponent(session.fullName)}`,
           { cache: "no-store" }
         );
         const data = await res.json();
@@ -551,17 +573,24 @@ export default function App() {
   }, [week.week, session?.fullName]);
 
   // This week's pot (participants who've saved at least one pick x $20,
-  // minus commission) -- shown on the Done screen
+  // minus commission) -- shown on the Done screen. Playoffs uses one flat
+  // $40 buy-in for the whole postseason (playoffs_participants), not a
+  // per-week count.
   const [potInfo, setPotInfo] = useState(null);
 
   useEffect(() => {
     if (!week.season || !week.week) return;
     (async () => {
       try {
-        const n = await countPickParticipants(week.season, week.week);
-        setPotInfo(calcPot(n));
+        if (isPlayoffWeek(week.week)) {
+          const n = await countPlayoffsParticipants();
+          setPotInfo(calcPlayoffsPot(n));
+        } else {
+          const n = await countPickParticipants(week.season, week.week);
+          setPotInfo(calcPot(n));
+        }
       } catch (e) {
-        console.error("countPickParticipants failed:", e);
+        console.error("pot fetch failed:", e);
       }
     })();
   }, [week.season, week.week]);
@@ -683,6 +712,13 @@ export default function App() {
     if (step.type === "game") {
       const gid = step.game.id;
       const hasMain = !!savedPicks[gid];
+      // Playoffs has no bonus picks -- the main winner pick alone answers
+      // the step (regular season still requires all three, unchanged).
+      if (isPlayoffWeek(week.week)) {
+        if (hasMain) return "answered";
+        if (isGameLocked(gid)) return "locked";
+        return "open";
+      }
       const hasPassing = !!savedBonusPicks?.passing_yards?.[gid];
       const hasRushing = !!savedBonusPicks?.rushing_yards?.[gid];
       if (hasMain && hasPassing && hasRushing) return "answered";
@@ -734,6 +770,12 @@ export default function App() {
       return;
     }
     setSavedPicks((m) => ({ ...m, [gameId]: value }));
+    // Only ever consulted for the playoffs' odds-changed alert, which
+    // compares this against games.underdog_side_updated_at -- a fresh local
+    // timestamp on a brand-new pick is fine even though it's not the exact
+    // DB-assigned created_at (it can only be later, which is the safe
+    // direction: it never falsely flags "odds changed since you picked").
+    setSavedPickCreatedAt((m) => (m[gameId] ? m : { ...m, [gameId]: new Date().toISOString() }));
 
     const bonusRows = BONUS_CATEGORIES
       .map((category) => ({ category, value: bonusPicks[category][gameId] }))
@@ -853,8 +895,8 @@ export default function App() {
         {/* Header row: title left, nav buttons right */}
         <div style={styles.headerRow}>
           <div style={styles.headerLeft}>
-            <h1 style={styles.h1}>NFL Weekly Picks</h1>
-            <p style={styles.muted}>Week {week.week}</p>
+            <h1 style={styles.h1}>{isPlayoffWeek(week.week) ? "NFL Playoffs Picks" : "NFL Weekly Picks"}</h1>
+            <p style={styles.muted}>{isPlayoffWeek(week.week) ? roundNameForWeek(week.week) : `Week ${week.week}`}</p>
           </div>
 
           <div style={styles.headerRight}>
@@ -893,6 +935,7 @@ export default function App() {
 
           {step.type === "done" && (
             <DoneScreen
+              week={week.week}
               steps={steps}
               statusOf={statusOf}
               byes={week.byes}
@@ -914,12 +957,14 @@ export default function App() {
 
             {step.type === "game" && (
               <GamePickScreen
+                week={week.week}
                 game={step.game}
                 index={step.index}
                 totalGames={week.games.length}
                 pick={picks[step.game.id]}
                 bonusPicks={bonusPicks}
                 savedPick={savedPicks[step.game.id]}
+                savedPickCreatedAt={savedPickCreatedAt[step.game.id]}
                 savedBonusPicks={savedBonusPicks}
                 onPick={setPick}
                 onBonusPick={setBonusPick}
@@ -940,6 +985,7 @@ export default function App() {
             {step.type === "tb" && (
               <TiebreakerScreen
                 tbIndex={step.tbIndex}
+                totalTiebreakers={week.tiebreakers.length}
                 game={step.game}
                 total={tbs[step.tbIndex]?.total || ""}
                 onChangeTotal={(v) => setTBTotal(step.tbIndex, v)}
@@ -1020,6 +1066,7 @@ function IntroScreen({ fullName, username, week, steps, statusOf, savedBonusPick
   const tbSteps = steps.filter((s) => s.type === "tb");
   const answeredGames = gameSteps.filter((s) => statusOf(s) === "answered").length;
   const answeredTbs = tbSteps.filter((s) => statusOf(s) === "answered").length;
+  const playoffs = isPlayoffWeek(week);
   const bonusTotal = gameSteps.length * 2;
   const answeredBonus = gameSteps.reduce((sum, s) => {
     const gid = s.game.id;
@@ -1038,15 +1085,19 @@ function IntroScreen({ fullName, username, week, steps, statusOf, savedBonusPick
         {username ? ` (@${username})` : ""}
       </h2>
       <p style={styles.mutedSmall}>
-        Week {week}. Step through each game, save as you go — come back anytime to finish anything you skip.
+        {playoffs ? roundNameForWeek(week) : `Week ${week}`}. Step through each game, save as you go — come back anytime to finish anything you skip.
       </p>
       <div style={{ display: "flex", gap: 18, marginTop: 10, flexWrap: "wrap", fontSize: 14 }}>
         <div>
           <b>{answeredGames}</b> / {gameSteps.length} games picked
         </div>
-        <div>
-          <b>{answeredBonus}</b> / {bonusTotal} bonus picks picked
-        </div>
+        {/* Playoffs has no passing/rushing bonus picks -- this stat would
+            otherwise permanently read "0 / N" for every playoff round. */}
+        {!playoffs && (
+          <div>
+            <b>{answeredBonus}</b> / {bonusTotal} bonus picks picked
+          </div>
+        )}
         <div>
           <b>{answeredTbs}</b> / {tbSteps.length} tiebreakers picked
         </div>
@@ -1062,6 +1113,7 @@ function IntroScreen({ fullName, username, week, steps, statusOf, savedBonusPick
 
 /* ---------- Done / recap screen ---------- */
 function DoneScreen({
+  week,
   steps,
   statusOf,
   byes,
@@ -1076,6 +1128,7 @@ function DoneScreen({
 }) {
   const gameSteps = steps.filter((s) => s.type === "game");
   const tbSteps = steps.filter((s) => s.type === "tb");
+  const playoffs = isPlayoffWeek(week);
   const count = (arr, status) => arr.filter((s) => statusOf(s) === status).length;
   const openGames = count(gameSteps, "open");
   const openTbs = count(tbSteps, "open");
@@ -1111,10 +1164,12 @@ function DoneScreen({
           {count(gameSteps, "answered")} of {gameSteps.length} games picked
           {openGames > 0 ? ` (${openGames} still open)` : ""}
         </li>
-        <li>
-          {answeredBonus} of {bonusTotal} bonus picks picked
-          {answeredBonus < bonusTotal ? ` (${bonusTotal - answeredBonus} still open)` : ""}
-        </li>
+        {!playoffs && (
+          <li>
+            {answeredBonus} of {bonusTotal} bonus picks picked
+            {answeredBonus < bonusTotal ? ` (${bonusTotal - answeredBonus} still open)` : ""}
+          </li>
+        )}
         <li>
           {count(tbSteps, "answered")} of {tbSteps.length} tiebreakers picked
           {openTbs > 0 ? ` (${openTbs} still open)` : ""}
@@ -1250,7 +1305,7 @@ function DoneScreen({
           }}
         >
           <div style={{ fontWeight: 900, fontSize: 15 }}>
-            🏆 This week's pot: ${potInfo.pot.toFixed(2)}
+            🏆 {playoffs ? "Playoffs' Pot" : "This week's pot"}: ${potInfo.pot.toFixed(2)}
           </div>
           <p style={{ margin: "4px 0 0", fontSize: 12, color: "#666" }}>
             {potInfo.n} participant{potInfo.n === 1 ? "" : "s"} × ${potInfo.buyIn.toFixed(2)} − {Math.round(potInfo.commissionPct * 100)}% commission
@@ -1260,7 +1315,7 @@ function DoneScreen({
 
       {hasPaid === true && (
         <p style={{ marginTop: 16, color: "#1a7a28", fontWeight: 700, fontSize: 14 }}>
-          ✅ You're paid up for this week. Thanks!
+          ✅ You're paid up for {playoffs ? "the playoffs" : "this week"}. Thanks!
         </p>
       )}
       {hasPaid === false && <PaymentPrompt />}
@@ -1425,12 +1480,14 @@ function PickSummary({ awayLabel, homeLabel, awayCount, homeCount, awayLogo, hom
 
 /* ---------- One game, one screen ---------- */
 function GamePickScreen({
+  week,
   game,
   index,
   totalGames,
   pick,
   bonusPicks,
   savedPick,
+  savedPickCreatedAt,
   savedBonusPicks,
   onPick,
   onBonusPick,
@@ -1446,6 +1503,7 @@ function GamePickScreen({
   onSave,
   onContinue,
 }) {
+  const playoffs = isPlayoffWeek(week);
   const awayLogo = logoSrc(game.away);
   const homeLogo = logoSrc(game.home);
   const awayCount = gameStats?.away || 0;
@@ -1462,13 +1520,25 @@ function GamePickScreen({
 
   const passingPick = bonusPicks?.passing_yards?.[game.id];
   const rushingPick = bonusPicks?.rushing_yards?.[game.id];
-  const isDirty =
-    (pick && pick !== savedPick) ||
-    (passingPick && passingPick !== savedBonusPicks?.passing_yards?.[game.id]) ||
-    (rushingPick && rushingPick !== savedBonusPicks?.rushing_yards?.[game.id]);
-  const canSave = !locked && !!pick && !!passingPick && !!rushingPick;
-  const isFullySaved =
-    !!savedPick && !!savedBonusPicks?.passing_yards?.[game.id] && !!savedBonusPicks?.rushing_yards?.[game.id];
+  const isDirty = playoffs
+    ? pick && pick !== savedPick
+    : (pick && pick !== savedPick) ||
+      (passingPick && passingPick !== savedBonusPicks?.passing_yards?.[game.id]) ||
+      (rushingPick && rushingPick !== savedBonusPicks?.rushing_yards?.[game.id]);
+  const canSave = playoffs ? !locked && !!pick : !locked && !!pick && !!passingPick && !!rushingPick;
+  const isFullySaved = playoffs
+    ? !!savedPick
+    : !!savedPick && !!savedBonusPicks?.passing_yards?.[game.id] && !!savedBonusPicks?.rushing_yards?.[game.id];
+
+  // Odds changed since this game's odds were flipped, only meaningful for a
+  // playoff round: if the game's underdog_side flipped after this user's
+  // pick was saved, the point value they thought they'd earn may be wrong.
+  const oddsChangedSincePick =
+    playoffs &&
+    !!savedPick &&
+    !!game.underdog_side_updated_at &&
+    !!savedPickCreatedAt &&
+    new Date(game.underdog_side_updated_at).getTime() > new Date(savedPickCreatedAt).getTime();
 
   return (
     <div>
@@ -1490,6 +1560,12 @@ function GamePickScreen({
       {lockNote && <div style={locked ? styles.darkLockNoteWarn : styles.darkLockNote}>{lockNote}</div>}
       {locked && !savedPick && (
         <p style={{ color: "#ff8a8a", fontSize: 13 }}>No pick was saved before this game started.</p>
+      )}
+      {oddsChangedSincePick && !locked && (
+        <p style={{ color: "#ffcf5c", fontSize: 13, fontWeight: 700 }}>
+          ⚠️ Odds changed since you picked — {game.underdog_side === "AWAY" ? game.away : game.home} is now the
+          underdog. Your pick is still saved; the point value shown below is current.
+        </p>
       )}
 
       <div style={styles.sectionDividerWrap}>
@@ -1532,28 +1608,37 @@ function GamePickScreen({
                 {isSelected && <span style={styles.teamPillCheck}>✓</span>}
               </div>
               <span style={styles.teamPillCaption}>{shortTeamName(opt.label)}</span>
+              {playoffs && (
+                <span style={{ fontSize: 11, fontWeight: 800, color: game.underdog_side === opt.v ? "#ffd700" : "rgba(255,255,255,0.65)" }}>
+                  {pointsForPick(week, game, opt.v).toFixed(1)} pts{game.underdog_side === opt.v ? " (underdog)" : ""}
+                </span>
+              )}
             </label>
           );
           return acc;
         }, [])}
       </div>
 
-      <BonusPickRow
-        category="passing_yards"
-        label="Required (+0.5 pt) — More Passing Yards"
-        game={game}
-        value={passingPick}
-        locked={locked}
-        onPick={onBonusPick}
-      />
-      <BonusPickRow
-        category="rushing_yards"
-        label="Required (+0.5 pt) — More Rushing Yards"
-        game={game}
-        value={rushingPick}
-        locked={locked}
-        onPick={onBonusPick}
-      />
+      {!playoffs && (
+        <>
+          <BonusPickRow
+            category="passing_yards"
+            label="Required (+0.5 pt) — More Passing Yards"
+            game={game}
+            value={passingPick}
+            locked={locked}
+            onPick={onBonusPick}
+          />
+          <BonusPickRow
+            category="rushing_yards"
+            label="Required (+0.5 pt) — More Rushing Yards"
+            game={game}
+            value={rushingPick}
+            locked={locked}
+            onPick={onBonusPick}
+          />
+        </>
+      )}
 
       <div style={styles.insetPanel}>
         <PickSummary
@@ -1649,7 +1734,7 @@ function BonusPickRow({ category, label, game, value, locked, onPick }) {
 }
 
 /* ---------- One tiebreaker, one screen ---------- */
-function TiebreakerScreen({ tbIndex, game, total, onChangeTotal, locked, kickoffIso, nowTs, saving, saveOk, saveErr, onBack, onSkip, onSave, onContinue }) {
+function TiebreakerScreen({ tbIndex, totalTiebreakers, game, total, onChangeTotal, locked, kickoffIso, nowTs, saving, saveOk, saveErr, onBack, onSkip, onSave, onContinue }) {
   const filled = String(total || "").trim() !== "";
   const canSave = !locked && filled;
 
@@ -1664,7 +1749,7 @@ function TiebreakerScreen({ tbIndex, game, total, onChangeTotal, locked, kickoff
 
   return (
     <div>
-      <div style={styles.darkMuted}>Tiebreaker {tbIndex + 1} of 3</div>
+      <div style={styles.darkMuted}>Tiebreaker {tbIndex + 1} of {totalTiebreakers ?? 3}</div>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 10, margin: "6px 0 2px", flexWrap: "wrap" }}>
         {game ? (
           <>

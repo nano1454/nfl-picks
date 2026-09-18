@@ -157,7 +157,7 @@ exports.handler = async (event) => {
     // 3) Load games for that season/week
     const { data: games, error: gamesErr } = await admin
       .from("games")
-      .select("id, season, week, away, home, kickoff")
+      .select("id, season, week, away, home, kickoff, underdog_side, underdog_side_updated_at")
       .eq("season", season)
       .eq("week", week)
       .order("kickoff", { ascending: true });

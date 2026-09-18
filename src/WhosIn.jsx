@@ -3,7 +3,8 @@ import { Link } from "react-router-dom";
 import { supabase } from "./supabaseClient";
 import Button from "./Button";
 import BouncingRoster from "./BouncingRoster";
-import { calcPot, countPickParticipants } from "./potCalc";
+import { calcPot, countPickParticipants, calcPlayoffsPot, countPlayoffsParticipants } from "./potCalc";
+import { isPlayoffWeek, PLAYOFFS_FIRST_WEEK } from "./playoffsConfig";
 
 export default function WhosIn() {
   const [loading, setLoading] = useState(true);
@@ -24,24 +25,49 @@ export default function WhosIn() {
       const weekNum = Number(data.week);
       setWeek(weekNum);
 
-      const activeParticipants = Array.isArray(data.activeParticipants) ? data.activeParticipants : [];
+      const playoffs = isPlayoffWeek(weekNum);
 
-      const { data: games, error: gErr } = await supabase
-        .from("games")
-        .select("id")
-        .eq("season", season)
-        .eq("week", weekNum);
+      // Playoffs is a sticky, cumulative roster: once someone's picked
+      // anything in any playoff round, they stay listed through week 22 --
+      // unlike the regular season, which is scoped to just the current
+      // week. So games/picks below span every playoff round played so far
+      // (weeks 19..weekNum) instead of just weekNum, and the active roster
+      // comes from the independent playoffs_participants table instead of
+      // the regular-season roster getweek.cjs returns.
+      let activeParticipants;
+      if (playoffs) {
+        // playoffs_participants has no public RLS policy (same lockdown as
+        // participants), so this goes through a small public function
+        // (service-role read) instead of a direct client-side select.
+        const ppRes = await fetch("/.netlify/functions/getPlayoffsRoster", { cache: "no-store" });
+        const ppData = await ppRes.json();
+        if (!ppRes.ok || !ppData.ok) throw new Error(ppData?.error || "Could not load playoffs roster");
+        activeParticipants = Array.isArray(ppData.activeParticipants) ? ppData.activeParticipants : [];
+      } else {
+        activeParticipants = Array.isArray(data.activeParticipants) ? data.activeParticipants : [];
+      }
+
+      const gamesQuery = supabase.from("games").select("id").eq("season", season);
+      const { data: games, error: gErr } = playoffs
+        ? await gamesQuery.gte("week", PLAYOFFS_FIRST_WEEK).lte("week", weekNum)
+        : await gamesQuery.eq("week", weekNum);
       if (gErr) throw gErr;
       const gameIds = new Set((games || []).map((g) => String(g.id)));
       const gameCount = gameIds.size;
 
       let picks = [];
       {
-        const q1 = await supabase.from("picks").select("user_name, game_id").eq("season", season).eq("week", weekNum);
+        const picksQuery = supabase.from("picks").select("user_name, game_id").eq("season", season);
+        const q1 = playoffs
+          ? await picksQuery.gte("week", PLAYOFFS_FIRST_WEEK).lte("week", weekNum)
+          : await picksQuery.eq("week", weekNum);
         if (!q1.error) {
           picks = q1.data || [];
         } else {
-          const q2 = await supabase.from("picks").select("user_name, game_id").eq("week", weekNum);
+          const picksFallback = supabase.from("picks").select("user_name, game_id");
+          const q2 = playoffs
+            ? await picksFallback.gte("week", PLAYOFFS_FIRST_WEEK).lte("week", weekNum)
+            : await picksFallback.eq("week", weekNum);
           if (q2.error) throw q2.error;
           picks = q2.data || [];
         }
@@ -75,8 +101,13 @@ export default function WhosIn() {
         }))
       );
 
-      const n = await countPickParticipants(season, weekNum);
-      setPotInfo(calcPot(n));
+      if (playoffs) {
+        const n = await countPlayoffsParticipants();
+        setPotInfo(calcPlayoffsPot(n));
+      } else {
+        const n = await countPickParticipants(season, weekNum);
+        setPotInfo(calcPot(n));
+      }
     } catch (e) {
       setErr(String(e?.message || e));
     } finally {
@@ -147,7 +178,7 @@ export default function WhosIn() {
         </h1>
         {potInfo && (
           <div style={{ marginTop: 6, color: "#fff", fontSize: 18, fontWeight: 800, textShadow: "0 2px 8px rgba(0,0,0,0.7)" }}>
-            🏆 This week's pot: ${potInfo.pot.toFixed(2)}
+            🏆 {isPlayoffWeek(week) ? "Playoffs' Pot" : "This week's pot"}: ${potInfo.pot.toFixed(2)}
           </div>
         )}
       </div>

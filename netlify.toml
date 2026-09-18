@@ -6,6 +6,9 @@
 [functions."updateResults"]
   schedule = "*/2 * * * *"
 
+[functions."syncPlayoffOdds"]
+  schedule = "*/10 * * * *"
+
 [[headers]]
   for = "/version.json"
   [headers.values]
