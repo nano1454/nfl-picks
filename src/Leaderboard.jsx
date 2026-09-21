@@ -4,9 +4,9 @@ import { supabase } from "./supabaseClient";
 import Button from "./Button";
 import Avatar from "./Avatar";
 import { calcPot, countPickParticipants, calcPlayoffsPot, countPlayoffsParticipants } from "./potCalc";
-import { logoSrc } from "./teamLogos";
+import { logoSrc, fmtMatchupAbbr } from "./teamLogos";
 import { resolveCascade } from "./tiebreakCascade";
-import { isPlayoffWeek, PLAYOFFS_FIRST_WEEK } from "./playoffsConfig";
+import { isPlayoffWeek, PLAYOFFS_FIRST_WEEK, roundNameForWeek } from "./playoffsConfig";
 
 function LeaderboardTitle() {
   return (
@@ -75,6 +75,109 @@ export default function Leaderboard() {
 
   // Tiebreak watch state
   const [tbWatch, setTbWatch] = useState(null);
+
+  // Per-game pick detail for the "tap a bar to see picks" drawer -- loaded
+  // once per season/week (not per user) since a pool this size is cheap to
+  // load in full, and it means every row's drawer opens instantly with no
+  // per-click fetch. Same season/week range as the leaderboard rows above
+  // (a single week for the regular season, weeks 19..current for playoffs).
+  const [picksDetail, setPicksDetail] = useState({ games: [], resultByGid: {}, picksByUserGame: {}, bonusByUserGame: {} });
+
+  async function loadPicksDetail(season, week) {
+    try {
+      if (!season || !week) {
+        setPicksDetail({ games: [], resultByGid: {}, picksByUserGame: {}, bonusByUserGame: {} });
+        return;
+      }
+
+      const lowWeek = isPlayoffWeek(week) ? PLAYOFFS_FIRST_WEEK : week;
+
+      const [
+        { data: games, error: gErr },
+        { data: results, error: rErr },
+        { data: picks, error: pErr },
+        { data: bonusPicks, error: bErr },
+      ] = await Promise.all([
+        supabase
+          .from("games")
+          .select("id, week, away, home, kickoff")
+          .eq("season", season)
+          .gte("week", lowWeek)
+          .lte("week", week)
+          .order("kickoff", { ascending: true }),
+        supabase
+          .from("game_results")
+          .select("game_id, status, home_score, away_score, passing_winner, rushing_winner")
+          .eq("season", season)
+          .gte("week", lowWeek)
+          .lte("week", week),
+        // picks/bonus_picks have no season column (only week) -- same
+        // week-range-only filter already used elsewhere in this app.
+        supabase.from("picks").select("user_name, game_id, pick").gte("week", lowWeek).lte("week", week),
+        supabase
+          .from("bonus_picks")
+          .select("user_name, game_id, category, pick")
+          .gte("week", lowWeek)
+          .lte("week", week),
+      ]);
+      if (gErr) throw gErr;
+      if (rErr) throw rErr;
+      if (pErr) throw pErr;
+      if (bErr) throw bErr;
+
+      const nowMs = Date.now();
+      const gamesWithLock = (games || []).map((g) => {
+        const kickoffMs = g.kickoff ? new Date(g.kickoff).getTime() : NaN;
+        const locked = Number.isFinite(kickoffMs) && nowMs >= kickoffMs - 60 * 60 * 1000;
+        return { ...g, locked };
+      });
+
+      // Same FINAL-only winnerSide/passingWinner/rushingWinner derivation as
+      // Results.jsx's gameResultByGid, so "correct pick" here always agrees
+      // with the Picks Table.
+      const resultByGid = {};
+      for (const r of results || []) {
+        const gid = String(r.game_id || "").trim();
+        if (!gid) continue;
+        const status = String(r.status || "").toUpperCase();
+        let winnerSide = null;
+        let passingWinner = null;
+        let rushingWinner = null;
+        if (status === "FINAL") {
+          const awayScore = Number(r.away_score);
+          const homeScore = Number(r.home_score);
+          if (Number.isFinite(awayScore) && Number.isFinite(homeScore)) {
+            winnerSide = homeScore > awayScore ? "HOME" : awayScore > homeScore ? "AWAY" : "TIE";
+          }
+          const pw = String(r.passing_winner || "").toUpperCase();
+          const rw = String(r.rushing_winner || "").toUpperCase();
+          if (pw === "AWAY" || pw === "HOME") passingWinner = pw;
+          if (rw === "AWAY" || rw === "HOME") rushingWinner = rw;
+        }
+        resultByGid[gid] = { status, winnerSide, passingWinner, rushingWinner };
+      }
+
+      const picksByUserGame = {};
+      for (const p of picks || []) {
+        const u = String(p.user_name || "").trim();
+        const gid = String(p.game_id || "").trim();
+        if (!u || !gid) continue;
+        (picksByUserGame[u] ||= {})[gid] = p.pick;
+      }
+
+      const bonusByUserGame = {};
+      for (const b of bonusPicks || []) {
+        const u = String(b.user_name || "").trim();
+        const gid = String(b.game_id || "").trim();
+        if (!u || !gid) continue;
+        ((bonusByUserGame[u] ||= {})[gid] ||= {})[b.category] = b.pick;
+      }
+
+      setPicksDetail({ games: gamesWithLock, resultByGid, picksByUserGame, bonusByUserGame });
+    } catch (e) {
+      console.error("loadPicksDetail failed:", e);
+    }
+  }
 
   async function loadMetaAndLeaderboard() {
     setLoading(true);
@@ -350,6 +453,14 @@ export default function Leaderboard() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [meta.season, meta.week, rows]);
 
+  // load the per-game pick detail once per season/week (not tied to `rows`
+  // -- it doesn't need to re-fetch just because point totals re-sorted)
+  useEffect(() => {
+    if (!meta.season || !meta.week) return;
+    loadPicksDetail(meta.season, meta.week);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [meta.season, meta.week]);
+
   // A TB round locking is a pure time event (no DB write happens at that
   // moment), so the realtime subscriptions below won't catch it -- poll
   // periodically while viewing the live current week so a guess reveals
@@ -391,7 +502,10 @@ export default function Leaderboard() {
           table: "game_results",
           filter: `season=eq.${meta.season},week=eq.${meta.week}`,
         },
-        () => loadTiebreakWatch(meta.season, meta.week, rows)
+        () => {
+          loadTiebreakWatch(meta.season, meta.week, rows);
+          loadPicksDetail(meta.season, meta.week);
+        }
       )
       .subscribe();
 
@@ -455,6 +569,15 @@ export default function Leaderboard() {
     <div style={{ maxWidth: 1100, margin: "24px auto", padding: 16, fontFamily: "system-ui" }}>
       <style>{`
         @keyframes lbBarShimmer { 0% { transform: translateX(-150%); } 100% { transform: translateX(350%); } }
+        .lb-drawer-games { display: flex; flex-wrap: wrap; gap: 12px; }
+        @media (max-width: 640px) {
+          .lb-drawer-games {
+            flex-wrap: nowrap;
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+            padding-bottom: 4px;
+          }
+        }
       `}</style>
 
       <LeaderboardTitle />
@@ -541,7 +664,14 @@ export default function Leaderboard() {
             </div>
           </div>
 
-          <RaceList rows={rows} totalAvailable={totalAvailablePoints} dispName={dispName} avatarByFullName={avatarByFullName} />
+          <RaceList
+            rows={rows}
+            week={meta.week}
+            totalAvailable={totalAvailablePoints}
+            dispName={dispName}
+            avatarByFullName={avatarByFullName}
+            picksDetail={picksDetail}
+          />
 
           {/* Tiebreak Watch BELOW the bars */}
           {tbWatch?.applicable ? <TiebreakWatchPanel tbWatch={tbWatch} dispName={dispName} /> : null}
@@ -552,9 +682,19 @@ export default function Leaderboard() {
 }
 
 /* ---------------- Horse race list (animated reorder via FLIP) ---------------- */
-function RaceList({ rows, totalAvailable, dispName, avatarByFullName }) {
+function RaceList({ rows, week, totalAvailable, dispName, avatarByFullName, picksDetail }) {
   const itemRefs = useRef(new Map()); // key -> element
   const lastRectsRef = useRef(new Map()); // key -> DOMRect
+  const [expandedUsers, setExpandedUsers] = useState(() => new Set());
+
+  function toggleExpanded(userName) {
+    setExpandedUsers((prev) => {
+      const next = new Set(prev);
+      if (next.has(userName)) next.delete(userName);
+      else next.add(userName);
+      return next;
+    });
+  }
 
   // Capture positions BEFORE the DOM updates (layout)
   useLayoutEffect(() => {
@@ -607,13 +747,15 @@ function RaceList({ rows, totalAvailable, dispName, avatarByFullName }) {
         const truePct = max > 0 ? Math.min(100, (points / max) * 100) : 0;
         const barPct = max > 0 ? Math.max(2, truePct) : 0; // floor is visual-only (keeps a 0pt bar from vanishing)
         const medal = medalStyle[idx];
+        const userName = String(r.user_name);
+        const isOpen = expandedUsers.has(userName);
 
         return (
           <div
-            key={r.user_name}
+            key={userName}
             ref={(el) => {
               if (!el) return;
-              itemRefs.current.set(String(r.user_name), el);
+              itemRefs.current.set(userName, el);
             }}
             style={{
               position: "relative",
@@ -624,86 +766,398 @@ function RaceList({ rows, totalAvailable, dispName, avatarByFullName }) {
               boxShadow: idx === 0 ? "0 4px 18px rgba(184,134,11,0.18)" : "0 4px 14px rgba(0,0,0,0.05)",
             }}
           >
-            {/* Fill layer -- the whole card doubles as the progress bar now,
-                instead of a separate bar-in-a-box between the avatar and points */}
+            {/* Bar -- tap/click to reveal this player's picks in a drawer
+                that scoots down from behind it (see PicksDrawer below) */}
             <div
-              style={{
-                position: "absolute",
-                top: 0,
-                left: 0,
-                bottom: 0,
-                width: `${barPct}%`,
-                background: "linear-gradient(90deg, #111 0%, #7a5c14 55%, #ffd700 100%)",
-                transition: "width 650ms cubic-bezier(0.2, 0.9, 0.2, 1)",
-                overflow: "hidden",
+              role="button"
+              tabIndex={0}
+              aria-expanded={isOpen}
+              onClick={() => toggleExpanded(userName)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  toggleExpanded(userName);
+                }
               }}
+              style={{ position: "relative", cursor: "pointer" }}
             >
-              <div style={{
-                position: "absolute",
-                top: 0, left: 0,
-                width: "45%",
-                height: "100%",
-                background: "linear-gradient(90deg, transparent, rgba(255,255,255,0.5), transparent)",
-                animation: "lbBarShimmer 1.8s ease-in-out infinite",
-              }} />
-            </div>
-
-            {/* Content sits above the fill -- name/points get a semi-opaque
-                chip behind them so they stay legible whether they land over
-                the dark/gold fill or the plain unfilled track */}
-            <div style={{ position: "relative", padding: 12, display: "flex", gap: 12, alignItems: "center" }}>
+              {/* Fill layer -- the whole bar doubles as the progress bar now,
+                  instead of a separate bar-in-a-box between the avatar and points */}
               <div
                 style={{
-                  width: 32,
-                  height: 32,
-                  borderRadius: "50%",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  fontWeight: 900,
-                  fontSize: 14,
-                  flexShrink: 0,
-                  background: medal ? medal.background : "#111",
-                  color: medal ? medal.color : "#fff",
-                  boxShadow: medal ? "0 2px 6px rgba(0,0,0,0.25)" : "none",
+                  position: "absolute",
+                  top: 0,
+                  left: 0,
+                  bottom: 0,
+                  width: `${barPct}%`,
+                  background: "linear-gradient(90deg, #111 0%, #7a5c14 55%, #ffd700 100%)",
+                  transition: "width 650ms cubic-bezier(0.2, 0.9, 0.2, 1)",
+                  overflow: "hidden",
                 }}
               >
-                {idx + 1}
+                <div style={{
+                  position: "absolute",
+                  top: 0, left: 0,
+                  width: "45%",
+                  height: "100%",
+                  background: "linear-gradient(90deg, transparent, rgba(255,255,255,0.5), transparent)",
+                  animation: "lbBarShimmer 1.8s ease-in-out infinite",
+                }} />
               </div>
 
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 8,
-                  background: "rgba(255,255,255,0.88)",
-                  borderRadius: 999,
-                  padding: "4px 12px 4px 4px",
-                }}
-              >
-                <Avatar username={dispName(r.user_name)} avatar={avatarByFullName?.[r.user_name]} size={32} />
-                <div style={{ fontWeight: 800, color: "#111" }}>{dispName(r.user_name)}</div>
-              </div>
-
-              <div style={{ flex: 1 }} />
-
-              <div
-                style={{
-                  textAlign: "right",
-                  background: "rgba(255,255,255,0.88)",
-                  borderRadius: 10,
-                  padding: "4px 10px",
-                }}
-              >
-                <div style={{ fontWeight: 900, fontSize: 18, color: idx === 0 ? "#b8860b" : "#111" }}>
-                  {Number(points).toFixed(1)}
+              {/* Content sits above the fill -- name/points get a semi-opaque
+                  chip behind them so they stay legible whether they land over
+                  the dark/gold fill or the plain unfilled track */}
+              <div style={{ position: "relative", padding: 12, display: "flex", gap: 12, alignItems: "center" }}>
+                <div
+                  style={{
+                    width: 32,
+                    height: 32,
+                    borderRadius: "50%",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    fontWeight: 900,
+                    fontSize: 14,
+                    flexShrink: 0,
+                    background: medal ? medal.background : "#111",
+                    color: medal ? medal.color : "#fff",
+                    boxShadow: medal ? "0 2px 6px rgba(0,0,0,0.25)" : "none",
+                  }}
+                >
+                  {idx + 1}
                 </div>
-                {max > 0 && <div style={{ fontSize: 10, color: "#666" }}>{Math.round(truePct)}%</div>}
+
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 8,
+                    background: "rgba(255,255,255,0.88)",
+                    borderRadius: 999,
+                    padding: "4px 12px 4px 4px",
+                  }}
+                >
+                  <Avatar username={dispName(userName)} avatar={avatarByFullName?.[userName]} size={32} />
+                  <div style={{ fontWeight: 800, color: "#111" }}>{dispName(userName)}</div>
+                </div>
+
+                <div style={{ flex: 1 }} />
+
+                <div
+                  style={{
+                    textAlign: "right",
+                    background: "rgba(255,255,255,0.88)",
+                    borderRadius: 10,
+                    padding: "4px 10px",
+                  }}
+                >
+                  <div style={{ fontWeight: 900, fontSize: 18, color: idx === 0 ? "#b8860b" : "#111" }}>
+                    {Number(points).toFixed(1)}
+                  </div>
+                  {max > 0 && <div style={{ fontSize: 10, color: "#666" }}>{Math.round(truePct)}%</div>}
+                </div>
+
+                <div
+                  aria-hidden="true"
+                  style={{
+                    width: 24,
+                    height: 24,
+                    borderRadius: "50%",
+                    flexShrink: 0,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    background: "rgba(255,255,255,0.88)",
+                    transform: isOpen ? "rotate(180deg)" : "rotate(0deg)",
+                    transition: "transform 250ms ease",
+                  }}
+                >
+                  <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                    <path d="M2 4L6 8L10 4" stroke="#555" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                </div>
               </div>
             </div>
+
+            <PicksDrawer
+              open={isOpen}
+              userName={userName}
+              week={week}
+              correctPicks={r.correct_picks}
+              points={r.points}
+              picksDetail={picksDetail}
+            />
           </div>
         );
       })}
+    </div>
+  );
+}
+
+// Same derivation as HallOfChampions.jsx/ChampionWeekDetail.jsx's
+// correctBonusPicks(): total points minus straight-pick points leaves the
+// bonus (P/R) points, and each is worth 0.5. Only meaningful for the
+// regular season, where every correct straight pick is worth exactly 1 --
+// playoffs' underdog-scaled points (1.0-8.8) and lack of bonus picks make
+// this arithmetic meaningless there, so callers must gate on !isPlayoffWeek.
+function correctBonusPicks(points, correctStraightPicks) {
+  const bonusPoints = Number(points || 0) - Number(correctStraightPicks || 0);
+  return Math.max(0, Math.round(bonusPoints / 0.5));
+}
+
+/* ---------------- Per-player picks drawer (scoots down from behind the bar) ---------------- */
+function PicksDrawer({ open, userName, week, correctPicks, points, picksDetail }) {
+  const { games, resultByGid, picksByUserGame, bonusByUserGame } = picksDetail || {};
+  const userPicks = picksByUserGame?.[userName] || {};
+  const userBonusPicks = bonusByUserGame?.[userName] || {};
+  const gamesList = games || [];
+  const playoffs = isPlayoffWeek(week);
+
+  // Small inline version of Results.jsx's renderBonusBadges() -- same
+  // purple/orange P/R convention, sized to sit under the main pick logo here.
+  function bonusBadge(gid, category, raw, color, letter, categoryWinner, g) {
+    const pick = String(raw || "").toUpperCase();
+    const team = pick === "AWAY" ? g.away : pick === "HOME" ? g.home : null;
+    if (!team) return null;
+    const src = logoSrc(team);
+    const correct = !!categoryWinner && pick === categoryWinner;
+
+    return (
+      <span
+        key={category}
+        title={correct ? `${letter === "P" ? "Passing" : "Rushing"}: ${team} — correct!` : `${letter === "P" ? "Passing" : "Rushing"}: ${team}`}
+        style={{
+          position: "relative",
+          display: "inline-flex",
+          alignItems: "center",
+          justifyContent: "center",
+          width: 16,
+          height: 16,
+          border: `2px solid ${color}`,
+          borderRadius: 4,
+          overflow: "visible",
+        }}
+      >
+        {src && (
+          <img
+            src={src}
+            alt={team}
+            style={{ width: "100%", height: "100%", objectFit: "contain", display: "block" }}
+            onError={(e) => (e.currentTarget.style.display = "none")}
+          />
+        )}
+        {correct && (
+          <span
+            style={{
+              position: "absolute",
+              top: -5,
+              right: -5,
+              width: 10,
+              height: 10,
+              borderRadius: "50%",
+              background: "#16a34a",
+              color: "#fff",
+              fontSize: 7,
+              fontWeight: 900,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              boxShadow: "0 1px 2px rgba(0,0,0,0.3)",
+            }}
+          >
+            ✓
+          </span>
+        )}
+      </span>
+    );
+  }
+
+  return (
+    <div
+      style={{
+        display: "grid",
+        gridTemplateRows: open ? "1fr" : "0fr",
+        transition: "grid-template-rows 320ms cubic-bezier(0.2, 0.9, 0.2, 1)",
+      }}
+    >
+      <div style={{ overflow: "hidden" }}>
+        <div
+          style={{
+            borderTop: "1px solid rgba(0,0,0,0.1)",
+            background: "#fff",
+            padding: "12px 14px 14px",
+          }}
+        >
+          {gamesList.length === 0 ? (
+            <div style={{ color: "#888", fontSize: 13 }}>No games yet.</div>
+          ) : (
+            <>
+              {Number.isFinite(Number(correctPicks)) && (
+                <div style={{ display: "flex", gap: 14, flexWrap: "wrap", fontSize: 12, fontWeight: 800, color: "#16a34a", marginBottom: 8 }}>
+                  <span>✅ {correctPicks} correct straight pick{Number(correctPicks) === 1 ? "" : "s"}</span>
+                  {/* Playoffs has no passing/rushing bonus picks, and its
+                      underdog-scaled points break the points-minus-straight
+                      arithmetic this count relies on -- straight-pick count
+                      alone is shown there instead (matches the label above,
+                      just without the P/R split). */}
+                  {!playoffs && (
+                    <span>✅ {correctBonusPicks(points, correctPicks)} correct P/R pick{correctBonusPicks(points, correctPicks) === 1 ? "" : "s"}</span>
+                  )}
+                </div>
+              )}
+              {(() => {
+                const renderGame = (g) => {
+                  const gid = String(g.id);
+                  const rawPick = userPicks[gid];
+                  const pick = String(rawPick || "").toUpperCase();
+                  const team = pick === "AWAY" ? g.away : pick === "HOME" ? g.home : null;
+                  const gr = resultByGid?.[gid];
+                  const correct = !!team && !!gr?.winnerSide && pick === gr.winnerSide;
+                  const src = team ? logoSrc(team) : null;
+
+                  return (
+                    <div key={gid} style={{ display: "flex", flexDirection: "column", alignItems: "center", width: 52, flexShrink: 0 }}>
+                      <div style={{ fontSize: 9, fontWeight: 700, color: "#999", marginBottom: 3, whiteSpace: "nowrap" }}>
+                        {fmtMatchupAbbr(g)}
+                      </div>
+                      {!g.locked ? (
+                        <span
+                          title="Picks hidden until this game locks"
+                          style={{
+                            display: "inline-flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            width: 34,
+                            height: 34,
+                            borderRadius: 8,
+                            background: "rgba(0,0,0,0.04)",
+                            fontSize: 18,
+                            color: "#bbb",
+                          }}
+                        >
+                          🔒
+                        </span>
+                      ) : !team ? (
+                        <span
+                          title="No pick submitted"
+                          style={{
+                            display: "inline-flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            width: 34,
+                            height: 34,
+                            borderRadius: 8,
+                            background: "rgba(0,0,0,0.05)",
+                            border: "1px dashed rgba(0,0,0,0.15)",
+                          }}
+                        >
+                          <img
+                            src="/logos/nfl.png"
+                            alt="No pick"
+                            style={{ width: 22, height: 22, objectFit: "contain", opacity: 0.55, display: "block" }}
+                          />
+                        </span>
+                      ) : (
+                        <>
+                          <span
+                            title={correct ? `${team} — correct!` : team}
+                            style={{
+                              position: "relative",
+                              display: "inline-flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              width: 34,
+                              height: 34,
+                              border: correct ? "3px solid #16a34a" : "1px solid rgba(0,0,0,0.12)",
+                              borderRadius: 8,
+                              background: correct ? "rgba(22,163,74,0.10)" : "transparent",
+                              overflow: "visible",
+                            }}
+                          >
+                            {src && (
+                              <img
+                                src={src}
+                                alt={team}
+                                style={{ width: "100%", height: "100%", objectFit: "contain", display: "block", borderRadius: 6 }}
+                                onError={(e) => (e.currentTarget.style.display = "none")}
+                              />
+                            )}
+                            {correct && (
+                              <span
+                                style={{
+                                  position: "absolute",
+                                  top: -7,
+                                  right: -7,
+                                  width: 15,
+                                  height: 15,
+                                  borderRadius: "50%",
+                                  background: "#16a34a",
+                                  color: "#fff",
+                                  fontSize: 10,
+                                  fontWeight: 900,
+                                  display: "flex",
+                                  alignItems: "center",
+                                  justifyContent: "center",
+                                  boxShadow: "0 1px 3px rgba(0,0,0,0.3)",
+                                }}
+                              >
+                                ✓
+                              </span>
+                            )}
+                          </span>
+
+                          {/* Passing/rushing bonus picks (regular season only
+                              -- playoffs has none, so these maps are always
+                              empty there and nothing renders) */}
+                          {(userBonusPicks[gid]?.passing_yards || userBonusPicks[gid]?.rushing_yards) && (
+                            <div style={{ display: "flex", gap: 3, marginTop: 3 }}>
+                              {bonusBadge(gid, "passing_yards", userBonusPicks[gid]?.passing_yards, "#7c3aed", "P", gr?.passingWinner, g)}
+                              {bonusBadge(gid, "rushing_yards", userBonusPicks[gid]?.rushing_yards, "#ea580c", "R", gr?.rushingWinner, g)}
+                            </div>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  );
+                };
+
+                // Regular season is always a single week -- flat layout,
+                // byte-identical to before. Playoffs is cumulative across
+                // rounds (19..current), so when more than one week is
+                // present, group games under a round-name header per week
+                // to match the Leaderboard's own cumulative framing instead
+                // of dumping every round's games into one unlabeled row.
+                const weeksPresent = [...new Set(gamesList.map((g) => Number(g.week)))].sort((a, b) => a - b);
+
+                if (weeksPresent.length <= 1) {
+                  return <div className="lb-drawer-games">{gamesList.map(renderGame)}</div>;
+                }
+
+                return weeksPresent.map((w) => (
+                  <div key={w} style={{ marginBottom: 14 }}>
+                    <div
+                      style={{
+                        fontSize: 11,
+                        fontWeight: 800,
+                        color: "#b8860b",
+                        textTransform: "uppercase",
+                        letterSpacing: 0.4,
+                        marginBottom: 6,
+                      }}
+                    >
+                      {roundNameForWeek(w)}
+                    </div>
+                    <div className="lb-drawer-games">
+                      {gamesList.filter((g) => Number(g.week) === w).map(renderGame)}
+                    </div>
+                  </div>
+                ));
+              })()}
+            </>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
