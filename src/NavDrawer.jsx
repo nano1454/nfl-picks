@@ -5,8 +5,8 @@ const NAV_LINKS = [
   { to: "/results", label: "View Picks Table" },
   { to: "/leaderboard", label: "Live Leaderboard" },
   { to: "/whos-in", label: "Who's In" },
-  { to: "/hall-of-champions", label: "🏆 Hall of Champions" },
-  { to: "/team-stats", label: "📊 NFL Team Stats" },
+  { to: "/hall-of-champions", label: "Hall of Champions" },
+  { to: "/team-stats", label: "NFL Team Stats" },
   { to: "/rules", label: "Rules" },
   { to: "/reglas", label: "Reglas" },
   { to: "/history", label: "Season History" },
@@ -70,7 +70,7 @@ export default function NavDrawer({ open, onClose, onLogout, paymentMenu }) {
             borderBottom: "1px solid rgba(255,255,255,0.1)",
           }}
         >
-          <span style={{ color: "#ffd700", fontWeight: 900, fontSize: 17 }}>🏈 NFL Weekly Picks</span>
+          <span style={{ color: "#ffd700", fontWeight: 900, fontSize: 17 }}>NFL Weekly Picks</span>
           <button
             type="button"
             onClick={onClose}

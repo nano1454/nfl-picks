@@ -63,7 +63,7 @@ export default function TeamStats() {
       <div style={{ maxWidth: 1100, margin: "24px auto", padding: 16 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 12, flexWrap: "wrap" }}>
         <div>
-          <h1 style={{ margin: 0 }}>🏈 NFL Team Stats</h1>
+          <h1 style={{ margin: 0 }}>NFL Team Stats</h1>
           <div style={{ marginTop: 6, color: "#555" }}>
             Season <b>{season}</b> — records entering the week shown, plus that week's own passing/rushing yards.
           </div>

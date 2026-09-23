@@ -190,7 +190,7 @@ export default function HallOfChampions() {
       <div style={{ maxWidth: 1100, margin: "0 auto", padding: "16px 16px 48px" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 12, flexWrap: "wrap" }}>
           <div>
-            <h1 style={{ margin: 0, color: "#fff" }}>🏆 Hall of Champions</h1>
+            <h1 style={{ margin: 0, color: "#fff" }}>Hall of Champions</h1>
             <div style={{ marginTop: 6, color: "rgba(255,255,255,0.6)" }}>
               Season <b style={{ color: "#ffd700" }}>{season}</b> — every week creates a legend
             </div>
