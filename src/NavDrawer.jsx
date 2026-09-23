@@ -6,6 +6,7 @@ const NAV_LINKS = [
   { to: "/leaderboard", label: "Live Leaderboard" },
   { to: "/whos-in", label: "Who's In" },
   { to: "/hall-of-champions", label: "🏆 Hall of Champions" },
+  { to: "/team-stats", label: "📊 NFL Team Stats" },
   { to: "/rules", label: "Rules" },
   { to: "/reglas", label: "Reglas" },
   { to: "/history", label: "Season History" },

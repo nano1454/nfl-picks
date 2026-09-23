@@ -4,6 +4,7 @@ import { supabase } from "./supabaseClient";
 import Button from "./Button";
 import Avatar from "./Avatar";
 import { logoSrc, fmtMatchupAbbr } from "./teamLogos";
+import PageBanner from "./PageBanner";
 
 /** True when the global deadline has passed */
 function isDeadlinePassed(deadlineIso, nowTs) {
@@ -513,7 +514,9 @@ export default function Results() {
     : "Picks reveal column-by-column as each game locks (1 hr before kickoff)";
 
   return (
-    <div style={{ maxWidth: 1200, margin: "24px auto", padding: 16, fontFamily: "system-ui" }}>
+    <div style={{ fontFamily: "system-ui" }}>
+      <PageBanner src="/picks_table_banner.png" alt="Picks Table — Make your picks. Follow the action." />
+      <div style={{ maxWidth: 1200, margin: "24px auto", padding: 16 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 12, flexWrap: "wrap" }}>
         <div>
           <h1 style={{ margin: 0 }}>View Picks Table</h1>
@@ -695,6 +698,7 @@ export default function Results() {
           </div>
         </div>
       )}
+      </div>
     </div>
   );
 }

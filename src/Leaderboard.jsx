@@ -7,49 +7,7 @@ import { calcPot, countPickParticipants, calcPlayoffsPot, countPlayoffsParticipa
 import { logoSrc, fmtMatchupAbbr } from "./teamLogos";
 import { resolveCascade } from "./tiebreakCascade";
 import { isPlayoffWeek, PLAYOFFS_FIRST_WEEK, roundNameForWeek } from "./playoffsConfig";
-
-function LeaderboardTitle() {
-  return (
-    <div
-      style={{
-        position: "relative",
-        borderRadius: 20,
-        padding: "26px 20px",
-        textAlign: "center",
-        overflow: "hidden",
-        background: "linear-gradient(135deg, #0a0a0a 0%, #1c1c1c 55%, #000 100%)",
-        boxShadow: "0 10px 30px rgba(0,0,0,0.3), inset 0 0 0 1px rgba(255,215,0,0.25)",
-      }}
-    >
-      <div style={{ fontSize: 30, lineHeight: 1, marginBottom: 4 }}>🏆</div>
-      <h1
-        style={{
-          margin: 0,
-          fontSize: "clamp(32px, 6vw, 52px)",
-          fontWeight: 900,
-          letterSpacing: 1,
-          fontFamily: "system-ui, sans-serif",
-          background: "linear-gradient(180deg, #fff7d6 0%, #ffd700 45%, #b8860b 100%)",
-          WebkitBackgroundClip: "text",
-          backgroundClip: "text",
-          WebkitTextFillColor: "transparent",
-          color: "transparent",
-        }}
-      >
-        Leaderboard
-      </h1>
-      <div
-        style={{
-          width: 140,
-          height: 3,
-          margin: "10px auto 0",
-          borderRadius: 2,
-          background: "linear-gradient(90deg, transparent, #ffd700, transparent)",
-        }}
-      />
-    </div>
-  );
-}
+import PageBanner from "./PageBanner";
 
 function PillButton({ children, onClick, primary }) {
   return (
@@ -566,7 +524,7 @@ export default function Leaderboard() {
   if (err) return <div style={{ maxWidth: 980, margin: "24px auto", padding: 16, color: "red" }}>{err}</div>;
 
   return (
-    <div style={{ maxWidth: 1100, margin: "24px auto", padding: 16, fontFamily: "system-ui" }}>
+    <div style={{ fontFamily: "system-ui" }}>
       <style>{`
         @keyframes lbBarShimmer { 0% { transform: translateX(-150%); } 100% { transform: translateX(350%); } }
         .lb-drawer-games { display: flex; flex-wrap: wrap; gap: 12px; }
@@ -580,8 +538,9 @@ export default function Leaderboard() {
         }
       `}</style>
 
-      <LeaderboardTitle />
+      <PageBanner src="/leaderboard_banner.png" alt="Leaderboard — See who's on top." />
 
+      <div style={{ maxWidth: 1100, margin: "0 auto", padding: 16 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 16, flexWrap: "wrap", gap: 10 }}>
         <div style={{ color: "#555", fontSize: 14 }}>
           Season <b style={{ color: "#111" }}>{meta.season}</b> • Week <b style={{ color: "#111" }}>{meta.week}</b>
@@ -677,6 +636,7 @@ export default function Leaderboard() {
           {tbWatch?.applicable ? <TiebreakWatchPanel tbWatch={tbWatch} dispName={dispName} /> : null}
         </div>
       )}
+      </div>
     </div>
   );
 }

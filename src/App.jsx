@@ -6,6 +6,7 @@ import { pageBackgroundStyle } from "./backgroundStyle";
 import Button from "./Button";
 import Avatar from "./Avatar";
 import NavDrawer from "./NavDrawer";
+import PageBanner from "./PageBanner";
 import { calcPot, countPickParticipants, calcPlayoffsPot, countPlayoffsParticipants } from "./potCalc";
 import { isPlayoffWeek, roundNameForWeek, pointsForPick, PLAYOFFS_FIRST_WEEK } from "./playoffsConfig";
 
@@ -2023,6 +2024,7 @@ function Shell({ children }) {
         `}
       </style>
 
+      <PageBanner src="/weekly_picks_banner.png" alt="NFL Weekly Picks — Make your picks. Follow the action." />
       <div id="app-shell" style={pageBackgroundStyle}>
         {children}
       </div>
