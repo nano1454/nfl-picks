@@ -336,9 +336,9 @@ export default function Results() {
     return m;
   }, [tbRows]);
 
-  // gid -> { status, winnerSide, passingWinner, rushingWinner } -- winnerSide/
-  // passingWinner/rushingWinner only set once status is FINAL, i.e. the
-  // results processor has scored this specific game
+  // gid -> { status, winnerSide, passingWinner, rushingWinner, actualTotal }
+  // -- winnerSide/passingWinner/rushingWinner/actualTotal only set once
+  // status is FINAL, i.e. the results processor has scored this specific game
   const gameResultByGid = useMemo(() => {
     const m = {};
     for (const r of gameResultsRows || []) {
@@ -348,11 +348,13 @@ export default function Results() {
       let winnerSide = null;
       let passingWinner = null;
       let rushingWinner = null;
+      let actualTotal = null;
       if (status === "FINAL") {
         const awayScore = Number(r.away_score);
         const homeScore = Number(r.home_score);
         if (Number.isFinite(awayScore) && Number.isFinite(homeScore)) {
           winnerSide = homeScore > awayScore ? "HOME" : awayScore > homeScore ? "AWAY" : "TIE";
+          actualTotal = awayScore + homeScore;
         }
         // PUSH (exact tie) leaves these null -- nobody's bonus pick can be "correct"
         const pw = String(r.passing_winner || "").toUpperCase();
@@ -360,7 +362,7 @@ export default function Results() {
         if (pw === "AWAY" || pw === "HOME") passingWinner = pw;
         if (rw === "AWAY" || rw === "HOME") rushingWinner = rw;
       }
-      m[gid] = { status, winnerSide, passingWinner, rushingWinner };
+      m[gid] = { status, winnerSide, passingWinner, rushingWinner, actualTotal };
     }
     return m;
   }, [gameResultsRows]);
@@ -676,10 +678,26 @@ export default function Results() {
                           const tbNo = idx + 1;
                           const gid = tbGameIds[tbNo - 1];
                           const gameLocked = lockedGameIds.has(String(gid));
+                          const guess = tbByUserNo?.[u]?.[tbNo];
+                          const actualTotal = gameResultByGid[gid]?.actualTotal;
+
+                          // Only color-coded once the official score is in
+                          // (actualTotal set) -- before that, show the guess
+                          // plain, same as today.
+                          let tbColor = null;
+                          if (gameLocked && guess !== undefined && guess !== null && actualTotal !== null && actualTotal !== undefined) {
+                            const guessNum = Number(guess);
+                            if (Number.isFinite(guessNum)) {
+                              tbColor = guessNum > actualTotal ? "#dc2626" : guessNum === actualTotal ? "#38bdf8" : "#16a34a";
+                            }
+                          }
+
                           return (
                             <td key={`${u}_tb_${tbNo}`} style={tdCenter}>
                               {gameLocked
-                                ? (tbByUserNo?.[u]?.[tbNo] ?? <span style={{ color: "#999" }}>—</span>)
+                                ? (guess !== undefined && guess !== null
+                                    ? <span style={tbColor ? { color: tbColor, fontWeight: 800 } : undefined}>{guess}</span>
+                                    : <span style={{ color: "#999" }}>—</span>)
                                 : <span title="Picks hidden until game locks" style={{ color: "#ccc", fontSize: 16 }}>🔒</span>
                               }
                             </td>
@@ -694,7 +712,7 @@ export default function Results() {
           </div>
 
           <div style={{ marginTop: 10, fontSize: 12, color: "#777", textAlign: "center" }}>
-            🔒 = picks still hidden (game hasn’t locked yet) &nbsp;·&nbsp; purple-bordered logo = passing-yards bonus pick, orange-bordered logo = rushing-yards bonus pick &nbsp;·&nbsp; ✅ green border + checkmark = correct pick (appears once results are processed) &nbsp;·&nbsp; This table updates automatically as games lock and as results are processed.
+            🔒 = picks still hidden (game hasn’t locked yet) &nbsp;·&nbsp; purple-bordered logo = passing-yards bonus pick, orange-bordered logo = rushing-yards bonus pick &nbsp;·&nbsp; ✅ green border + checkmark = correct pick (appears once results are processed) &nbsp;·&nbsp; TB guess turns <span style={{ color: "#dc2626", fontWeight: 700 }}>red</span> if over, <span style={{ color: "#38bdf8", fontWeight: 700 }}>light blue</span> if exact, <span style={{ color: "#16a34a", fontWeight: 700 }}>green</span> if under (once that tiebreaker's official score is in) &nbsp;·&nbsp; This table updates automatically as games lock and as results are processed.
           </div>
         </div>
       )}
