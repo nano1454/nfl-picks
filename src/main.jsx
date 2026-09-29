@@ -15,6 +15,7 @@ import WhosIn from "./WhosIn.jsx";
 import HallOfChampions from "./HallOfChampions.jsx";
 import ChampionWeekDetail from "./ChampionWeekDetail.jsx";
 import TeamStats from "./TeamStats.jsx";
+import CumulativePoints from "./CumulativePoints.jsx";
 import RequireAuth from "./RequireAuth.jsx";
 import UpdateBanner from "./UpdateBanner.jsx";
 
@@ -37,6 +38,7 @@ ReactDOM.createRoot(document.getElementById("root")).render(
         <Route path="/hall-of-champions" element={<RequireAuth><HallOfChampions /></RequireAuth>} />
         <Route path="/champion-week" element={<RequireAuth><ChampionWeekDetail /></RequireAuth>} />
         <Route path="/team-stats" element={<RequireAuth><TeamStats /></RequireAuth>} />
+        <Route path="/cumulative-points" element={<RequireAuth><CumulativePoints /></RequireAuth>} />
       </Routes>
     </BrowserRouter>
   </React.StrictMode>

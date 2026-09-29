@@ -4,6 +4,7 @@ import { Link } from "react-router-dom";
 const NAV_LINKS = [
   { to: "/results", label: "View Picks Table" },
   { to: "/leaderboard", label: "Live Leaderboard" },
+  { to: "/cumulative-points", label: "Cumulative Points" },
   { to: "/whos-in", label: "Who's In" },
   { to: "/hall-of-champions", label: "Hall of Champions" },
   { to: "/team-stats", label: "NFL Team Stats" },
