@@ -1,12 +1,16 @@
 // netlify/functions/getTeamStats.cjs
 // Public (no admin token) -- powers the NFL Team Stats page. For every one
 // of the 32 real NFL teams, at a given season/week: their W-L(-T) record
-// entering that week (same "entering, not through" semantics already used
-// for each matchup's awayRecord/homeRecord in getweek.cjs) plus that week's
-// own offensive passing/rushing yards. No Supabase involved -- this is a
-// pure read-through of nflverse's public CSVs, so it works for any
-// season/week regardless of whether this app's own schedule has been
-// imported for it yet.
+// through and including that week (NOT the "entering the week" semantics
+// used for each matchup's awayRecord/homeRecord in getweek.cjs -- Adrian
+// asked for this page specifically to reflect how the week ENDED). Until
+// that week's own games are actually final, the shown record naturally
+// still reflects the prior week (a game with no real score yet is simply
+// not counted), so it "drags forward" and only updates once scores are
+// official. Also shows that week's own offensive passing/rushing yards.
+// No Supabase involved -- this is a pure read-through of nflverse's public
+// CSVs, so it works for any season/week regardless of whether this app's
+// own schedule has been imported for it yet.
 //
 // Small helpers below are duplicated from getweek.cjs/updateResults.js
 // rather than required from them, matching this project's established
@@ -74,7 +78,8 @@ exports.handler = async (event) => {
     if (!gamesRes.ok) return j(500, { ok: false, error: `Failed to fetch games.csv (${gamesRes.status})` });
     const gameRows = parseCsv(await gamesRes.text());
 
-    // Records entering `week` (every completed REG game in earlier weeks),
+    // Records through `week` inclusive (every completed REG game in this
+    // week or earlier),
     // and which teams actually have a game this week (for bye detection).
     const tally = {};
     for (const abbr of Object.keys(TEAM_ABBR_TO_FULL)) tally[abbr] = { w: 0, l: 0, t: 0 };
@@ -90,6 +95,7 @@ exports.handler = async (event) => {
     const abbrsThisSeason = new Set();
     const gameIdThisWeekByAbbr = {};
     const opponentThisWeekByAbbr = {};
+    const actualTotalThisWeekByAbbr = {};
     for (const r of gameRows) {
       if (Number(r.season) !== season) continue;
       if (r.game_type !== "REG") continue;
@@ -103,10 +109,31 @@ exports.handler = async (event) => {
         gameIdThisWeekByAbbr[r.home_team] = r.game_id;
         opponentThisWeekByAbbr[r.away_team] = r.home_team;
         opponentThisWeekByAbbr[r.home_team] = r.away_team;
+
+        // Combined score of both teams in this specific game -- only set
+        // once it's actually final (both scores present), same "actual
+        // total" concept already shown for tiebreakers on the Picks Table.
+        const thisWeekAway = r.away_score === "" ? null : Number(r.away_score);
+        const thisWeekHome = r.home_score === "" ? null : Number(r.home_score);
+        if (
+          thisWeekAway !== null &&
+          thisWeekHome !== null &&
+          !Number.isNaN(thisWeekAway) &&
+          !Number.isNaN(thisWeekHome)
+        ) {
+          const total = thisWeekAway + thisWeekHome;
+          actualTotalThisWeekByAbbr[r.away_team] = total;
+          actualTotalThisWeekByAbbr[r.home_team] = total;
+        }
       }
 
-      if (rWeek >= week) continue;
+      if (rWeek > week) continue;
 
+      // A game only counts once it actually has a real final score -- so a
+      // just-started week N still shows the record through week N-1 (the
+      // "drag forward" Adrian asked for) and only updates once week N's own
+      // games are official, without needing a separate "is this week done
+      // yet" check.
       const awayScore = r.away_score === "" ? null : Number(r.away_score);
       const homeScore = r.home_score === "" ? null : Number(r.home_score);
       if (awayScore === null || homeScore === null || Number.isNaN(awayScore) || Number.isNaN(homeScore)) continue;
@@ -165,6 +192,7 @@ exports.handler = async (event) => {
           passing_yards,
           rushing_yards,
           stats_pending: hasGame && !stats,
+          actual_total_score: actualTotalThisWeekByAbbr[abbr] ?? null,
         };
       })
       // Most wins first, ties broken by most combined yards this week (byes

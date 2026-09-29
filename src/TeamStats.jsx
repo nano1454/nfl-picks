@@ -65,7 +65,7 @@ export default function TeamStats() {
         <div>
           <h1 style={{ margin: 0 }}>NFL Team Stats</h1>
           <div style={{ marginTop: 6, color: "#555" }}>
-            Season <b>{season}</b> — records entering the week shown, plus that week's own passing/rushing yards.
+            Season <b>{season}</b> — records reflect how the week shown ended, plus that week's own passing/rushing yards.
           </div>
         </div>
 
@@ -182,6 +182,16 @@ function TeamCard({ team }) {
           <div>
             <span style={{ color: "#ea580c", fontWeight: 800 }}>Rush</span> {team.rushing_yards} yds
           </div>
+        </div>
+      )}
+
+      {/* Combined score of both teams in this game -- appears as soon as
+          the official score is in, independent of whether the pass/rush
+          yards CSV (a separate, slower-to-publish nflverse feed) has
+          caught up yet. */}
+      {!team.bye && team.actual_total_score !== null && (
+        <div style={{ marginTop: 6, fontSize: 12, fontWeight: 900, color: "#b8860b" }}>
+          Total: {team.actual_total_score}
         </div>
       )}
     </div>
