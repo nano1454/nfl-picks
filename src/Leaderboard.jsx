@@ -493,6 +493,22 @@ export default function Leaderboard() {
   // full name (join key stays full_name everywhere else, this is display-only)
   const dispName = (fullName) => usernameByFullName[fullName] || fullName;
 
+  // Tied participants are broken by the name actually shown on screen (the
+  // username), not the hidden full legal name the DB query originally
+  // sorted by -- otherwise the on-screen order looks arbitrary, since two
+  // people's usernames don't necessarily alphabetize the same way their
+  // full names do. Re-sorted here (not in the query) because the username
+  // map loads from a separate fetch, after the leaderboard rows themselves.
+  const sortedRows = useMemo(() => {
+    return [...(rows || [])].sort((a, b) => {
+      const pa = Number(a.points || 0);
+      const pb = Number(b.points || 0);
+      if (pb !== pa) return pb - pa;
+      return dispName(a.user_name).localeCompare(dispName(b.user_name));
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rows, usernameByFullName]);
+
   const hasPoints = useMemo(() => (rows || []).some((r) => Number(r.points || 0) > 0), [rows]);
 
   // Total points available: for the regular season, 1 pt per FINAL game
@@ -624,7 +640,7 @@ export default function Leaderboard() {
           </div>
 
           <RaceList
-            rows={rows}
+            rows={sortedRows}
             week={meta.week}
             totalAvailable={totalAvailablePoints}
             dispName={dispName}
@@ -700,13 +716,23 @@ function RaceList({ rows, week, totalAvailable, dispName, avatarByFullName, pick
     { background: "linear-gradient(160deg, #f0c9a0, #cd7f32, #8a4b17)", color: "#2a1500" }, // bronze
   ];
 
+  // Dense rank: everyone tied on points shares the same rank number and
+  // medal color (2 tied for 1st both show "1" in gold; the next distinct
+  // point value is "2" regardless of how many people shared 1st), rather
+  // than the old array-position rank where only the first row of a tie
+  // got the gold/silver/bronze treatment. Rank is the 1-based position of
+  // a row's points among the list of *distinct* point values, descending.
+  const distinctPoints = [...new Set((rows || []).map((r) => Number(r.points || 0)))].sort((a, b) => b - a);
+  const rankByPoints = new Map(distinctPoints.map((p, i) => [p, i + 1]));
+
   return (
     <div style={{ display: "grid", gap: 10 }}>
-      {rows.map((r, idx) => {
+      {rows.map((r) => {
         const points = Number(r.points || 0);
         const truePct = max > 0 ? Math.min(100, (points / max) * 100) : 0;
         const barPct = max > 0 ? Math.max(2, truePct) : 0; // floor is visual-only (keeps a 0pt bar from vanishing)
-        const medal = medalStyle[idx];
+        const rank = rankByPoints.get(points);
+        const medal = medalStyle[rank - 1];
         const userName = String(r.user_name);
         const isOpen = expandedUsers.has(userName);
 
@@ -720,10 +746,10 @@ function RaceList({ rows, week, totalAvailable, dispName, avatarByFullName, pick
             style={{
               position: "relative",
               overflow: "hidden",
-              border: idx === 0 ? "1px solid rgba(184,134,11,0.5)" : "1px solid rgba(0,0,0,0.08)",
+              border: rank === 1 ? "1px solid rgba(184,134,11,0.5)" : "1px solid rgba(0,0,0,0.08)",
               borderRadius: 14,
               background: "#f0f0f0",
-              boxShadow: idx === 0 ? "0 4px 18px rgba(184,134,11,0.18)" : "0 4px 14px rgba(0,0,0,0.05)",
+              boxShadow: rank === 1 ? "0 4px 18px rgba(184,134,11,0.18)" : "0 4px 14px rgba(0,0,0,0.05)",
             }}
           >
             {/* Bar -- tap/click to reveal this player's picks in a drawer
@@ -785,7 +811,7 @@ function RaceList({ rows, week, totalAvailable, dispName, avatarByFullName, pick
                     boxShadow: medal ? "0 2px 6px rgba(0,0,0,0.25)" : "none",
                   }}
                 >
-                  {idx + 1}
+                  {rank}
                 </div>
 
                 <div
@@ -812,7 +838,7 @@ function RaceList({ rows, week, totalAvailable, dispName, avatarByFullName, pick
                     padding: "4px 10px",
                   }}
                 >
-                  <div style={{ fontWeight: 900, fontSize: 18, color: idx === 0 ? "#b8860b" : "#111" }}>
+                  <div style={{ fontWeight: 900, fontSize: 18, color: rank === 1 ? "#b8860b" : "#111" }}>
                     {Number(points).toFixed(1)}
                   </div>
                   {max > 0 && <div style={{ fontSize: 10, color: "#666" }}>{Math.round(truePct)}%</div>}
