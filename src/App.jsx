@@ -656,13 +656,13 @@ export default function App() {
     });
   }
 
-  // helper: is a specific game locked yet? (locks 1 hour before kickoff — the only lock now)
+  // helper: is a specific game locked yet? (locks 5 minutes before kickoff — the only lock now)
   function isGameLocked(gameId) {
     const kickoffIso = kickoffById?.[gameId];
     if (!kickoffIso) return false;
     const kickoffMs = new Date(kickoffIso).getTime();
     if (Number.isNaN(kickoffMs)) return false;
-    return nowTs >= kickoffMs - 60 * 60 * 1000;
+    return nowTs >= kickoffMs - 5 * 60 * 1000;
   }
 
   /* ---------- Stats loader ---------- */
@@ -1514,9 +1514,9 @@ function GamePickScreen({
   if (locked) {
     lockNote = "🔒 Locked — game started";
   } else if (kickoffIso) {
-    const lockTime = new Date(new Date(kickoffIso).getTime() - 60 * 60 * 1000);
+    const lockTime = new Date(new Date(kickoffIso).getTime() - 5 * 60 * 1000);
     const countdown = formatCountdown(lockTime.getTime() - nowTs);
-    lockNote = `Locks 1 hr before kickoff: ${lockTime.toLocaleString()}${countdown ? ` (${countdown})` : ""}`;
+    lockNote = `Locks 5 min before kickoff: ${lockTime.toLocaleString()}${countdown ? ` (${countdown})` : ""}`;
   }
 
   const passingPick = bonusPicks?.passing_yards?.[game.id];
@@ -1743,9 +1743,9 @@ function TiebreakerScreen({ tbIndex, totalTiebreakers, game, total, onChangeTota
   if (locked) {
     lockNote = "🔒 Locked — game started";
   } else if (kickoffIso) {
-    const lockTime = new Date(new Date(kickoffIso).getTime() - 60 * 60 * 1000);
+    const lockTime = new Date(new Date(kickoffIso).getTime() - 5 * 60 * 1000);
     const countdown = formatCountdown(lockTime.getTime() - nowTs);
-    lockNote = `Locks 1 hr before kickoff: ${lockTime.toLocaleString()}${countdown ? ` (${countdown})` : ""}`;
+    lockNote = `Locks 5 min before kickoff: ${lockTime.toLocaleString()}${countdown ? ` (${countdown})` : ""}`;
   }
 
   return (

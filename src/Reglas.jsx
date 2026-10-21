@@ -87,7 +87,7 @@ export default function Reglas() {
             </li>
             <li>
               <b>Bloqueo por partido</b> — Cada partido (y sus dos picks extra obligatorios) se
-              bloquea automáticamente <b>1 hora antes del kickoff</b>. Si un partido ya está
+              bloquea automáticamente <b>5 minutos antes del kickoff</b>. Si un partido ya está
               bloqueado cuando intentas enviar, debes seleccionar todos los demás partidos
               disponibles — no puedes enviar con un pick de ganador o extra faltante de un partido
               que ya empezó.

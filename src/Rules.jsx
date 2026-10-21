@@ -86,7 +86,7 @@ export default function Rules() {
             </li>
             <li>
               <b>Individual game locks</b> — Each game (and its two required bonus picks) automatically
-              locks <b> 1 hour before kickoff</b>. If a specific game is already locked when you submit,
+              locks <b> 5 minutes before kickoff</b>. If a specific game is already locked when you submit,
               you must still pick all remaining unlocked games — you cannot submit with a missing
               winner or bonus pick for a started game.
             </li>

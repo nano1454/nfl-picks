@@ -1,6 +1,6 @@
 // Playoffs pool (weeks 19-22): keeps games.underdog_side in sync with real
 // moneylines from the same nflverse feed already used for the schedule, up
-// until each game locks (1hr before kickoff), then leaves it frozen -- that
+// until each game locks (5 min before kickoff), then leaves it frozen -- that
 // frozen value is what scoring uses. Runs on a schedule (see netlify.toml)
 // and can also be triggered manually from Admin.
 //
@@ -68,7 +68,7 @@ export default async (req) => {
     const unlockedGames = games.filter((g) => {
       if (!g.kickoff) return true; // no kickoff yet -- treat as not locked
       const kickoffMs = new Date(g.kickoff).getTime();
-      return !Number.isFinite(kickoffMs) || nowMs < kickoffMs - 60 * 60 * 1000;
+      return !Number.isFinite(kickoffMs) || nowMs < kickoffMs - 5 * 60 * 1000;
     });
     if (unlockedGames.length === 0) {
       return json(200, { ok: true, season, week, updated: 0, message: "All games this round are already locked." });

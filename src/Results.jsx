@@ -13,11 +13,11 @@ function isDeadlinePassed(deadlineIso, nowTs) {
   return Number.isFinite(ms) && nowTs >= ms;
 }
 
-/** True when a single game has locked (1 hour before kickoff — same rule as picks page) */
+/** True when a single game has locked (5 minutes before kickoff — same rule as picks page) */
 function isGameLockedNow(game, nowTs) {
   if (!game?.kickoff) return false;
   const kickMs = new Date(game.kickoff).getTime();
-  return Number.isFinite(kickMs) && nowTs >= kickMs - 60 * 60 * 1000;
+  return Number.isFinite(kickMs) && nowTs >= kickMs - 5 * 60 * 1000;
 }
 
 export default function Results() {
@@ -260,7 +260,7 @@ export default function Results() {
     [deadline, nowTs]
   );
 
-  // Set of game IDs whose picks are now visible (locked 1 hr before kickoff, or deadline passed)
+  // Set of game IDs whose picks are now visible (locked 5 min before kickoff, or deadline passed)
   const lockedGameIds = useMemo(() => {
     const s = new Set();
     for (const g of games) {
@@ -513,7 +513,7 @@ export default function Results() {
 
   const lockLabel = deadline
     ? `Submission deadline: ${new Date(deadline).toLocaleString()}`
-    : "Picks reveal column-by-column as each game locks (1 hr before kickoff)";
+    : "Picks reveal column-by-column as each game locks (5 min before kickoff)";
 
   return (
     <div style={{ fontFamily: "system-ui" }}>
@@ -576,7 +576,7 @@ export default function Results() {
         <div style={{ marginTop: 18, border: "1px solid #ddd", borderRadius: 12, padding: 14, background: "#fff" }}>
           <div style={{ fontWeight: 900, fontSize: 16 }}>🔒 Picks are hidden until games start locking.</div>
           <div style={{ marginTop: 8, color: "#666", fontSize: 13 }}>
-            Each game’s picks will appear here 1 hour before its kickoff. Check back once the first game of the week locks.
+            Each game’s picks will appear here 5 minutes before its kickoff. Check back once the first game of the week locks.
           </div>
         </div>
       ) : (
@@ -594,7 +594,7 @@ export default function Results() {
                   {(games || []).map((g, idx) => {
                     const gameLocked = lockedGameIds.has(String(g.id));
                     const lockTime = g.kickoff
-                      ? new Date(new Date(g.kickoff).getTime() - 60 * 60 * 1000)
+                      ? new Date(new Date(g.kickoff).getTime() - 5 * 60 * 1000)
                       : null;
                     return (
                       <th key={g.id} style={th}>

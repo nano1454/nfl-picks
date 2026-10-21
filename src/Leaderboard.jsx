@@ -86,7 +86,7 @@ export default function Leaderboard() {
       const nowMs = Date.now();
       const gamesWithLock = (games || []).map((g) => {
         const kickoffMs = g.kickoff ? new Date(g.kickoff).getTime() : NaN;
-        const locked = Number.isFinite(kickoffMs) && nowMs >= kickoffMs - 60 * 60 * 1000;
+        const locked = Number.isFinite(kickoffMs) && nowMs >= kickoffMs - 5 * 60 * 1000;
         return { ...g, locked };
       });
 
@@ -302,7 +302,7 @@ export default function Leaderboard() {
       for (const g of tbGames || []) {
         gameMetaById[String(g.id)] = { away: g.away, home: g.home };
         const kickoffMs = g.kickoff ? new Date(g.kickoff).getTime() : NaN;
-        lockedByGame[String(g.id)] = Number.isFinite(kickoffMs) && nowMs >= kickoffMs - 60 * 60 * 1000;
+        lockedByGame[String(g.id)] = Number.isFinite(kickoffMs) && nowMs >= kickoffMs - 5 * 60 * 1000;
       }
 
       // 2) Read game_results for those TB games (need status + scores)
