@@ -1,5 +1,6 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
+import { supabase } from "./supabaseClient";
 
 const NAV_LINKS = [
   { to: "/results", label: "View Picks Table" },
@@ -13,7 +14,40 @@ const NAV_LINKS = [
   { to: "/history", label: "Season History" },
 ];
 
+// Duplicated small helper (see SeasonFund.jsx) -- the Season Fund link
+// below is spliced in only once that season's row is enabled, so the nav
+// stays exactly as-is for every participant until the admin turns it on.
+function getDefaultNflSeasonYear() {
+  const d = new Date();
+  const m = d.getMonth();
+  const y = d.getFullYear();
+  return m < 7 ? y - 1 : y;
+}
+
 export default function NavDrawer({ open, onClose, onLogout, paymentMenu }) {
+  const [seasonFundEnabled, setSeasonFundEnabled] = useState(false);
+
+  useEffect(() => {
+    async function loadSeasonFundEnabled() {
+      try {
+        const season = getDefaultNflSeasonYear() + 1;
+        const { data } = await supabase
+          .from("preseason_tracker_settings")
+          .select("enabled")
+          .eq("season", season)
+          .maybeSingle();
+        setSeasonFundEnabled(!!data?.enabled);
+      } catch {
+        setSeasonFundEnabled(false);
+      }
+    }
+    loadSeasonFundEnabled();
+  }, []);
+
+  const navLinks = seasonFundEnabled
+    ? [...NAV_LINKS, { to: "/season-fund", label: "🏈 Season Fund" }]
+    : NAV_LINKS;
+
   useEffect(() => {
     if (!open) return;
     const prevOverflow = document.body.style.overflow;
@@ -94,7 +128,7 @@ export default function NavDrawer({ open, onClose, onLogout, paymentMenu }) {
         </div>
 
         <nav style={{ display: "flex", flexDirection: "column", padding: "8px 0", overflowY: "auto", flex: 1 }}>
-          {NAV_LINKS.map((l) => (
+          {navLinks.map((l) => (
             <Link
               key={l.to}
               to={l.to}

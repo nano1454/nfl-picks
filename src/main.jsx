@@ -16,6 +16,7 @@ import HallOfChampions from "./HallOfChampions.jsx";
 import ChampionWeekDetail from "./ChampionWeekDetail.jsx";
 import TeamStats from "./TeamStats.jsx";
 import CumulativePoints from "./CumulativePoints.jsx";
+import SeasonFund from "./SeasonFund.jsx";
 import RequireAuth from "./RequireAuth.jsx";
 import UpdateBanner from "./UpdateBanner.jsx";
 
@@ -39,6 +40,7 @@ ReactDOM.createRoot(document.getElementById("root")).render(
         <Route path="/champion-week" element={<RequireAuth><ChampionWeekDetail /></RequireAuth>} />
         <Route path="/team-stats" element={<RequireAuth><TeamStats /></RequireAuth>} />
         <Route path="/cumulative-points" element={<RequireAuth><CumulativePoints /></RequireAuth>} />
+        <Route path="/season-fund" element={<RequireAuth><SeasonFund /></RequireAuth>} />
       </Routes>
     </BrowserRouter>
   </React.StrictMode>

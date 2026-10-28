@@ -60,6 +60,17 @@ export default function Admin() {
   const [settingPlayoffsCurrent, setSettingPlayoffsCurrent] = useState(false);
   const [syncingOdds, setSyncingOdds] = useState(false);
 
+  // --- Season Fund Setup (off-season preseason payment tracker) -- fully
+  // additive, own state, own tables/functions, ships dormant (enabled
+  // defaults to false) until toggled on below.
+  const [seasonFundSeason] = useState(new Date().getMonth() < 7 ? new Date().getFullYear() : new Date().getFullYear() + 1);
+  const [seasonFundSettings, setSeasonFundSettings] = useState({ enabled: false, target_amount: 540 });
+  const [seasonFundDeposits, setSeasonFundDeposits] = useState([]);
+  const [loadingSeasonFund, setLoadingSeasonFund] = useState(false);
+  const [togglingSeasonFund, setTogglingSeasonFund] = useState(false);
+  const [showAllSeasonFundDeposits, setShowAllSeasonFundDeposits] = useState(false);
+  const [seasonFundAmountEdits, setSeasonFundAmountEdits] = useState({}); // { [id]: "20.00" }
+
   function formatMissingMatchups(matchups, showAll) {
     const list = Array.isArray(matchups) ? matchups : [];
     if (showAll || list.length <= 2) return { text: list.join(", "), moreCount: 0 };
@@ -401,6 +412,85 @@ export default function Admin() {
       alert(`Could not update paid status: ${String(e?.message || e)}`);
     }
   }
+
+  async function loadSeasonFundAdmin() {
+    if (!adminToken) return;
+    setLoadingSeasonFund(true);
+    try {
+      const res = await fetch(
+        `/.netlify/functions/getAdminPreseasonDeposits?season=${seasonFundSeason}&token=${encodeURIComponent(adminToken)}`,
+        { cache: "no-store" }
+      );
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.ok) throw new Error(data?.error || `Could not load Season Fund (HTTP ${res.status})`);
+      setSeasonFundSettings(data.settings || { enabled: false, target_amount: 540 });
+      setSeasonFundDeposits(data.deposits || []);
+    } catch (e) {
+      console.error("loadSeasonFundAdmin failed:", e);
+    } finally {
+      setLoadingSeasonFund(false);
+    }
+  }
+
+  async function toggleSeasonFundEnabled(nextEnabled) {
+    if (!adminToken) return alert("Not signed in as an admin.");
+    setTogglingSeasonFund(true);
+    try {
+      const url =
+        `/.netlify/functions/setPreseasonTrackerEnabled?season=${seasonFundSeason}` +
+        `&enabled=${!!nextEnabled}&token=${encodeURIComponent(adminToken)}`;
+      const res = await fetch(url, { cache: "no-store" });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.ok) throw new Error(data?.error || `Failed (HTTP ${res.status})`);
+      setSeasonFundSettings((s) => ({ ...s, enabled: !!nextEnabled }));
+    } catch (e) {
+      alert(`Could not update Season Fund status: ${String(e?.message || e)}`);
+    } finally {
+      setTogglingSeasonFund(false);
+    }
+  }
+
+  async function reviewSeasonFundDeposit(deposit, action) {
+    if (!adminToken) return alert("Not signed in as an admin.");
+    const editedAmount = seasonFundAmountEdits[deposit.id];
+    const amount = editedAmount !== undefined && editedAmount !== "" ? editedAmount : undefined;
+    try {
+      const url =
+        `/.netlify/functions/reviewPreseasonDeposit?id=${encodeURIComponent(deposit.id)}` +
+        `&action=${action}` +
+        (amount !== undefined ? `&amount=${encodeURIComponent(amount)}` : "") +
+        `&token=${encodeURIComponent(adminToken)}`;
+      const res = await fetch(url, { cache: "no-store" });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.ok) throw new Error(data?.error || `Failed (HTTP ${res.status})`);
+      await loadSeasonFundAdmin();
+    } catch (e) {
+      alert(`Could not ${action} deposit: ${String(e?.message || e)}`);
+    }
+  }
+
+  async function editSeasonFundDepositAmount(deposit) {
+    if (!adminToken) return alert("Not signed in as an admin.");
+    const edited = seasonFundAmountEdits[deposit.id];
+    if (edited === undefined || edited === "") return;
+    try {
+      const url =
+        `/.netlify/functions/editPreseasonDeposit?id=${encodeURIComponent(deposit.id)}` +
+        `&amount=${encodeURIComponent(edited)}&token=${encodeURIComponent(adminToken)}`;
+      const res = await fetch(url, { cache: "no-store" });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.ok) throw new Error(data?.error || `Failed (HTTP ${res.status})`);
+      await loadSeasonFundAdmin();
+    } catch (e) {
+      alert(`Could not save amount: ${String(e?.message || e)}`);
+    }
+  }
+
+  useEffect(() => {
+    if (!isAdmin) return;
+    loadSeasonFundAdmin();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAdmin]);
 
   useEffect(() => {
     if (!isAdmin) return;
@@ -1215,6 +1305,136 @@ export default function Admin() {
                     </tr>
                   );
                 })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {/* Season Fund Setup -- off-season preseason payment tracker, fully
+          separate tables/functions. Ships dormant: the toggle below is the
+          only thing that ever flips `enabled` to true. */}
+      <div style={{ border: "1px solid #b8860b", borderRadius: 10, padding: 12, marginTop: 24, background: "rgba(255,215,0,0.04)" }}>
+        <h3 style={{ marginTop: 0 }}>
+          🏈 Season Fund Setup (Season {seasonFundSeason}){" "}
+          {seasonFundDeposits.filter((d) => d.status === "pending").length > 0
+            ? `(${seasonFundDeposits.filter((d) => d.status === "pending").length} pending)`
+            : ""}
+        </h3>
+        <p style={{ margin: "0 0 10px", color: "#666", fontSize: 13 }}>
+          Lets participants self-report deposits toward next season's buy-in during the off-season. Hidden from
+          everyone (no nav link, page shows "coming soon") until you flip it on below.
+        </p>
+
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center", marginBottom: 14 }}>
+          <label style={{ display: "inline-flex", alignItems: "center", gap: 8, cursor: "pointer", fontWeight: 700 }}>
+            <input
+              type="checkbox"
+              checked={!!seasonFundSettings.enabled}
+              disabled={togglingSeasonFund}
+              onChange={(e) => toggleSeasonFundEnabled(e.target.checked)}
+            />
+            {seasonFundSettings.enabled ? "Live — participants can see and use it" : "Off — hidden from participants"}
+          </label>
+          <Button variant="secondary" size="sm" onClick={loadSeasonFundAdmin} disabled={loadingSeasonFund}>
+            {loadingSeasonFund ? "Loading…" : "Refresh"}
+          </Button>
+          <Link to="/season-fund" target="_blank" rel="noreferrer">
+            <Button variant="secondary" size="sm">Preview page</Button>
+          </Link>
+        </div>
+
+        <h4 style={{ margin: "0 0 8px" }}>
+          Pending deposits{seasonFundDeposits.filter((d) => d.status === "pending").length > 0 ? ` (${seasonFundDeposits.filter((d) => d.status === "pending").length})` : ""}
+        </h4>
+        {seasonFundDeposits.filter((d) => d.status === "pending").length === 0 ? (
+          <p style={{ color: "#666", fontSize: 13, margin: "0 0 14px" }}>No deposits waiting on confirmation.</p>
+        ) : (
+          <div style={{ overflowX: "auto", marginBottom: 14 }}>
+            <table style={{ borderCollapse: "collapse", width: "100%" }}>
+              <thead>
+                <tr>
+                  <th style={thLeft}>Participant</th>
+                  <th style={thCenter}>Amount</th>
+                  <th style={thLeft}>Note</th>
+                  <th style={thLeft}>Submitted</th>
+                  <th style={thCenter}>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {seasonFundDeposits
+                  .filter((d) => d.status === "pending")
+                  .map((d) => (
+                    <tr key={d.id}>
+                      <td style={tdLeft}>{d.user_name}</td>
+                      <td style={tdCenter}>
+                        <input
+                          value={seasonFundAmountEdits[d.id] ?? String(d.amount)}
+                          onChange={(e) =>
+                            setSeasonFundAmountEdits((m) => ({ ...m, [d.id]: e.target.value.replace(/[^0-9.]/g, "") }))
+                          }
+                          style={{ padding: 6, width: 90, textAlign: "center" }}
+                        />
+                      </td>
+                      <td style={tdLeft}>{d.note || "—"}</td>
+                      <td style={tdLeft}>{d.submitted_at ? new Date(d.submitted_at).toLocaleString() : "—"}</td>
+                      <td style={tdCenter}>
+                        <div style={{ display: "flex", gap: 6, justifyContent: "center" }}>
+                          <Button variant="primary" size="sm" onClick={() => reviewSeasonFundDeposit(d, "approve")}>
+                            Approve
+                          </Button>
+                          <Button variant="danger" size="sm" onClick={() => reviewSeasonFundDeposit(d, "reject")}>
+                            Reject
+                          </Button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        <button type="button" onClick={() => setShowAllSeasonFundDeposits((v) => !v)} style={linkBtnStyle}>
+          {showAllSeasonFundDeposits ? "Hide" : "Show"} all deposits (approved + rejected)
+        </button>
+
+        {showAllSeasonFundDeposits && (
+          <div style={{ overflowX: "auto", marginTop: 10 }}>
+            <table style={{ borderCollapse: "collapse", width: "100%" }}>
+              <thead>
+                <tr>
+                  <th style={thLeft}>Participant</th>
+                  <th style={thCenter}>Status</th>
+                  <th style={thCenter}>Amount</th>
+                  <th style={thLeft}>Note</th>
+                  <th style={thCenter}>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {seasonFundDeposits
+                  .filter((d) => d.status !== "pending")
+                  .map((d) => (
+                    <tr key={d.id}>
+                      <td style={tdLeft}>{d.user_name}</td>
+                      <td style={tdCenter}>{d.status}</td>
+                      <td style={tdCenter}>
+                        <input
+                          value={seasonFundAmountEdits[d.id] ?? String(d.amount)}
+                          onChange={(e) =>
+                            setSeasonFundAmountEdits((m) => ({ ...m, [d.id]: e.target.value.replace(/[^0-9.]/g, "") }))
+                          }
+                          style={{ padding: 6, width: 90, textAlign: "center" }}
+                        />
+                      </td>
+                      <td style={tdLeft}>{d.note || "—"}</td>
+                      <td style={tdCenter}>
+                        <Button variant="secondary" size="sm" onClick={() => editSeasonFundDepositAmount(d)}>
+                          Save amount
+                        </Button>
+                      </td>
+                    </tr>
+                  ))}
               </tbody>
             </table>
           </div>
