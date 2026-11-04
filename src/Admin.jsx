@@ -33,11 +33,6 @@ export default function Admin() {
   const [importWeek, setImportWeek] = useState(""); // auto-fill after week loads
   const [importingSchedule, setImportingSchedule] = useState(false);
 
-  // Deadline UI
-  const [deadlineLocal, setDeadlineLocal] = useState(""); // datetime-local string
-  const [savedDeadlineIso, setSavedDeadlineIso] = useState(""); // from DB
-  const [savingDeadline, setSavingDeadline] = useState(false);
-
   // A2: collapse/expand per row
   const [expandedMissing, setExpandedMissing] = useState(() => ({})); // { [user_name]: true/false }
 
@@ -165,36 +160,6 @@ export default function Admin() {
 
       // Auto-fill week in import UI (only if not manually overridden yet)
       setImportWeek((prev) => (prev ? prev : String(wkNum || "")));
-
-      // ✅ Load saved deadline from week_meta (for UI display)
-      // We use importSeason as the "season" selector for admin tools.
-      const seasonForAdmin = Number(String(importSeason || "").trim());
-      if (seasonForAdmin && wkNum) {
-        const { data: wm, error: wmErr } = await supabase
-          .from("week_meta")
-          .select("deadline")
-          .eq("season", seasonForAdmin)
-          .eq("week", wkNum)
-          .maybeSingle();
-
-        if (!wmErr) {
-          const iso = wm?.deadline ? String(wm.deadline) : "";
-          setSavedDeadlineIso(iso);
-          // If admin hasn't typed anything yet, prefill picker with saved deadline
-          setDeadlineLocal((prev) => {
-            if (prev) return prev;
-            if (!iso) return "";
-            // Convert ISO -> datetime-local display
-            const d = new Date(iso);
-            if (Number.isNaN(d.getTime())) return "";
-            const pad = (n) => String(n).padStart(2, "0");
-            const localStr = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(
-              d.getHours()
-            )}:${pad(d.getMinutes())}`;
-            return localStr;
-          });
-        }
-      }
 
       // 2) Load participants + this week's payment status (server-side, admin-token-gated —
       //    these two tables have no public policies, only the service role can touch them)
@@ -754,52 +719,6 @@ export default function Admin() {
     }
   }
 
-  // ✅ Save deadline via Netlify function
-  async function saveDeadlineNow() {
-    if (!adminToken) return alert("Not signed in as an admin.");
-
-    const season = Number(String(importSeason).trim());
-    const week = Number(String(weekMeta.week || importWeek || "").trim());
-
-    if (!season || !week) return alert("Season/week not ready.");
-    if (!deadlineLocal) return alert("Pick a deadline date/time first.");
-
-    const iso = new Date(deadlineLocal).toISOString();
-    if (Number.isNaN(new Date(iso).getTime())) return alert("Invalid deadline.");
-
-    setSavingDeadline(true);
-    try {
-      const url =
-        `/.netlify/functions/setDeadline?season=${season}` +
-        `&week=${week}` +
-        `&deadline=${encodeURIComponent(iso)}` +
-        `&token=${encodeURIComponent(adminToken)}`;
-
-      const res = await fetch(url, { cache: "no-store" });
-      const text = await res.text();
-
-      let data = {};
-      try {
-        data = JSON.parse(text);
-      } catch {
-        data = { raw: text };
-      }
-
-      if (!res.ok || data.ok === false) {
-        throw new Error(data?.error || `setDeadline failed (HTTP ${res.status})`);
-      }
-
-      setSavedDeadlineIso(data.deadline || iso);
-      alert(`✅ Deadline saved for Season ${season} Week ${week}\n${data.deadline || iso}`);
-
-      await loadAll();
-    } catch (e) {
-      alert(String(e?.message || e));
-    } finally {
-      setSavingDeadline(false);
-    }
-  }
-
   // This account isn't an admin — the server-side functions independently enforce
   // this too, so this is just so a non-admin sees a clear message instead of a
   // dashboard that fails on every request.
@@ -919,38 +838,9 @@ export default function Admin() {
         )}
       </div>
 
-      {/* Step 3 — Set Weekly Deadline */}
+      {/* Step 3 — Adjust Buy-In */}
       <div style={{ border: "1px solid #ddd", borderRadius: 10, padding: 12, marginTop: 12 }}>
-        <h3 style={{ marginTop: 0 }}>Step 3 — Set Weekly Deadline</h3>
-
-        <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
-          <div style={{ fontSize: 13, color: "#666" }}>
-            Current saved deadline:{" "}
-            <b>{savedDeadlineIso ? new Date(savedDeadlineIso).toLocaleString() : "— (not set)"}</b>
-          </div>
-        </div>
-
-        <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center", marginTop: 10 }}>
-          <input
-            type="datetime-local"
-            value={deadlineLocal}
-            onChange={(e) => setDeadlineLocal(e.target.value)}
-            style={{ padding: 10 }}
-          />
-
-          <Button variant="primary" onClick={saveDeadlineNow} disabled={savingDeadline}>
-            {savingDeadline ? "Saving…" : "Save deadline"}
-          </Button>
-
-          <div style={{ fontSize: 12, color: "#666" }}>
-            Locks the entire pick sheet at this time. Uses your local time, saved as UTC.
-          </div>
-        </div>
-      </div>
-
-      {/* Step 4 — Adjust Buy-In */}
-      <div style={{ border: "1px solid #ddd", borderRadius: 10, padding: 12, marginTop: 12 }}>
-        <h3 style={{ marginTop: 0 }}>Step 4 — Adjust Buy-In</h3>
+        <h3 style={{ marginTop: 0 }}>Step 3 — Adjust Buy-In</h3>
         <p style={{ margin: "0 0 10px", fontSize: 13, color: "#555" }}>
           New participants are added automatically when they create an account. Use this to set or update someone's buy-in amount.
         </p>
@@ -1012,9 +902,9 @@ export default function Admin() {
         )}
       </div>
 
-      {/* Step 5 — Monitor Submissions */}
+      {/* Step 4 — Monitor Submissions */}
       <div style={{ border: "1px solid #ddd", borderRadius: 10, padding: 12, marginTop: 12 }}>
-        <h3 style={{ marginTop: 0 }}>Step 5 — Monitor Submissions</h3>
+        <h3 style={{ marginTop: 0 }}>Step 4 — Monitor Submissions</h3>
 
         <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 16 }}>
           <div style={{ border: "1px solid #ddd", borderRadius: 10, padding: 12 }}>
@@ -1191,9 +1081,9 @@ export default function Admin() {
         </p>
       </div>
 
-      {/* Step 6 — Process Results */}
+      {/* Step 5 — Process Results */}
       <div style={{ border: "1px solid #ddd", borderRadius: 10, padding: 12, marginTop: 12 }}>
-        <h3 style={{ marginTop: 0 }}>Step 6 — Process Results</h3>
+        <h3 style={{ marginTop: 0 }}>Step 5 — Process Results</h3>
         <p style={{ margin: "0 0 10px", color: "#666", fontSize: 13 }}>
           Run after games go final to score picks and update the leaderboard. Safe to run multiple times.
         </p>
