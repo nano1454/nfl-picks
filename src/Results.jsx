@@ -6,13 +6,6 @@ import Avatar from "./Avatar";
 import { logoSrc, fmtMatchupAbbr } from "./teamLogos";
 import PageBanner from "./PageBanner";
 
-/** True when the global deadline has passed */
-function isDeadlinePassed(deadlineIso, nowTs) {
-  if (!deadlineIso) return false;
-  const ms = new Date(deadlineIso).getTime();
-  return Number.isFinite(ms) && nowTs >= ms;
-}
-
 /** True when a single game has locked (5 minutes before kickoff — same rule as picks page) */
 function isGameLockedNow(game, nowTs) {
   if (!game?.kickoff) return false;
@@ -30,7 +23,6 @@ export default function Results() {
 
   const [meta, setMeta] = useState({ season: null, week: null, isCurrent: true });
   const [games, setGames] = useState([]);
-  const [deadline, setDeadline] = useState(null);
 
   const [activeParticipants, setActiveParticipants] = useState([]); // [user_name]
   const [usernameByFullName, setUsernameByFullName] = useState({});
@@ -94,17 +86,17 @@ export default function Results() {
       if (gErr) throw gErr;
       setGames(g || []);
 
-      // 3) week_meta for deadline + tiebreakers
+      // 3) week_meta for tiebreakers (deadline column still exists in the DB
+      // but is no longer read/enforced here -- see isGameLockedNow; this app
+      // locks per-game only, matching App.jsx/Leaderboard.jsx)
       const { data: wm, error: wmErr } = await supabase
         .from("week_meta")
-        .select("deadline, tiebreakers")
+        .select("tiebreakers")
         .eq("season", season)
         .eq("week", week)
         .maybeSingle();
 
       if (wmErr) throw wmErr;
-
-      setDeadline(wm?.deadline || null);
 
       const tbIds = Array.isArray(wm?.tiebreakers) ? wm.tiebreakers.slice(0, 3).map(String) : [];
       setTbGameIds(tbIds);
@@ -254,23 +246,17 @@ export default function Results() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [meta.season, meta.week, meta.isCurrent]);
 
-  // True once the global weekly deadline has passed
-  const deadlineLocked = useMemo(
-    () => isDeadlinePassed(deadline, nowTs),
-    [deadline, nowTs]
-  );
-
-  // Set of game IDs whose picks are now visible (locked 5 min before kickoff, or deadline passed)
+  // Set of game IDs whose picks are now visible (locked 5 min before kickoff)
   const lockedGameIds = useMemo(() => {
     const s = new Set();
     for (const g of games) {
-      if (deadlineLocked || isGameLockedNow(g, nowTs)) s.add(String(g.id));
+      if (isGameLockedNow(g, nowTs)) s.add(String(g.id));
     }
     return s;
-  }, [games, deadlineLocked, nowTs]);
+  }, [games, nowTs]);
 
   // Table frame appears as soon as ANY game has locked
-  const isAnyLocked = deadlineLocked || lockedGameIds.size > 0;
+  const isAnyLocked = lockedGameIds.size > 0;
 
   // ---- Build table model ----
   const gameById = useMemo(() => {
@@ -511,9 +497,7 @@ export default function Results() {
   if (loading) return <div style={{ maxWidth: 1100, margin: "24px auto", padding: 16 }}>Loading…</div>;
   if (err) return <div style={{ maxWidth: 1100, margin: "24px auto", padding: 16, color: "red" }}>{err}</div>;
 
-  const lockLabel = deadline
-    ? `Submission deadline: ${new Date(deadline).toLocaleString()}`
-    : "Picks reveal column-by-column as each game locks (5 min before kickoff)";
+  const lockLabel = "Picks reveal column-by-column as each game locks (5 min before kickoff)";
 
   return (
     <div style={{ fontFamily: "system-ui" }}>
